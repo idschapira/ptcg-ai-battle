@@ -129,8 +129,58 @@ let timer = null;
  * ------------------------------------------------------------------ */
 function normalizeRecord(raw) {
   if (raw && raw.schema === "ptcg-devrecord-v1") return raw;
+  if (raw && raw.name === "cabt" && Array.isArray(raw.steps))
+    return fromKaggleReplay(raw);                       // raw Kaggle episode
   if (raw && Array.isArray(raw.steps)) return raw;      // best effort
   throw new Error("unrecognized record schema");
+}
+
+/* Kaggle simulation replay (env "cabt", schema_version 1):
+ * steps[i] = per-agent {action, observation, reward, status}; the acting
+ * agent's observation carries the engine obs {select, logs, current}.
+ * This is the FALLBACK path — the viewer has no CardIndex, so cards show
+ * as "#id". For named boards + decoded options, use the JSON emitted by
+ * `python -m src.ingestion.replays_parse --emit-viewer N` instead. */
+function fromKaggleReplay(raw) {
+  const mon = (m) => m && { id: m.id, name: "#" + m.id, hp: m.hp, maxHp: m.maxHp,
+                            energies: m.energies || [], tools: (m.tools || []).length };
+  const player = (p) => p && {
+    active: (p.active || []).map(mon), bench: (p.bench || []).map(mon),
+    deckCount: p.deckCount, handCount: p.handCount,
+    prizeLeft: (p.prize || []).length, discardCount: (p.discard || []).length,
+    hand: Array.isArray(p.hand) ? p.hand.map((c) => c && { id: c.id, name: "#" + c.id }) : null,
+    conditions: { poisoned: !!p.poisoned, burned: !!p.burned, asleep: !!p.asleep,
+                  paralyzed: !!p.paralyzed, confused: !!p.confused },
+  };
+  const optionLabel = (o, i) => {
+    const parts = Object.entries(o || {})
+      .filter(([, v]) => v !== null && v !== undefined)
+      .map(([k, v]) => `${k}=${v}`);
+    return `[${i}] ${parts.join(" ")}`;
+  };
+  const steps = [];
+  (raw.steps || []).forEach((pair) => {
+    (pair || []).forEach((entry, agentIdx) => {
+      const obs = entry && entry.observation;
+      if (!obs || !obs.select || !Array.isArray(entry.action)) return;
+      const cur = obs.current || {};
+      steps.push({
+        turn: cur.turn, acting: cur.yourIndex ?? agentIdx,
+        select: { type: obs.select.type, context: obs.select.context,
+                  min: obs.select.minCount, max: obs.select.maxCount },
+        options: (obs.select.option || []).map(optionLabel),
+        scores: null, chosen: entry.action, logs: [],
+        state: { stadium: null, players: (cur.players || []).map(player) },
+      });
+    });
+  });
+  const rewards = raw.rewards || [];
+  const result = rewards.length === 2 && rewards[0] !== rewards[1]
+    ? (rewards[0] > rewards[1] ? 0 : 1) : 2;
+  return {
+    players: (raw.info && raw.info.TeamNames) || ["agent 0", "agent 1"],
+    result, turns: steps.length ? steps[steps.length - 1].turn : null, steps,
+  };
 }
 
 function loadText(text, name) {
