@@ -34,6 +34,7 @@ PROCESSED_DIR: Final[Path] = REPO_ROOT / "data" / "processed"
 
 DIM_CARD_PARQUET: Final[Path] = PROCESSED_DIR / "dim_card.parquet"
 DIM_ATTACK_PARQUET: Final[Path] = PROCESSED_DIR / "dim_attack.parquet"
+DIM_SKILL_PARQUET: Final[Path] = PROCESSED_DIR / "dim_skill.parquet"
 BRIDGE_ENERGY_PARQUET: Final[Path] = PROCESSED_DIR / "bridge_attack_energy.parquet"
 
 # --------------------------------------------------------------------------- #
@@ -68,22 +69,30 @@ NULL_VALUES: Final[list[str]] = ["n/a", "N/A", ""]
 
 
 class EnergyType(enum.IntEnum):
-    """Energy color codes. `●` in Cost means Colorless; 竜 (JP) means Dragon."""
+    """Energy color codes — IDENTICAL to the engine's cg.api.EnergyType.
 
-    GRASS = 1      # {G}
-    FIRE = 2       # {R}
-    WATER = 3      # {W}
-    LIGHTNING = 4  # {L}
-    PSYCHIC = 5    # {P}
-    FIGHTING = 6   # {F}
-    DARKNESS = 7   # {D}
-    METAL = 8      # {M}
-    COLORLESS = 9  # {C} / ●
-    DRAGON = 10    # {N} / 竜
-    ANY = 11       # {A} (special energies that provide any color)
+    Sharing the engine namespace means bridge_attack_energy codes compare
+    directly against Pokemon.energies in observations. `●` in Cost means
+    Colorless; 竜 (JP) means Dragon; {A} is "every type" (rainbow).
+    """
+
+    COLORLESS = 0    # {C} / ●
+    GRASS = 1        # {G}
+    FIRE = 2         # {R}
+    WATER = 3        # {W}
+    LIGHTNING = 4    # {L}
+    PSYCHIC = 5      # {P}
+    FIGHTING = 6     # {F}
+    DARKNESS = 7     # {D}
+    METAL = 8        # {M}
+    DRAGON = 9       # {N} / 竜
+    RAINBOW = 10     # {A} (provides every type)
+    TEAM_ROCKET = 11 # {Team Rocket} (PSYCHIC and DARKNESS)
 
 
 ENERGY_TOKEN_TO_CODE: Final[dict[str, int]] = {
+    "{C}": EnergyType.COLORLESS,
+    "●": EnergyType.COLORLESS,
     "{G}": EnergyType.GRASS,
     "{R}": EnergyType.FIRE,
     "{W}": EnergyType.WATER,
@@ -92,16 +101,14 @@ ENERGY_TOKEN_TO_CODE: Final[dict[str, int]] = {
     "{F}": EnergyType.FIGHTING,
     "{D}": EnergyType.DARKNESS,
     "{M}": EnergyType.METAL,
-    "{C}": EnergyType.COLORLESS,
-    "●": EnergyType.COLORLESS,
     "{N}": EnergyType.DRAGON,
     "竜": EnergyType.DRAGON,
-    "{A}": EnergyType.ANY,
+    "{A}": EnergyType.RAINBOW,
+    "{Team Rocket}": EnergyType.TEAM_ROCKET,
 }
 
-# Matches every energy token we know how to encode. Unknown tokens such as
-# {Team Rocket} are intentionally not matched and end up as null type codes.
-_ENERGY_TOKEN_RE: Final[str] = r"\{[GRWLPFDMCNA]\}|●|竜"
+# Matches every energy token we know how to encode.
+_ENERGY_TOKEN_RE: Final[str] = r"\{[GRWLPFDMCNA]\}|\{Team Rocket\}|●|竜"
 
 
 class Stage(enum.IntEnum):
@@ -145,11 +152,11 @@ class DamageModifier(enum.IntEnum):
 
 
 class MoveKind(enum.IntEnum):
-    """What a dim_attack row represents."""
+    """Classification of a raw move-grain CSV row."""
 
-    ATTACK = 0
-    ABILITY = 1  # "[Ability] ..." rows
-    MARKER = 2   # rule markers such as "[Tera]"
+    ATTACK = 0   # real attack -> dim_attack
+    ABILITY = 1  # "[Ability] ..." rows -> dim_skill
+    MARKER = 2   # rule markers such as "[Tera]" -> dim_skill
 
 
 class CardModel(NamedTuple):
@@ -157,6 +164,7 @@ class CardModel(NamedTuple):
 
     dim_card: pl.DataFrame
     dim_attack: pl.DataFrame
+    dim_skill: pl.DataFrame
     bridge_attack_energy: pl.DataFrame
 
 
@@ -251,20 +259,50 @@ def build_dim_card(raw: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def build_dim_attack(raw: pl.DataFrame) -> pl.DataFrame:
-    """One row per move/ability row, keyed by a sequential integer attack_id."""
+# Rows the engine numbers differently than a plain reading of the CSV.
+# Cards 223/957 print a bracket-less "Tera" row that the engine drops from
+# its attack list, while card 979 (Koraidon ex) keeps "Tera" as a real
+# attack (engine id 1408) but has no id at all for "Impact Blow" — that
+# attack is unplayable in the engine build. reconcile.py fails loudly if
+# an engine update ever changes this list.
+FORCE_SKILL_ROWS: Final[frozenset[tuple[int, str]]] = frozenset(
+    {(223, "Tera"), (957, "Tera"), (979, "Impact Blow")}
+)
+
+
+def _classify_moves(raw: pl.DataFrame) -> pl.DataFrame:
+    """All move-grain rows (CSV order) with a MoveKind code attached."""
+    force_skill = pl.any_horizontal(
+        (pl.col("card_id") == card_id) & (pl.col("move_name") == move_name)
+        for card_id, move_name in sorted(FORCE_SKILL_ROWS)
+    )
     return (
         raw.filter(pl.col("move_name").is_not_null())
         .sort("card_id", maintain_order=True)
-        .with_row_index("attack_id", offset=1)
         .with_columns(
-            pl.col("attack_id").cast(pl.UInt16),
             pl.when(pl.col("move_name").str.starts_with("[Ability]"))
             .then(pl.lit(int(MoveKind.ABILITY), dtype=pl.Int8))
-            .when(pl.col("move_name").str.starts_with("["))
+            .when(pl.col("move_name").str.starts_with("[") | force_skill)
             .then(pl.lit(int(MoveKind.MARKER), dtype=pl.Int8))
             .otherwise(pl.lit(int(MoveKind.ATTACK), dtype=pl.Int8))
             .alias("kind_code"),
+        )
+    )
+
+
+def build_dim_attack(moves: pl.DataFrame) -> pl.DataFrame:
+    """One row per real attack.
+
+    attack_id is sequential over ATTACK rows only, in CSV (card_id) order,
+    which matches the engine's cg.api.all_attack() numbering: the engine
+    treats [Ability]/[Tera] rows as skills, not attacks. reconcile.py
+    verifies this alignment id-by-id against the engine.
+    """
+    return (
+        moves.filter(pl.col("kind_code") == int(MoveKind.ATTACK))
+        .with_row_index("attack_id", offset=1)
+        .with_columns(
+            pl.col("attack_id").cast(pl.UInt16),
             pl.col("damage").str.extract(r"(\d+)", 1).cast(pl.Int16).alias("damage_base"),
             pl.when(pl.col("damage").str.contains("×"))
             .then(pl.lit(int(DamageModifier.MULTIPLY), dtype=pl.Int8))
@@ -276,11 +314,10 @@ def build_dim_attack(raw: pl.DataFrame) -> pl.DataFrame:
             .then(pl.lit(int(DamageModifier.NONE), dtype=pl.Int8))
             .otherwise(None)
             .alias("damage_modifier_code"),
-            # "No cost" is a real zero-cost attack; null cost means the row is
-            # an ability/marker with no energy cost concept at all.
-            pl.when(pl.col("cost").is_null())
-            .then(None)
-            .otherwise(pl.col("cost").str.count_matches(_ENERGY_TOKEN_RE))
+            # "No cost" and status-only attacks both yield 0 matched tokens.
+            pl.col("cost")
+            .str.count_matches(_ENERGY_TOKEN_RE)
+            .fill_null(0)
             .cast(pl.Int8)
             .alias("cost_total"),
         )
@@ -288,13 +325,28 @@ def build_dim_attack(raw: pl.DataFrame) -> pl.DataFrame:
             "attack_id",
             "card_id",
             "move_name",
-            "kind_code",
             "damage_base",
             "damage_modifier_code",
             "cost_total",
             "cost",
             "effect",
         )
+    )
+
+
+def build_dim_skill(moves: pl.DataFrame) -> pl.DataFrame:
+    """One row per [Ability]/[Tera]-style row (the engine's CardData.skills)."""
+    return (
+        moves.filter(pl.col("kind_code") != int(MoveKind.ATTACK))
+        .with_row_index("skill_id", offset=1)
+        .with_columns(
+            pl.col("skill_id").cast(pl.UInt16),
+            pl.col("move_name")
+            .str.strip_prefix("[Ability] ")
+            .alias("skill_name"),
+            (pl.col("kind_code") == int(MoveKind.MARKER)).alias("is_marker"),
+        )
+        .select("skill_id", "card_id", "skill_name", "is_marker", "effect")
     )
 
 
@@ -323,12 +375,14 @@ def build_bridge_attack_energy(dim_attack: pl.DataFrame) -> pl.DataFrame:
 def build_star_schema(csv_path: Path = RAW_CSV) -> CardModel:
     """Run the full in-memory pipeline: raw CSV -> star schema."""
     raw = load_raw(csv_path)
+    moves = _classify_moves(raw)
     dim_card = build_dim_card(raw)
-    dim_attack = build_dim_attack(raw)
+    dim_attack = build_dim_attack(moves)
+    dim_skill = build_dim_skill(moves)
     bridge = build_bridge_attack_energy(dim_attack)
     # The raw cost string was only needed to derive the bridge table.
     dim_attack = dim_attack.drop("cost")
-    return CardModel(dim_card, dim_attack, bridge)
+    return CardModel(dim_card, dim_attack, dim_skill, bridge)
 
 
 def persist(model: CardModel, out_dir: Path = PROCESSED_DIR) -> None:
@@ -336,6 +390,7 @@ def persist(model: CardModel, out_dir: Path = PROCESSED_DIR) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     model.dim_card.write_parquet(out_dir / DIM_CARD_PARQUET.name, compression="zstd")
     model.dim_attack.write_parquet(out_dir / DIM_ATTACK_PARQUET.name, compression="zstd")
+    model.dim_skill.write_parquet(out_dir / DIM_SKILL_PARQUET.name, compression="zstd")
     model.bridge_attack_energy.write_parquet(
         out_dir / BRIDGE_ENERGY_PARQUET.name, compression="zstd"
     )
@@ -344,20 +399,16 @@ def persist(model: CardModel, out_dir: Path = PROCESSED_DIR) -> None:
 def main() -> None:
     model = build_star_schema()
     persist(model)
-    n_attacks = model.dim_attack.filter(
-        pl.col("kind_code") == int(MoveKind.ATTACK)
-    ).height
-    n_abilities = model.dim_attack.filter(
-        pl.col("kind_code") == int(MoveKind.ABILITY)
-    ).height
     print(f"dim_card:             {model.dim_card.height:>5} cards")
-    print(
-        f"dim_attack:           {model.dim_attack.height:>5} rows "
-        f"({n_attacks} attacks, {n_abilities} abilities, "
-        f"{model.dim_attack.height - n_attacks - n_abilities} markers)"
-    )
+    print(f"dim_attack:           {model.dim_attack.height:>5} attacks (engine-aligned ids)")
+    print(f"dim_skill:            {model.dim_skill.height:>5} abilities/markers")
     print(f"bridge_attack_energy: {model.bridge_attack_energy.height:>5} cost rows")
-    for path in (DIM_CARD_PARQUET, DIM_ATTACK_PARQUET, BRIDGE_ENERGY_PARQUET):
+    for path in (
+        DIM_CARD_PARQUET,
+        DIM_ATTACK_PARQUET,
+        DIM_SKILL_PARQUET,
+        BRIDGE_ENERGY_PARQUET,
+    ):
         print(f"wrote {path.relative_to(REPO_ROOT)} ({path.stat().st_size:,} bytes)")
 
 
