@@ -91,7 +91,8 @@ def _engine_obs(observation: dict) -> dict | None:
             "current": observation.get("current")}
 
 
-def _iter_decisions(replay: dict) -> Iterator[tuple[int, dict, list[int]]]:
+def _iter_decisions(replay: dict,
+                    pairing: str = "prev") -> Iterator[tuple[int, dict, list[int]]]:
     """Yield (agent_index, engine_obs_dict, action) per decision point.
 
     kaggle-environments pairing (verified on real 2026-07-05 episodes):
@@ -99,10 +100,16 @@ def _iter_decisions(replay: dict) -> Iterator[tuple[int, dict, list[int]]]:
     action is stored one step AFTER the observation it responded to.
     The deck-selection action pairs with an observation whose select is
     None, so it drops out here without counting as a decision.
+
+    `pairing="same"` (action paired with its OWN step's observation — the
+    pre-fix bug) exists only so tests/test_replay_pairing.py can assert
+    that the wrong convention is detectably wrong. Production callers must
+    use the default.
     """
+    shift = 1 if pairing == "prev" else 0
     steps = replay.get("steps") or []
-    for step_index in range(1, len(steps)):
-        prev_pair, step_pair = steps[step_index - 1], steps[step_index]
+    for step_index in range(shift, len(steps)):
+        prev_pair, step_pair = steps[step_index - shift], steps[step_index]
         if not isinstance(prev_pair, list) or not isinstance(step_pair, list):
             continue
         for agent_index in range(min(2, len(prev_pair), len(step_pair))):
