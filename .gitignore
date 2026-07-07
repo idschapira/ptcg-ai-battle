@@ -1,6 +1,7 @@
 # Processed artifacts (rebuilt from data/raw by src/ingestion/build_card_model.py)
 /data/processed/*.parquet
 /data/processed/replay_dataset.*
+/data/processed/bc_dataset.*
 /data/processed/effects_to_review.csv
 
 # Raw Kaggle replays (redownload: python -m src.ingestion.replays_download)
