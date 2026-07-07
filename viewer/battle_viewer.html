@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PTCG Battle Viewer</title>
+<style>
+  :root {
+    --bg: #14171c; --panel: #1d2229; --card: #262d37; --edge: #3a4450;
+    --text: #d7dee8; --dim: #8494a6; --accent: #4fc3f7; --good: #66bb6a;
+    --warn: #ffa726; --bad: #ef5350; --chosen: #2e4d33; --chosen-edge: #66bb6a;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--text);
+         font: 13px/1.45 "Segoe UI", system-ui, sans-serif; padding: 12px; }
+  h1 { font-size: 16px; margin-bottom: 8px; }
+  h1 small { color: var(--dim); font-weight: normal; margin-left: 10px; }
+  .row { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  .panel { background: var(--panel); border: 1px solid var(--edge);
+           border-radius: 8px; padding: 10px; }
+  #loader { margin-bottom: 10px; display: flex; gap: 12px; align-items: center; }
+  #loader.dragover { outline: 2px dashed var(--accent); }
+  #boards { flex: 1 1 640px; min-width: 560px; }
+  #side { flex: 1 1 340px; min-width: 320px; max-width: 560px; }
+  .player { margin-bottom: 10px; border-left: 4px solid transparent;
+            padding-left: 8px; }
+  .player.acting { border-left-color: var(--accent); }
+  .player h2 { font-size: 13px; margin-bottom: 6px; color: var(--accent); }
+  .player h2 .meta { color: var(--dim); font-weight: normal; margin-left: 8px; }
+  .zone { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+  .zone-label { width: 52px; color: var(--dim); font-size: 11px;
+                text-transform: uppercase; padding-top: 8px; }
+  .mon { background: var(--card); border: 1px solid var(--edge); border-radius: 6px;
+         padding: 5px 7px; width: 128px; }
+  .mon .nm { font-weight: 600; font-size: 12px; white-space: nowrap;
+             overflow: hidden; text-overflow: ellipsis; }
+  .hpbar { height: 6px; background: #10131a; border-radius: 3px; margin: 4px 0;
+           overflow: hidden; }
+  .hpbar i { display: block; height: 100%; border-radius: 3px; }
+  .hptxt { font-size: 10px; color: var(--dim); }
+  .pips { margin-top: 3px; min-height: 14px; }
+  .pip { display: inline-block; width: 12px; height: 12px; border-radius: 50%;
+         margin-right: 2px; font-size: 8px; line-height: 12px; text-align: center;
+         color: #fff; font-weight: 700; vertical-align: middle; }
+  .badge { display: inline-block; font-size: 9px; padding: 1px 5px;
+           border-radius: 8px; background: var(--bad); color: #fff; margin-right: 3px; }
+  .badge.tool { background: var(--warn); color: #222; }
+  .hand { display: flex; gap: 4px; flex-wrap: wrap; }
+  .handcard { background: var(--card); border: 1px solid var(--edge);
+              border-radius: 4px; padding: 2px 6px; font-size: 11px; }
+  .empty { color: var(--dim); font-style: italic; padding-top: 8px; }
+  #options li { list-style: none; padding: 3px 6px; border-radius: 4px;
+                margin-bottom: 2px; font-family: Consolas, monospace;
+                font-size: 11.5px; display: flex; gap: 8px; }
+  #options li.chosen { background: var(--chosen); border: 1px solid var(--chosen-edge); }
+  #options li .sc { margin-left: auto; color: var(--warn); white-space: nowrap; }
+  #options li.best .sc { color: var(--good); font-weight: 700; }
+  #logs { font-family: Consolas, monospace; font-size: 11px; color: var(--dim);
+          max-height: 140px; overflow-y: auto; }
+  #controls { display: flex; gap: 8px; align-items: center; margin: 10px 0; }
+  #controls button { background: var(--card); color: var(--text);
+                     border: 1px solid var(--edge); border-radius: 6px;
+                     padding: 5px 12px; cursor: pointer; font-size: 13px; }
+  #controls button:hover { border-color: var(--accent); }
+  #scrub { flex: 1; }
+  select, input[type=file] { background: var(--card); color: var(--text);
+           border: 1px solid var(--edge); border-radius: 6px; padding: 4px; }
+  .kv { color: var(--dim); } .kv b { color: var(--text); }
+  #selinfo { margin-bottom: 6px; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>PTCG Battle Viewer <small id="title">no game loaded</small></h1>
+
+<div id="loader" class="panel">
+  <input type="file" id="file" accept=".json">
+  <span class="kv">or drop a recorded JSON anywhere on the page</span>
+  <span class="kv" id="loadstate"></span>
+</div>
+
+<div id="controls" class="panel" style="display:none">
+  <button id="btn-start" title="first step">&#9198;</button>
+  <button id="btn-back" title="step back">&#9194;</button>
+  <button id="btn-play" title="play/pause">&#9654;</button>
+  <button id="btn-fwd" title="step forward">&#9193;</button>
+  <input type="range" id="scrub" min="0" max="0" value="0">
+  <span id="stepno" class="kv"></span>
+  <select id="speed">
+    <option value="1200">0.5x</option>
+    <option value="600" selected>1x</option>
+    <option value="300">2x</option>
+    <option value="150">4x</option>
+  </select>
+</div>
+
+<div class="row">
+  <div id="boards" class="panel" style="display:none"></div>
+  <div id="side" class="panel" style="display:none">
+    <div id="selinfo"></div>
+    <ul id="options" style="padding:0"></ul>
+    <h2 style="font-size:12px;color:var(--dim);margin:8px 0 4px">events since last step</h2>
+    <div id="logs"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* Energy code -> label/color (engine EnergyType namespace, 0..11). */
+const ENERGY = [
+  ["C", "#a8a090"], ["G", "#4caf50"], ["R", "#f44336"], ["W", "#2196f3"],
+  ["L", "#fbc02d"], ["P", "#9c27b0"], ["F", "#8d6e63"], ["D", "#37474f"],
+  ["M", "#90a4ae"], ["N", "#ff9800"], ["A", "#e91e63"], ["TR", "#6a1b9a"],
+];
+const CONDITIONS = ["poisoned", "burned", "asleep", "paralyzed", "confused"];
+
+let game = null;   // normalized record
+let step = 0;
+let timer = null;
+
+/* ------------------------------------------------------------------ *
+ * Loading & normalization.
+ *
+ * EXTENSION POINT (Prompt 4C): normalizeRecord() is the single place
+ * that adapts an input file to the internal shape {players, result,
+ * turns, steps:[{turn, acting, select, options, scores, chosen, logs,
+ * state}]}. To support Kaggle replay JSON, detect its schema here and
+ * map it to the same shape (state snapshots may be partial — every
+ * renderer below tolerates missing fields).
+ * ------------------------------------------------------------------ */
+function normalizeRecord(raw) {
+  if (raw && raw.schema === "ptcg-devrecord-v1") return raw;
+  if (raw && Array.isArray(raw.steps)) return raw;      // best effort
+  throw new Error("unrecognized record schema");
+}
+
+function loadText(text, name) {
+  try {
+    game = normalizeRecord(JSON.parse(text));
+    step = 0;
+    document.getElementById("title").textContent =
+      `${name} — ${(game.players || []).join(" vs ")} — result: ` +
+      (game.result === 2 ? "draw" : `player ${game.result} wins`) +
+      ` in ${game.turns ?? "?"} turns`;
+    const scrub = document.getElementById("scrub");
+    scrub.max = Math.max(0, (game.steps || []).length - 1);
+    for (const id of ["controls", "boards", "side"])
+      document.getElementById(id).style.display = "";
+    document.getElementById("loadstate").textContent =
+      `${(game.steps || []).length} steps loaded`;
+    render();
+  } catch (err) {
+    document.getElementById("loadstate").textContent = "load error: " + err.message;
+    console.error(err);
+  }
+}
+
+document.getElementById("file").addEventListener("change", (ev) => {
+  const f = ev.target.files[0];
+  if (f) f.text().then((t) => loadText(t, f.name));
+});
+document.body.addEventListener("dragover", (ev) => {
+  ev.preventDefault(); document.getElementById("loader").classList.add("dragover");
+});
+document.body.addEventListener("dragleave", () =>
+  document.getElementById("loader").classList.remove("dragover"));
+document.body.addEventListener("drop", (ev) => {
+  ev.preventDefault();
+  document.getElementById("loader").classList.remove("dragover");
+  const f = ev.dataTransfer.files[0];
+  if (f) f.text().then((t) => loadText(t, f.name));
+});
+/* When served over http (python -m http.server), auto-load the sample. */
+fetch("sample_game.json").then((r) => r.ok ? r.text() : null)
+  .then((t) => { if (t && !game) loadText(t, "sample_game.json"); })
+  .catch(() => {});   /* file:// — silently ignore */
+
+/* ------------------------------------------------------------------ *
+ * Rendering
+ * ------------------------------------------------------------------ */
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function pokemonTile(mon, conditions) {
+  if (!mon) return "";
+  const hp = mon.hp ?? 0, max = mon.maxHp || hp || 1;
+  const ratio = Math.max(0, Math.min(1, hp / max));
+  const color = ratio > 0.5 ? "var(--good)" : ratio > 0.25 ? "var(--warn)" : "var(--bad)";
+  const pips = (mon.energies || []).map((code) => {
+    const [label, fill] = ENERGY[code] || ["?", "#555"];
+    return `<span class="pip" style="background:${fill}">${label}</span>`;
+  }).join("");
+  const badges = (conditions || []).map((c) =>
+    `<span class="badge">${c.slice(0, 3)}</span>`).join("") +
+    (mon.tools ? `<span class="badge tool">tool x${mon.tools}</span>` : "");
+  return `<div class="mon"><div class="nm" title="${esc(mon.name)}">${esc(mon.name ?? mon.id)}</div>
+    <div class="hpbar"><i style="width:${ratio * 100}%;background:${color}"></i></div>
+    <div class="hptxt">${hp}/${max} HP</div>
+    <div class="pips">${pips}</div><div>${badges}</div></div>`;
+}
+
+function playerBlock(p, idx, acting, players) {
+  if (!p) return "";
+  const conds = CONDITIONS.filter((c) => p.conditions && p.conditions[c]);
+  const active = (p.active || []).map((m) => pokemonTile(m, conds)).join("")
+                 || `<div class="empty">none</div>`;
+  const bench = (p.bench || []).map((m) => pokemonTile(m, [])).join("")
+                || `<div class="empty">empty</div>`;
+  const hand = p.hand
+    ? `<div class="zone"><div class="zone-label">hand</div><div class="hand">${
+        p.hand.map((c) => `<span class="handcard">${esc(c && c.name || (c && c.id))}</span>`).join("")
+      }</div></div>`
+    : "";
+  const name = (players || [])[idx] || `player ${idx}`;
+  return `<div class="player ${idx === acting ? "acting" : ""}">
+    <h2>P${idx} ${esc(name)} ${idx === acting ? "&#9664; acting" : ""}
+      <span class="meta">deck ${p.deckCount ?? "?"} · hand ${p.handCount ?? "?"} ·
+      prizes ${p.prizeLeft ?? "?"} · discard ${p.discardCount ?? "?"}</span></h2>
+    <div class="zone"><div class="zone-label">active</div>${active}</div>
+    <div class="zone"><div class="zone-label">bench</div>${bench}</div>
+    ${hand}</div>`;
+}
+
+function render() {
+  if (!game || !game.steps || !game.steps.length) return;
+  step = Math.max(0, Math.min(step, game.steps.length - 1));
+  const s = game.steps[step];
+  document.getElementById("scrub").value = step;
+  document.getElementById("stepno").textContent =
+    `step ${step + 1}/${game.steps.length} · turn ${s.turn ?? "?"}`;
+
+  const state = s.state || {};
+  const players = state.players || [];
+  const stadium = state.stadium
+    ? `<div class="kv" style="margin-bottom:6px">stadium: <b>${esc(state.stadium.name)}</b></div>` : "";
+  document.getElementById("boards").innerHTML = stadium +
+    playerBlock(players[0], 0, s.acting, game.players) +
+    playerBlock(players[1], 1, s.acting, game.players);
+
+  const sel = s.select || {};
+  document.getElementById("selinfo").innerHTML =
+    `<span class="kv">select <b>${esc(sel.type)}</b> / <b>${esc(sel.context)}</b>
+     count [${sel.min ?? "?"}..${sel.max ?? "?"}] — chosen: <b>[${(s.chosen || []).join(", ")}]</b>
+     ${s.scores ? "" : " · <i>no scores (agent exposes none)</i>"}</span>`;
+
+  const chosen = new Set(s.chosen || []);
+  const best = s.scores ? s.scores.indexOf(Math.max(...s.scores)) : -1;
+  document.getElementById("options").innerHTML = (s.options || []).map((opt, i) => {
+    const sc = s.scores && s.scores[i] !== undefined
+      ? `<span class="sc">${Number(s.scores[i]).toFixed(1)}</span>` : "";
+    return `<li class="${chosen.has(i) ? "chosen" : ""} ${i === best ? "best" : ""}">
+      <span>${esc(opt)}</span>${sc}</li>`;
+  }).join("") || `<li class="empty">no options recorded</li>`;
+
+  document.getElementById("logs").innerHTML =
+    (s.logs || []).map((l) => `<div>${esc(l)}</div>`).join("")
+    || `<div class="empty">—</div>`;
+}
+
+/* ------------------------------------------------------------------ *
+ * Controls
+ * ------------------------------------------------------------------ */
+function stop() {
+  if (timer) { clearInterval(timer); timer = null; }
+  document.getElementById("btn-play").innerHTML = "&#9654;";
+}
+function playPause() {
+  if (timer) { stop(); return; }
+  document.getElementById("btn-play").innerHTML = "&#9646;&#9646;";
+  timer = setInterval(() => {
+    if (!game || step >= game.steps.length - 1) { stop(); return; }
+    step += 1; render();
+  }, Number(document.getElementById("speed").value));
+}
+document.getElementById("btn-start").onclick = () => { stop(); step = 0; render(); };
+document.getElementById("btn-back").onclick = () => { stop(); step -= 1; render(); };
+document.getElementById("btn-fwd").onclick = () => { stop(); step += 1; render(); };
+document.getElementById("btn-play").onclick = playPause;
+document.getElementById("scrub").oninput = (ev) => { stop(); step = Number(ev.target.value); render(); };
+document.getElementById("speed").onchange = () => { if (timer) { stop(); playPause(); } };
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "ArrowRight") { stop(); step += 1; render(); }
+  else if (ev.key === "ArrowLeft") { stop(); step -= 1; render(); }
+  else if (ev.key === " ") { ev.preventDefault(); playPause(); }
+});
+</script>
+</body>
+</html>

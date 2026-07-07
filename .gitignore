@@ -4,6 +4,10 @@
 # Submission bundle (rebuilt by src/build_submission.py)
 /submission.tar.gz
 
+# Recorded dev games (regenerate: selfplay --record viewer/recordings);
+# viewer/sample_game.json stays versioned as a small working example
+/viewer/recordings/
+
 # Python
 __pycache__/
 *.py[cod]

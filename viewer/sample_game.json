@@ -1,0 +1,2320 @@
+{
+ "schema": "ptcg-devrecord-v1",
+ "players": [
+  "heuristic",
+  "random"
+ ],
+ "result": 0,
+ "turns": 4,
+ "steps": [
+  {
+   "step": 0,
+   "turn": 0,
+   "acting": 0,
+   "select": {
+    "type": "YES_NO",
+    "context": "IS_FIRST",
+    "min": 1,
+    "max": 1
+   },
+   "options": [
+    "[0] YES",
+    "[1] NO"
+   ],
+   "scores": null,
+   "chosen": [
+    1
+   ],
+   "logs": [],
+   "state": {
+    "stadium": null,
+    "players": [
+     {
+      "active": [],
+      "bench": [],
+      "deckCount": 60,
+      "handCount": 0,
+      "prizeLeft": 0,
+      "discardCount": 0,
+      "hand": [],
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     },
+     {
+      "active": [],
+      "bench": [],
+      "deckCount": 60,
+      "handCount": 0,
+      "prizeLeft": 0,
+      "discardCount": 0,
+      "hand": null,
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     }
+    ]
+   }
+  },
+  {
+   "step": 1,
+   "turn": 0,
+   "acting": 1,
+   "select": {
+    "type": "CARD",
+    "context": "SETUP_ACTIVE_POKEMON",
+    "min": 1,
+    "max": 1
+   },
+   "options": [
+    "[0] CARD area=HAND index=4 playerIndex=1 card='Snover'"
+   ],
+   "scores": null,
+   "chosen": [
+    0
+   ],
+   "logs": [
+    "DRAW playerIndex=1 card=Basic {W} Energy",
+    "DRAW playerIndex=1 card=Mega Abomasnow ex",
+    "DRAW playerIndex=1 card=Lillie's Determination",
+    "DRAW playerIndex=1 card=Basic {W} Energy",
+    "DRAW playerIndex=1 card=Snover",
+    "DRAW playerIndex=1 card=Basic {W} Energy",
+    "DRAW playerIndex=1 card=Basic {W} Energy",
+    "DRAW_REVERSE playerIndex=0",
+    "DRAW_REVERSE playerIndex=0",
+    "DRAW_REVERSE playerIndex=0",
+    "DRAW_REVERSE playerIndex=0",
+    "DRAW_REVERSE playerIndex=0",
+    "DRAW_REVERSE playerIndex=0",
+    "DRAW_REVERSE playerIndex=0",
+    "HAS_BASIC_POKEMON playerIndex=1",
+    "HAS_BASIC_POKEMON playerIndex=0"
+   ],
+   "state": {
+    "stadium": null,
+    "players": [
+     {
+      "active": [],
+      "bench": [],
+      "deckCount": 53,
+      "handCount": 7,
+      "prizeLeft": 0,
+      "discardCount": 0,
+      "hand": null,
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     },
+     {
+      "active": [],
+      "bench": [],
+      "deckCount": 53,
+      "handCount": 7,
+      "prizeLeft": 0,
+      "discardCount": 0,
+      "hand": [
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex"
+       },
+       {
+        "id": 1227,
+        "name": "Lillie's Determination"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 722,
+        "name": "Snover"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       }
+      ],
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     }
+    ]
+   }
+  },
+  {
+   "step": 2,
+   "turn": 0,
+   "acting": 0,
+   "select": {
+    "type": "CARD",
+    "context": "SETUP_ACTIVE_POKEMON",
+    "min": 1,
+    "max": 1
+   },
+   "options": [
+    "[0] CARD area=HAND index=2 playerIndex=0 card='Snover'"
+   ],
+   "scores": [
+    12.0
+   ],
+   "chosen": [
+    0
+   ],
+   "logs": [
+    "DRAW_REVERSE playerIndex=1",
+    "DRAW_REVERSE playerIndex=1",
+    "DRAW_REVERSE playerIndex=1",
+    "DRAW_REVERSE playerIndex=1",
+    "DRAW_REVERSE playerIndex=1",
+    "DRAW_REVERSE playerIndex=1",
+    "DRAW_REVERSE playerIndex=1",
+    "DRAW playerIndex=0 card=Basic {W} Energy",
+    "DRAW playerIndex=0 card=Waitress",
+    "DRAW playerIndex=0 card=Maximum Belt",
+    "DRAW playerIndex=0 card=Basic {W} Energy",
+    "DRAW playerIndex=0 card=Mega Signal",
+    "DRAW playerIndex=0 card=Mega Signal",
+    "DRAW playerIndex=0 card=Basic {W} Energy",
+    "HAS_BASIC_POKEMON playerIndex=1",
+    "HAS_BASIC_POKEMON playerIndex=0",
+    "MOVE_CARD_REVERSE playerIndex=1",
+    "MOVE_CARD_REVERSE playerIndex=1",
+    "MOVE_CARD_REVERSE playerIndex=1",
+    "MOVE_CARD_REVERSE playerIndex=1",
+    "MOVE_CARD_REVERSE playerIndex=1",
+    "MOVE_CARD_REVERSE playerIndex=1",
+    "MOVE_CARD_REVERSE playerIndex=1",
+    "MOVE_CARD playerIndex=0 card=Basic {W} Energy",
+    "MOVE_CARD playerIndex=0 card=Mega Signal",
+    "MOVE_CARD playerIndex=0 card=Mega Signal",
+    "MOVE_CARD playerIndex=0 card=Basic {W} Energy",
+    "MOVE_CARD playerIndex=0 card=Maximum Belt",
+    "MOVE_CARD playerIndex=0 card=Waitress",
+    "MOVE_CARD playerIndex=0 card=Basic {W} Energy",
+    "SHUFFLE playerIndex=0",
+    "DRAW playerIndex=0 card=Basic {W} Energy",
+    "DRAW playerIndex=0 card=Basic {W} Energy",
+    "DRAW playerIndex=0 card=Snover",
+    "DRAW playerIndex=0 card=Basic {W} Energy",
+    "DRAW playerIndex=0 card=Basic {W} Energy",
+    "DRAW playerIndex=0 card=Basic {W} Energy",
+    "DRAW playerIndex=0 card=Basic {W} Energy",
+    "HAS_BASIC_POKEMON playerIndex=0"
+   ],
+   "state": {
+    "stadium": null,
+    "players": [
+     {
+      "active": [],
+      "bench": [],
+      "deckCount": 53,
+      "handCount": 7,
+      "prizeLeft": 0,
+      "discardCount": 0,
+      "hand": [
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 722,
+        "name": "Snover"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       }
+      ],
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     },
+     {
+      "active": [
+       null
+      ],
+      "bench": [],
+      "deckCount": 47,
+      "handCount": 6,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": null,
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     }
+    ]
+   }
+  },
+  {
+   "step": 3,
+   "turn": 0,
+   "acting": 1,
+   "select": {
+    "type": "COUNT",
+    "context": "DRAW_COUNT",
+    "min": 1,
+    "max": 1
+   },
+   "options": [
+    "[0] NUMBER number=0",
+    "[1] NUMBER number=1"
+   ],
+   "scores": null,
+   "chosen": [
+    0
+   ],
+   "logs": [
+    "MOVE_CARD playerIndex=1 card=Snover",
+    "MOVE_CARD_REVERSE playerIndex=1",
+    "MOVE_CARD_REVERSE playerIndex=1",
+    "MOVE_CARD_REVERSE playerIndex=1",
+    "MOVE_CARD_REVERSE playerIndex=1",
+    "MOVE_CARD_REVERSE playerIndex=1",
+    "MOVE_CARD_REVERSE playerIndex=1",
+    "MOVE_CARD playerIndex=0 card=Basic {W} Energy",
+    "MOVE_CARD playerIndex=0 card=Mega Signal",
+    "MOVE_CARD playerIndex=0 card=Mega Signal",
+    "MOVE_CARD playerIndex=0 card=Basic {W} Energy",
+    "MOVE_CARD playerIndex=0 card=Maximum Belt",
+    "MOVE_CARD playerIndex=0 card=Waitress",
+    "MOVE_CARD playerIndex=0 card=Basic {W} Energy",
+    "SHUFFLE playerIndex=0",
+    "DRAW_REVERSE playerIndex=0",
+    "DRAW_REVERSE playerIndex=0",
+    "DRAW_REVERSE playerIndex=0",
+    "DRAW_REVERSE playerIndex=0",
+    "DRAW_REVERSE playerIndex=0",
+    "DRAW_REVERSE playerIndex=0",
+    "DRAW_REVERSE playerIndex=0",
+    "HAS_BASIC_POKEMON playerIndex=0",
+    "MOVE_CARD_REVERSE playerIndex=0",
+    "MOVE_CARD_REVERSE playerIndex=0",
+    "MOVE_CARD_REVERSE playerIndex=0",
+    "MOVE_CARD_REVERSE playerIndex=0",
+    "MOVE_CARD_REVERSE playerIndex=0",
+    "MOVE_CARD_REVERSE playerIndex=0",
+    "MOVE_CARD_REVERSE playerIndex=0"
+   ],
+   "state": {
+    "stadium": null,
+    "players": [
+     {
+      "active": [
+       null
+      ],
+      "bench": [],
+      "deckCount": 47,
+      "handCount": 6,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": null,
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     },
+     {
+      "active": [
+       null
+      ],
+      "bench": [],
+      "deckCount": 47,
+      "handCount": 6,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": [
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex"
+       },
+       {
+        "id": 1227,
+        "name": "Lillie's Determination"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       }
+      ],
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     }
+    ]
+   }
+  },
+  {
+   "step": 4,
+   "turn": 1,
+   "acting": 1,
+   "select": {
+    "type": "MAIN",
+    "context": "MAIN",
+    "min": 1,
+    "max": 1
+   },
+   "options": [
+    "[0] ATTACH area=HAND index=0 inPlay=ACTIVE[0]",
+    "[1] ATTACH area=HAND index=3 inPlay=ACTIVE[0]",
+    "[2] ATTACH area=HAND index=4 inPlay=ACTIVE[0]",
+    "[3] ATTACH area=HAND index=5 inPlay=ACTIVE[0]",
+    "[4] ATTACH area=HAND index=6 inPlay=ACTIVE[0]",
+    "[5] END"
+   ],
+   "scores": null,
+   "chosen": [
+    3
+   ],
+   "logs": [
+    "TURN_START playerIndex=1",
+    "DRAW playerIndex=1 card=Basic {W} Energy"
+   ],
+   "state": {
+    "stadium": null,
+    "players": [
+     {
+      "active": [
+       {
+        "id": 722,
+        "name": "Snover",
+        "hp": 90,
+        "maxHp": 90,
+        "energies": [],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 47,
+      "handCount": 6,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": null,
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     },
+     {
+      "active": [
+       {
+        "id": 722,
+        "name": "Snover",
+        "hp": 90,
+        "maxHp": 90,
+        "energies": [],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 46,
+      "handCount": 7,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": [
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex"
+       },
+       {
+        "id": 1227,
+        "name": "Lillie's Determination"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       }
+      ],
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     }
+    ]
+   }
+  },
+  {
+   "step": 5,
+   "turn": 1,
+   "acting": 1,
+   "select": {
+    "type": "MAIN",
+    "context": "MAIN",
+    "min": 1,
+    "max": 1
+   },
+   "options": [
+    "[0] END"
+   ],
+   "scores": null,
+   "chosen": [
+    0
+   ],
+   "logs": [
+    "ATTACH playerIndex=1 card=Basic {W} Energy Target=Snover"
+   ],
+   "state": {
+    "stadium": null,
+    "players": [
+     {
+      "active": [
+       {
+        "id": 722,
+        "name": "Snover",
+        "hp": 90,
+        "maxHp": 90,
+        "energies": [],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 47,
+      "handCount": 6,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": null,
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     },
+     {
+      "active": [
+       {
+        "id": 722,
+        "name": "Snover",
+        "hp": 90,
+        "maxHp": 90,
+        "energies": [
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 46,
+      "handCount": 6,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": [
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex"
+       },
+       {
+        "id": 1227,
+        "name": "Lillie's Determination"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       }
+      ],
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     }
+    ]
+   }
+  },
+  {
+   "step": 6,
+   "turn": 2,
+   "acting": 0,
+   "select": {
+    "type": "MAIN",
+    "context": "MAIN",
+    "min": 1,
+    "max": 1
+   },
+   "options": [
+    "[0] ATTACH area=HAND index=0 inPlay=ACTIVE[0]",
+    "[1] ATTACH area=HAND index=1 inPlay=ACTIVE[0]",
+    "[2] ATTACH area=HAND index=2 inPlay=ACTIVE[0]",
+    "[3] ATTACH area=HAND index=3 inPlay=ACTIVE[0]",
+    "[4] ATTACH area=HAND index=4 inPlay=ACTIVE[0]",
+    "[5] ATTACH area=HAND index=5 inPlay=ACTIVE[0]",
+    "[6] PLAY index=6 card='Mega Signal'",
+    "[7] END"
+   ],
+   "scores": [
+    58.5,
+    58.5,
+    58.5,
+    58.5,
+    58.5,
+    58.5,
+    35.0,
+    0.5
+   ],
+   "chosen": [
+    0
+   ],
+   "logs": [
+    "MOVE_CARD playerIndex=0 card=Snover",
+    "MOVE_CARD_REVERSE playerIndex=0",
+    "MOVE_CARD_REVERSE playerIndex=0",
+    "MOVE_CARD_REVERSE playerIndex=0",
+    "MOVE_CARD_REVERSE playerIndex=0",
+    "MOVE_CARD_REVERSE playerIndex=0",
+    "MOVE_CARD_REVERSE playerIndex=0",
+    "TURN_START playerIndex=1",
+    "DRAW_REVERSE playerIndex=1",
+    "ATTACH playerIndex=1 card=Basic {W} Energy Target=Snover",
+    "TURN_END playerIndex=1",
+    "TURN_START playerIndex=0",
+    "DRAW playerIndex=0 card=Mega Signal"
+   ],
+   "state": {
+    "stadium": null,
+    "players": [
+     {
+      "active": [
+       {
+        "id": 722,
+        "name": "Snover",
+        "hp": 90,
+        "maxHp": 90,
+        "energies": [],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 46,
+      "handCount": 7,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": [
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 1145,
+        "name": "Mega Signal"
+       }
+      ],
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     },
+     {
+      "active": [
+       {
+        "id": 722,
+        "name": "Snover",
+        "hp": 90,
+        "maxHp": 90,
+        "energies": [
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 46,
+      "handCount": 6,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": null,
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     }
+    ]
+   }
+  },
+  {
+   "step": 7,
+   "turn": 2,
+   "acting": 0,
+   "select": {
+    "type": "MAIN",
+    "context": "MAIN",
+    "min": 1,
+    "max": 1
+   },
+   "options": [
+    "[0] PLAY index=5 card='Mega Signal'",
+    "[1] ATTACK attackId=1044 card='Snover' attack='Beat'",
+    "[2] END"
+   ],
+   "scores": [
+    35.0,
+    20.22222222222222,
+    0.5
+   ],
+   "chosen": [
+    0
+   ],
+   "logs": [
+    "ATTACH playerIndex=0 card=Basic {W} Energy Target=Snover"
+   ],
+   "state": {
+    "stadium": null,
+    "players": [
+     {
+      "active": [
+       {
+        "id": 722,
+        "name": "Snover",
+        "hp": 90,
+        "maxHp": 90,
+        "energies": [
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 46,
+      "handCount": 6,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": [
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 1145,
+        "name": "Mega Signal"
+       }
+      ],
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     },
+     {
+      "active": [
+       {
+        "id": 722,
+        "name": "Snover",
+        "hp": 90,
+        "maxHp": 90,
+        "energies": [
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 46,
+      "handCount": 6,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": null,
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     }
+    ]
+   }
+  },
+  {
+   "step": 8,
+   "turn": 2,
+   "acting": 0,
+   "select": {
+    "type": "CARD",
+    "context": "TO_HAND",
+    "min": 0,
+    "max": 1
+   },
+   "options": [
+    "[0] CARD area=DECK index=11 playerIndex=0",
+    "[1] CARD area=DECK index=16 playerIndex=0",
+    "[2] CARD area=DECK index=40 playerIndex=0",
+    "[3] CARD area=DECK index=42 playerIndex=0"
+   ],
+   "scores": null,
+   "chosen": [
+    0
+   ],
+   "logs": [
+    "PLAY playerIndex=0 card=Mega Signal"
+   ],
+   "state": {
+    "stadium": null,
+    "players": [
+     {
+      "active": [
+       {
+        "id": 722,
+        "name": "Snover",
+        "hp": 90,
+        "maxHp": 90,
+        "energies": [
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 46,
+      "handCount": 5,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": [
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       }
+      ],
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     },
+     {
+      "active": [
+       {
+        "id": 722,
+        "name": "Snover",
+        "hp": 90,
+        "maxHp": 90,
+        "energies": [
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 46,
+      "handCount": 6,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": null,
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     }
+    ]
+   }
+  },
+  {
+   "step": 9,
+   "turn": 2,
+   "acting": 0,
+   "select": {
+    "type": "MAIN",
+    "context": "MAIN",
+    "min": 1,
+    "max": 1
+   },
+   "options": [
+    "[0] ATTACK attackId=1044 card='Snover' attack='Beat'",
+    "[1] END"
+   ],
+   "scores": [
+    20.22222222222222,
+    0.5
+   ],
+   "chosen": [
+    0
+   ],
+   "logs": [
+    "MOVE_CARD playerIndex=0 card=Mega Abomasnow ex",
+    "SHUFFLE playerIndex=0"
+   ],
+   "state": {
+    "stadium": null,
+    "players": [
+     {
+      "active": [
+       {
+        "id": 722,
+        "name": "Snover",
+        "hp": 90,
+        "maxHp": 90,
+        "energies": [
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 45,
+      "handCount": 6,
+      "prizeLeft": 6,
+      "discardCount": 1,
+      "hand": [
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex"
+       }
+      ],
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     },
+     {
+      "active": [
+       {
+        "id": 722,
+        "name": "Snover",
+        "hp": 90,
+        "maxHp": 90,
+        "energies": [
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 46,
+      "handCount": 6,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": null,
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     }
+    ]
+   }
+  },
+  {
+   "step": 10,
+   "turn": 3,
+   "acting": 1,
+   "select": {
+    "type": "MAIN",
+    "context": "MAIN",
+    "min": 1,
+    "max": 1
+   },
+   "options": [
+    "[0] ATTACH area=HAND index=0 inPlay=ACTIVE[0]",
+    "[1] EVOLVE area=HAND index=1 inPlay=ACTIVE[0]",
+    "[2] PLAY index=2 card=\"Lillie's Determination\"",
+    "[3] ATTACH area=HAND index=3 inPlay=ACTIVE[0]",
+    "[4] ATTACH area=HAND index=4 inPlay=ACTIVE[0]",
+    "[5] ATTACH area=HAND index=5 inPlay=ACTIVE[0]",
+    "[6] PLAY index=6 card='Snover'",
+    "[7] ATTACK attackId=1044 card='Snover' attack='Beat'",
+    "[8] END"
+   ],
+   "scores": null,
+   "chosen": [
+    1
+   ],
+   "logs": [
+    "TURN_END playerIndex=1",
+    "TURN_START playerIndex=0",
+    "DRAW_REVERSE playerIndex=0",
+    "ATTACH playerIndex=0 card=Basic {W} Energy Target=Snover",
+    "PLAY playerIndex=0 card=Mega Signal",
+    "MOVE_CARD playerIndex=0 card=Mega Abomasnow ex",
+    "SHUFFLE playerIndex=0",
+    "ATTACK playerIndex=0 card=Snover attack=Beat",
+    "HP_CHANGE playerIndex=1 value=-10 card=Snover",
+    "TURN_END playerIndex=0",
+    "TURN_START playerIndex=1",
+    "DRAW playerIndex=1 card=Snover"
+   ],
+   "state": {
+    "stadium": null,
+    "players": [
+     {
+      "active": [
+       {
+        "id": 722,
+        "name": "Snover",
+        "hp": 90,
+        "maxHp": 90,
+        "energies": [
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 45,
+      "handCount": 6,
+      "prizeLeft": 6,
+      "discardCount": 1,
+      "hand": null,
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     },
+     {
+      "active": [
+       {
+        "id": 722,
+        "name": "Snover",
+        "hp": 80,
+        "maxHp": 90,
+        "energies": [
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 45,
+      "handCount": 7,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": [
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex"
+       },
+       {
+        "id": 1227,
+        "name": "Lillie's Determination"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 722,
+        "name": "Snover"
+       }
+      ],
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     }
+    ]
+   }
+  },
+  {
+   "step": 11,
+   "turn": 3,
+   "acting": 1,
+   "select": {
+    "type": "MAIN",
+    "context": "MAIN",
+    "min": 1,
+    "max": 1
+   },
+   "options": [
+    "[0] ATTACH area=HAND index=0 inPlay=ACTIVE[0]",
+    "[1] PLAY index=1 card=\"Lillie's Determination\"",
+    "[2] ATTACH area=HAND index=2 inPlay=ACTIVE[0]",
+    "[3] ATTACH area=HAND index=3 inPlay=ACTIVE[0]",
+    "[4] ATTACH area=HAND index=4 inPlay=ACTIVE[0]",
+    "[5] PLAY index=5 card='Snover'",
+    "[6] END"
+   ],
+   "scores": null,
+   "chosen": [
+    0
+   ],
+   "logs": [
+    "EVOLVE playerIndex=1 card=Mega Abomasnow ex Target=Snover"
+   ],
+   "state": {
+    "stadium": null,
+    "players": [
+     {
+      "active": [
+       {
+        "id": 722,
+        "name": "Snover",
+        "hp": 90,
+        "maxHp": 90,
+        "energies": [
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 45,
+      "handCount": 6,
+      "prizeLeft": 6,
+      "discardCount": 1,
+      "hand": null,
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     },
+     {
+      "active": [
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex",
+        "hp": 340,
+        "maxHp": 350,
+        "energies": [
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 45,
+      "handCount": 6,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": [
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 1227,
+        "name": "Lillie's Determination"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 722,
+        "name": "Snover"
+       }
+      ],
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     }
+    ]
+   }
+  },
+  {
+   "step": 12,
+   "turn": 3,
+   "acting": 1,
+   "select": {
+    "type": "MAIN",
+    "context": "MAIN",
+    "min": 1,
+    "max": 1
+   },
+   "options": [
+    "[0] PLAY index=0 card=\"Lillie's Determination\"",
+    "[1] PLAY index=4 card='Snover'",
+    "[2] ATTACK attackId=1046 card='Mega Abomasnow ex' attack='Hammer-lanche'",
+    "[3] END"
+   ],
+   "scores": null,
+   "chosen": [
+    3
+   ],
+   "logs": [
+    "ATTACH playerIndex=1 card=Basic {W} Energy Target=Mega Abomasnow ex"
+   ],
+   "state": {
+    "stadium": null,
+    "players": [
+     {
+      "active": [
+       {
+        "id": 722,
+        "name": "Snover",
+        "hp": 90,
+        "maxHp": 90,
+        "energies": [
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 45,
+      "handCount": 6,
+      "prizeLeft": 6,
+      "discardCount": 1,
+      "hand": null,
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     },
+     {
+      "active": [
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex",
+        "hp": 340,
+        "maxHp": 350,
+        "energies": [
+         3,
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 45,
+      "handCount": 5,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": [
+       {
+        "id": 1227,
+        "name": "Lillie's Determination"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 722,
+        "name": "Snover"
+       }
+      ],
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     }
+    ]
+   }
+  },
+  {
+   "step": 13,
+   "turn": 4,
+   "acting": 0,
+   "select": {
+    "type": "MAIN",
+    "context": "MAIN",
+    "min": 1,
+    "max": 1
+   },
+   "options": [
+    "[0] ATTACH area=HAND index=0 inPlay=ACTIVE[0]",
+    "[1] ATTACH area=HAND index=1 inPlay=ACTIVE[0]",
+    "[2] ATTACH area=HAND index=2 inPlay=ACTIVE[0]",
+    "[3] ATTACH area=HAND index=3 inPlay=ACTIVE[0]",
+    "[4] ATTACH area=HAND index=4 inPlay=ACTIVE[0]",
+    "[5] EVOLVE area=HAND index=5 inPlay=ACTIVE[0]",
+    "[6] PLAY index=6 card=\"Lillie's Determination\"",
+    "[7] ATTACK attackId=1044 card='Snover' attack='Beat'",
+    "[8] END"
+   ],
+   "scores": [
+    59.0,
+    59.0,
+    59.0,
+    59.0,
+    59.0,
+    80.0,
+    35.0,
+    20.22222222222222,
+    0.5
+   ],
+   "chosen": [
+    5
+   ],
+   "logs": [
+    "ATTACK playerIndex=0 card=Snover attack=Beat",
+    "HP_CHANGE playerIndex=1 value=-10 card=Snover",
+    "TURN_END playerIndex=0",
+    "TURN_START playerIndex=1",
+    "DRAW_REVERSE playerIndex=1",
+    "EVOLVE playerIndex=1 card=Mega Abomasnow ex Target=Snover",
+    "ATTACH playerIndex=1 card=Basic {W} Energy Target=Mega Abomasnow ex",
+    "TURN_END playerIndex=1",
+    "TURN_START playerIndex=0",
+    "DRAW playerIndex=0 card=Lillie's Determination"
+   ],
+   "state": {
+    "stadium": null,
+    "players": [
+     {
+      "active": [
+       {
+        "id": 722,
+        "name": "Snover",
+        "hp": 90,
+        "maxHp": 90,
+        "energies": [
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 44,
+      "handCount": 7,
+      "prizeLeft": 6,
+      "discardCount": 1,
+      "hand": [
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex"
+       },
+       {
+        "id": 1227,
+        "name": "Lillie's Determination"
+       }
+      ],
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     },
+     {
+      "active": [
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex",
+        "hp": 340,
+        "maxHp": 350,
+        "energies": [
+         3,
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 45,
+      "handCount": 5,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": null,
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     }
+    ]
+   }
+  },
+  {
+   "step": 14,
+   "turn": 4,
+   "acting": 0,
+   "select": {
+    "type": "MAIN",
+    "context": "MAIN",
+    "min": 1,
+    "max": 1
+   },
+   "options": [
+    "[0] ATTACH area=HAND index=0 inPlay=ACTIVE[0]",
+    "[1] ATTACH area=HAND index=1 inPlay=ACTIVE[0]",
+    "[2] ATTACH area=HAND index=2 inPlay=ACTIVE[0]",
+    "[3] ATTACH area=HAND index=3 inPlay=ACTIVE[0]",
+    "[4] ATTACH area=HAND index=4 inPlay=ACTIVE[0]",
+    "[5] PLAY index=5 card=\"Lillie's Determination\"",
+    "[6] END"
+   ],
+   "scores": [
+    63.0,
+    63.0,
+    63.0,
+    63.0,
+    63.0,
+    35.0,
+    0.5
+   ],
+   "chosen": [
+    0
+   ],
+   "logs": [
+    "EVOLVE playerIndex=0 card=Mega Abomasnow ex Target=Snover"
+   ],
+   "state": {
+    "stadium": null,
+    "players": [
+     {
+      "active": [
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex",
+        "hp": 350,
+        "maxHp": 350,
+        "energies": [
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 44,
+      "handCount": 6,
+      "prizeLeft": 6,
+      "discardCount": 1,
+      "hand": [
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 1227,
+        "name": "Lillie's Determination"
+       }
+      ],
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     },
+     {
+      "active": [
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex",
+        "hp": 340,
+        "maxHp": 350,
+        "energies": [
+         3,
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 45,
+      "handCount": 5,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": null,
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     }
+    ]
+   }
+  },
+  {
+   "step": 15,
+   "turn": 4,
+   "acting": 0,
+   "select": {
+    "type": "MAIN",
+    "context": "MAIN",
+    "min": 1,
+    "max": 1
+   },
+   "options": [
+    "[0] PLAY index=4 card=\"Lillie's Determination\"",
+    "[1] ATTACK attackId=1046 card='Mega Abomasnow ex' attack='Hammer-lanche'",
+    "[2] END"
+   ],
+   "scores": [
+    35.0,
+    30.555555555555557,
+    0.5
+   ],
+   "chosen": [
+    0
+   ],
+   "logs": [
+    "ATTACH playerIndex=0 card=Basic {W} Energy Target=Mega Abomasnow ex"
+   ],
+   "state": {
+    "stadium": null,
+    "players": [
+     {
+      "active": [
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex",
+        "hp": 350,
+        "maxHp": 350,
+        "energies": [
+         3,
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 44,
+      "handCount": 5,
+      "prizeLeft": 6,
+      "discardCount": 1,
+      "hand": [
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 1227,
+        "name": "Lillie's Determination"
+       }
+      ],
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     },
+     {
+      "active": [
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex",
+        "hp": 340,
+        "maxHp": 350,
+        "energies": [
+         3,
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 45,
+      "handCount": 5,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": null,
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     }
+    ]
+   }
+  },
+  {
+   "step": 16,
+   "turn": 4,
+   "acting": 0,
+   "select": {
+    "type": "MAIN",
+    "context": "MAIN",
+    "min": 1,
+    "max": 1
+   },
+   "options": [
+    "[0] PLAY index=3 card='Kyogre'",
+    "[1] PLAY index=7 card='Snover'",
+    "[2] ATTACK attackId=1046 card='Mega Abomasnow ex' attack='Hammer-lanche'",
+    "[3] END"
+   ],
+   "scores": [
+    71.5,
+    70.9,
+    30.555555555555557,
+    0.5
+   ],
+   "chosen": [
+    0
+   ],
+   "logs": [
+    "PLAY playerIndex=0 card=Lillie's Determination",
+    "MOVE_CARD playerIndex=0 card=Basic {W} Energy",
+    "MOVE_CARD playerIndex=0 card=Basic {W} Energy",
+    "MOVE_CARD playerIndex=0 card=Basic {W} Energy",
+    "MOVE_CARD playerIndex=0 card=Basic {W} Energy",
+    "SHUFFLE playerIndex=0",
+    "DRAW playerIndex=0 card=Waitress",
+    "DRAW playerIndex=0 card=Basic {W} Energy",
+    "DRAW playerIndex=0 card=Basic {W} Energy",
+    "DRAW playerIndex=0 card=Kyogre",
+    "DRAW playerIndex=0 card=Waitress",
+    "DRAW playerIndex=0 card=Mega Abomasnow ex",
+    "DRAW playerIndex=0 card=Basic {W} Energy",
+    "DRAW playerIndex=0 card=Snover"
+   ],
+   "state": {
+    "stadium": null,
+    "players": [
+     {
+      "active": [
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex",
+        "hp": 350,
+        "maxHp": 350,
+        "energies": [
+         3,
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 40,
+      "handCount": 8,
+      "prizeLeft": 6,
+      "discardCount": 2,
+      "hand": [
+       {
+        "id": 1235,
+        "name": "Waitress"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 721,
+        "name": "Kyogre"
+       },
+       {
+        "id": 1235,
+        "name": "Waitress"
+       },
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 722,
+        "name": "Snover"
+       }
+      ],
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     },
+     {
+      "active": [
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex",
+        "hp": 340,
+        "maxHp": 350,
+        "energies": [
+         3,
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 45,
+      "handCount": 5,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": null,
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     }
+    ]
+   }
+  },
+  {
+   "step": 17,
+   "turn": 4,
+   "acting": 0,
+   "select": {
+    "type": "MAIN",
+    "context": "MAIN",
+    "min": 1,
+    "max": 1
+   },
+   "options": [
+    "[0] PLAY index=6 card='Snover'",
+    "[1] ATTACK attackId=1046 card='Mega Abomasnow ex' attack='Hammer-lanche'",
+    "[2] END"
+   ],
+   "scores": [
+    70.9,
+    30.555555555555557,
+    0.5
+   ],
+   "chosen": [
+    0
+   ],
+   "logs": [
+    "PLAY playerIndex=0 card=Kyogre"
+   ],
+   "state": {
+    "stadium": null,
+    "players": [
+     {
+      "active": [
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex",
+        "hp": 350,
+        "maxHp": 350,
+        "energies": [
+         3,
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [
+       {
+        "id": 721,
+        "name": "Kyogre",
+        "hp": 150,
+        "maxHp": 150,
+        "energies": [],
+        "tools": 0
+       }
+      ],
+      "deckCount": 40,
+      "handCount": 7,
+      "prizeLeft": 6,
+      "discardCount": 2,
+      "hand": [
+       {
+        "id": 1235,
+        "name": "Waitress"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 1235,
+        "name": "Waitress"
+       },
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 722,
+        "name": "Snover"
+       }
+      ],
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     },
+     {
+      "active": [
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex",
+        "hp": 340,
+        "maxHp": 350,
+        "energies": [
+         3,
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 45,
+      "handCount": 5,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": null,
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     }
+    ]
+   }
+  },
+  {
+   "step": 18,
+   "turn": 4,
+   "acting": 0,
+   "select": {
+    "type": "MAIN",
+    "context": "MAIN",
+    "min": 1,
+    "max": 1
+   },
+   "options": [
+    "[0] ATTACK attackId=1046 card='Mega Abomasnow ex' attack='Hammer-lanche'",
+    "[1] END"
+   ],
+   "scores": [
+    30.555555555555557,
+    0.5
+   ],
+   "chosen": [
+    0
+   ],
+   "logs": [
+    "PLAY playerIndex=0 card=Snover"
+   ],
+   "state": {
+    "stadium": null,
+    "players": [
+     {
+      "active": [
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex",
+        "hp": 350,
+        "maxHp": 350,
+        "energies": [
+         3,
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [
+       {
+        "id": 721,
+        "name": "Kyogre",
+        "hp": 150,
+        "maxHp": 150,
+        "energies": [],
+        "tools": 0
+       },
+       {
+        "id": 722,
+        "name": "Snover",
+        "hp": 90,
+        "maxHp": 90,
+        "energies": [],
+        "tools": 0
+       }
+      ],
+      "deckCount": 40,
+      "handCount": 6,
+      "prizeLeft": 6,
+      "discardCount": 2,
+      "hand": [
+       {
+        "id": 1235,
+        "name": "Waitress"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 1235,
+        "name": "Waitress"
+       },
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       }
+      ],
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     },
+     {
+      "active": [
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex",
+        "hp": 340,
+        "maxHp": 350,
+        "energies": [
+         3,
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [],
+      "deckCount": 45,
+      "handCount": 5,
+      "prizeLeft": 6,
+      "discardCount": 0,
+      "hand": null,
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     }
+    ]
+   }
+  },
+  {
+   "step": 19,
+   "turn": 4,
+   "acting": 0,
+   "select": {
+    "type": "CARD",
+    "context": "TO_HAND",
+    "min": 3,
+    "max": 3
+   },
+   "options": [
+    "[0] CARD area=PRIZE index=0 playerIndex=0",
+    "[1] CARD area=PRIZE index=1 playerIndex=0",
+    "[2] CARD area=PRIZE index=2 playerIndex=0",
+    "[3] CARD area=PRIZE index=3 playerIndex=0",
+    "[4] CARD area=PRIZE index=4 playerIndex=0",
+    "[5] CARD area=PRIZE index=5 playerIndex=0"
+   ],
+   "scores": null,
+   "chosen": [
+    0,
+    1,
+    2
+   ],
+   "logs": [
+    "ATTACK playerIndex=0 card=Mega Abomasnow ex attack=Hammer-lanche",
+    "MOVE_CARD playerIndex=0 card=Basic {W} Energy",
+    "MOVE_CARD playerIndex=0 card=Basic {W} Energy",
+    "MOVE_CARD playerIndex=0 card=Basic {W} Energy",
+    "MOVE_CARD playerIndex=0 card=Basic {W} Energy",
+    "MOVE_CARD playerIndex=0 card=Basic {W} Energy",
+    "MOVE_CARD playerIndex=0 card=Basic {W} Energy",
+    "HP_CHANGE playerIndex=1 value=-600 card=Mega Abomasnow ex",
+    "MOVE_CARD playerIndex=1 card=Mega Abomasnow ex",
+    "MOVE_CARD playerIndex=1 card=Snover",
+    "MOVE_CARD playerIndex=1 card=Basic {W} Energy",
+    "MOVE_CARD playerIndex=1 card=Basic {W} Energy"
+   ],
+   "state": {
+    "stadium": null,
+    "players": [
+     {
+      "active": [
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex",
+        "hp": 350,
+        "maxHp": 350,
+        "energies": [
+         3,
+         3
+        ],
+        "tools": 0
+       }
+      ],
+      "bench": [
+       {
+        "id": 721,
+        "name": "Kyogre",
+        "hp": 150,
+        "maxHp": 150,
+        "energies": [],
+        "tools": 0
+       },
+       {
+        "id": 722,
+        "name": "Snover",
+        "hp": 90,
+        "maxHp": 90,
+        "energies": [],
+        "tools": 0
+       }
+      ],
+      "deckCount": 34,
+      "handCount": 6,
+      "prizeLeft": 6,
+      "discardCount": 8,
+      "hand": [
+       {
+        "id": 1235,
+        "name": "Waitress"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       },
+       {
+        "id": 1235,
+        "name": "Waitress"
+       },
+       {
+        "id": 723,
+        "name": "Mega Abomasnow ex"
+       },
+       {
+        "id": 3,
+        "name": "Basic {W} Energy"
+       }
+      ],
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     },
+     {
+      "active": [],
+      "bench": [],
+      "deckCount": 45,
+      "handCount": 5,
+      "prizeLeft": 6,
+      "discardCount": 4,
+      "hand": null,
+      "conditions": {
+       "poisoned": false,
+       "burned": false,
+       "asleep": false,
+       "paralyzed": false,
+       "confused": false
+      }
+     }
+    ]
+   }
+  }
+ ]
+}
