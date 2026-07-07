@@ -8,6 +8,11 @@
 /data/raw/replays/
 /viewer/replays/
 
+# Torch checkpoint + train metrics (dev artifacts; the exported
+# models/policy_value.npz used at runtime IS versioned)
+/models/*.pt
+/models/*.metrics.json
+
 # Submission bundle (rebuilt by src/build_submission.py)
 /submission.tar.gz
 
