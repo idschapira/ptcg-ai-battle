@@ -31,11 +31,13 @@ def read_deck_csv(path: str | None = None) -> list[int]:
 class RandomAgent:
     """Picks a uniform-random legal answer for every selection."""
 
-    __slots__ = ("_rng", "_deck_path")
+    __slots__ = ("_rng", "_deck_path", "last_scores")
 
     def __init__(self, seed: int | None = None, deck_path: str | None = None) -> None:
         self._rng = random.Random(seed)
         self._deck_path = deck_path
+        # score-interface hook for the game recorder: random has no scores
+        self.last_scores: list[float] | None = None
 
     def __call__(self, obs_dict: dict) -> list[int]:
         obs: Observation = to_observation_class(obs_dict)

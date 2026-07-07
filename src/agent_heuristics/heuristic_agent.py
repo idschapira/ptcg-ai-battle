@@ -44,9 +44,14 @@ _STATUS_VALUE: Final[dict[int, float]] = {0: 20.0, 1: 20.0, 2: 30.0, 3: 30.0, 4:
 
 
 class HeuristicAgent:
-    """Greedy one-ply evaluator satisfying the competition contract."""
+    """Greedy one-ply evaluator satisfying the competition contract.
 
-    __slots__ = ("_index", "_effects", "_wrapper", "_deck_path", "_rng")
+    After each __call__, `last_scores` holds the per-option scores aligned
+    with obs.select.option (None when the handler is not score-based) —
+    consumed by the dev game recorder.
+    """
+
+    __slots__ = ("_index", "_effects", "_wrapper", "_deck_path", "_rng", "last_scores")
 
     def __init__(
         self,
@@ -60,18 +65,21 @@ class HeuristicAgent:
         self._wrapper = EnvironmentWrapper(self._index)
         self._deck_path = deck_path
         self._rng = random.Random(seed)
+        self.last_scores: list[float] | None = None
 
     # ------------------------------------------------------------------ #
     # Contract entry point
     # ------------------------------------------------------------------ #
 
     def __call__(self, obs_dict: dict) -> list[int]:
+        self.last_scores = None
         try:
             obs = self._wrapper.parse(obs_dict)
             if obs.select is None:
                 return read_deck_csv(self._deck_path)
             return self._decide(obs)
         except Exception:
+            self.last_scores = None
             return self._safe_answer(obs_dict)
 
     @staticmethod
@@ -334,18 +342,19 @@ class HeuristicAgent:
                 return i
         return 0
 
+    def _score_options(self, options: list[Option], score) -> list[float]:
+        scores = [self._score_safe(score, i, option) for i, option in enumerate(options)]
+        self.last_scores = scores
+        return scores
+
     def _best_index(self, options: list[Option], score) -> int:
-        best_i, best_s = 0, float("-inf")
-        for i, option in enumerate(options):
-            s = self._score_safe(score, i, option)
-            if s > best_s:
-                best_i, best_s = i, s
-        return best_i
+        scores = self._score_options(options, score)
+        return max(range(len(scores)), key=lambda i: scores[i]) if scores else 0
 
     def _pick_top(self, options: list[Option], min_count: int, max_count: int, score) -> list[int]:
+        scores = self._score_options(options, score)
         count = max(min_count, min(max_count, len(options)))
-        ranked = sorted(range(len(options)),
-                        key=lambda i: -self._score_safe(score, i, options[i]))
+        ranked = sorted(range(len(options)), key=lambda i: -scores[i])
         return ranked[:count]
 
     @staticmethod
