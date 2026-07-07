@@ -43,12 +43,11 @@ class Attack:
 
 @dataclass(frozen=True, slots=True)
 class Skill:
-    """One ability/marker row (the engine's CardData.skills)."""
+    """One Pokémon ability row (subset of the engine's CardData.skills)."""
 
     skill_id: int
     card_id: int
     skill_name: str
-    is_marker: bool
     effect: str | None
 
 
@@ -71,6 +70,9 @@ class Card:
     is_ex: bool
     is_mega_ex: bool
     is_ace_spec: bool
+    # Tera Pokémon take no damage from attacks while on the Bench
+    # (engine behavior verified by tests/test_tera_bench_immunity.py).
+    is_tera: bool
     attack_ids: tuple[int, ...]
     skill_ids: tuple[int, ...]
 

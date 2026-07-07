@@ -32,9 +32,12 @@ class Report(NamedTuple):
     missing: frozenset[int]
     extra: frozenset[int]
     name_mismatches: tuple[tuple[int, str, str], ...]  # (id, engine name, index name)
+    extra_is_critical: bool = False  # e.g. a false is_tera flag corrupts features
 
     @property
     def critical(self) -> bool:
+        if self.extra_is_critical and self.extra:
+            return True
         return bool(self.missing) or bool(self.name_mismatches)
 
 
@@ -61,6 +64,50 @@ def reconcile_cards(index: CardIndex) -> Report:
         missing=frozenset(engine_ids - index_ids),
         extra=frozenset(index_ids - engine_ids),
         name_mismatches=mismatches,
+    )
+
+
+def reconcile_tera(index: CardIndex) -> Report:
+    """dim_card.is_tera must equal the engine's CardData.tera flag exactly."""
+    engine_cards = api.all_card_data()
+    engine_ids = {c.cardId for c in engine_cards if c.tera}
+    index_ids = {card_id for card_id, card in index.cards.items() if card.is_tera}
+    return Report(
+        label="tera flag (CardData.tera vs dim_card.is_tera)",
+        engine_count=len(engine_ids),
+        index_count=len(index_ids),
+        missing=frozenset(engine_ids - index_ids),
+        extra=frozenset(index_ids - engine_ids),
+        name_mismatches=(),
+        extra_is_critical=True,
+    )
+
+
+def reconcile_skills(index: CardIndex) -> Report:
+    """Our dim_skill must cover the engine's Pokémon ability skills by name.
+
+    The engine also registers Trainer/Energy card texts as CardData.skills;
+    those live in dim_card/dim_effect territory, so only POKEMON cards with
+    a skill whose name matches no ability row count as missing.
+    """
+    engine_pairs = {
+        (c.cardId, _norm(s.name))
+        for c in api.all_card_data()
+        if c.cardType == api.CardType.POKEMON
+        for s in c.skills
+    }
+    index_pairs = {
+        (skill.card_id, _norm(skill.skill_name)) for skill in index.skills.values()
+    }
+    missing_cards = frozenset(card_id for card_id, _name in engine_pairs - index_pairs)
+    extra_cards = frozenset(card_id for card_id, _name in index_pairs - engine_pairs)
+    return Report(
+        label="skills (POKEMON CardData.skills vs dim_skill, by card+name)",
+        engine_count=len(engine_pairs),
+        index_count=len(index_pairs),
+        missing=missing_cards,
+        extra=extra_cards,
+        name_mismatches=(),
     )
 
 
@@ -93,7 +140,8 @@ def _print_report(report: Report) -> None:
     if report.missing:
         print(f"  ids: {sorted(report.missing)[:20]}"
               f"{' ...' if len(report.missing) > 20 else ''}")
-    print(f"extra   (index - engine): {len(report.extra):>4}  (log only)")
+    print(f"extra   (index - engine): {len(report.extra):>4}  "
+          f"{'<- CRITICAL' if report.extra_is_critical and report.extra else '(log only)'}")
     if report.extra:
         print(f"  ids: {sorted(report.extra)[:20]}"
               f"{' ...' if len(report.extra) > 20 else ''}")
@@ -106,7 +154,12 @@ def _print_report(report: Report) -> None:
 
 def main() -> int:
     index = CardIndex()
-    reports = (reconcile_cards(index), reconcile_attacks(index))
+    reports = (
+        reconcile_cards(index),
+        reconcile_attacks(index),
+        reconcile_skills(index),
+        reconcile_tera(index),
+    )
     for report in reports:
         _print_report(report)
     if any(r.critical for r in reports):

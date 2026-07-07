@@ -154,9 +154,10 @@ class DamageModifier(enum.IntEnum):
 class MoveKind(enum.IntEnum):
     """Classification of a raw move-grain CSV row."""
 
-    ATTACK = 0   # real attack -> dim_attack
-    ABILITY = 1  # "[Ability] ..." rows -> dim_skill
-    MARKER = 2   # rule markers such as "[Tera]" -> dim_skill
+    ATTACK = 0    # real attack -> dim_attack
+    ABILITY = 1   # "[Ability] ..." rows -> dim_skill
+    TERA = 2      # "[Tera]" marker rows -> dropped (captured as dim_card.is_tera)
+    EXCLUDED = 3  # rows the engine has no id for -> dropped (see FORCE_* below)
 
 
 class CardModel(NamedTuple):
@@ -235,6 +236,12 @@ def build_dim_card(raw: pl.DataFrame) -> pl.DataFrame:
             pl.col("rule").eq("Pokémon ex").fill_null(False).alias("is_ex"),
             pl.col("rule").eq("Mega Pokémon ex").fill_null(False).alias("is_mega_ex"),
             pl.col("rule").eq("ACE SPEC").fill_null(False).alias("is_ace_spec"),
+            # Category "Tera(<type>)" marks Tera Pokémon; verified 1:1 against
+            # the engine's CardData.tera flag by reconcile.py.
+            pl.col("category")
+            .str.starts_with("Tera")
+            .fill_null(False)
+            .alias("is_tera"),
             pl.col("hp").cast(pl.Int16),
             pl.col("retreat_cost").cast(pl.Int8),
         )
@@ -254,36 +261,46 @@ def build_dim_card(raw: pl.DataFrame) -> pl.DataFrame:
             "is_ex",
             "is_mega_ex",
             "is_ace_spec",
+            "is_tera",
         )
         .sort("card_id")
     )
 
 
 # Rows the engine numbers differently than a plain reading of the CSV.
-# Cards 223/957 print a bracket-less "Tera" row that the engine drops from
-# its attack list, while card 979 (Koraidon ex) keeps "Tera" as a real
-# attack (engine id 1408) but has no id at all for "Impact Blow" — that
-# attack is unplayable in the engine build. reconcile.py fails loudly if
-# an engine update ever changes this list.
-FORCE_SKILL_ROWS: Final[frozenset[tuple[int, str]]] = frozenset(
-    {(223, "Tera"), (957, "Tera"), (979, "Impact Blow")}
+# Cards 223/957 print their Tera marker WITHOUT brackets ("Tera"), so the
+# bracket heuristic below misses them. Card 979 (Koraidon ex) is the
+# inverse quirk: the engine numbers its "Tera" row as a real attack
+# (engine id 1408) but has no id at all for "Impact Blow" — that attack
+# is unplayable in the engine build, so we drop the row entirely.
+# reconcile.py fails loudly if an engine update ever changes this list.
+FORCE_TERA_ROWS: Final[frozenset[tuple[int, str]]] = frozenset(
+    {(223, "Tera"), (957, "Tera")}
 )
+FORCE_EXCLUDED_ROWS: Final[frozenset[tuple[int, str]]] = frozenset(
+    {(979, "Impact Blow")}
+)
+
+
+def _row_in(rows: frozenset[tuple[int, str]]) -> pl.Expr:
+    return pl.any_horizontal(
+        (pl.col("card_id") == card_id) & (pl.col("move_name") == move_name)
+        for card_id, move_name in sorted(rows)
+    )
 
 
 def _classify_moves(raw: pl.DataFrame) -> pl.DataFrame:
     """All move-grain rows (CSV order) with a MoveKind code attached."""
-    force_skill = pl.any_horizontal(
-        (pl.col("card_id") == card_id) & (pl.col("move_name") == move_name)
-        for card_id, move_name in sorted(FORCE_SKILL_ROWS)
-    )
     return (
         raw.filter(pl.col("move_name").is_not_null())
         .sort("card_id", maintain_order=True)
         .with_columns(
-            pl.when(pl.col("move_name").str.starts_with("[Ability]"))
+            pl.when(_row_in(FORCE_EXCLUDED_ROWS))
+            .then(pl.lit(int(MoveKind.EXCLUDED), dtype=pl.Int8))
+            .when(pl.col("move_name").str.starts_with("[Ability]"))
             .then(pl.lit(int(MoveKind.ABILITY), dtype=pl.Int8))
-            .when(pl.col("move_name").str.starts_with("[") | force_skill)
-            .then(pl.lit(int(MoveKind.MARKER), dtype=pl.Int8))
+            .when(pl.col("move_name").str.starts_with("[") | _row_in(FORCE_TERA_ROWS))
+            .then(pl.lit(int(MoveKind.TERA), dtype=pl.Int8))
             .otherwise(pl.lit(int(MoveKind.ATTACK), dtype=pl.Int8))
             .alias("kind_code"),
         )
@@ -335,18 +352,22 @@ def build_dim_attack(moves: pl.DataFrame) -> pl.DataFrame:
 
 
 def build_dim_skill(moves: pl.DataFrame) -> pl.DataFrame:
-    """One row per [Ability]/[Tera]-style row (the engine's CardData.skills)."""
+    """One row per Pokémon ability (a subset of the engine's CardData.skills).
+
+    [Tera] rows are NOT skills: they mark the card as a Tera Pokémon
+    (dim_card.is_tera) whose printed type differs and which takes no attack
+    damage while on the Bench (semantics verified in tests/test_tera_bench_immunity.py).
+    """
     return (
-        moves.filter(pl.col("kind_code") != int(MoveKind.ATTACK))
+        moves.filter(pl.col("kind_code") == int(MoveKind.ABILITY))
         .with_row_index("skill_id", offset=1)
         .with_columns(
             pl.col("skill_id").cast(pl.UInt16),
             pl.col("move_name")
             .str.strip_prefix("[Ability] ")
             .alias("skill_name"),
-            (pl.col("kind_code") == int(MoveKind.MARKER)).alias("is_marker"),
         )
-        .select("skill_id", "card_id", "skill_name", "is_marker", "effect")
+        .select("skill_id", "card_id", "skill_name", "effect")
     )
 
 
@@ -401,7 +422,7 @@ def main() -> None:
     persist(model)
     print(f"dim_card:             {model.dim_card.height:>5} cards")
     print(f"dim_attack:           {model.dim_attack.height:>5} attacks (engine-aligned ids)")
-    print(f"dim_skill:            {model.dim_skill.height:>5} abilities/markers")
+    print(f"dim_skill:            {model.dim_skill.height:>5} abilities")
     print(f"bridge_attack_energy: {model.bridge_attack_energy.height:>5} cost rows")
     for path in (
         DIM_CARD_PARQUET,
