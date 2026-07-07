@@ -1,1 +1,2 @@
 polars>=1.40
+numpy>=2.0
