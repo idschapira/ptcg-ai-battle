@@ -1,0 +1,58 @@
+attack_id,card_name,move_name,damage_base,effect_text
+8,Pinsir,Slow Crunch,,"Discard all Energy from this Pokémon. At the end of your opponent’s next turn, the Defending Pokémon will be Knocked Out."
+62,Great Tusk,Land Collapse,,"Discard the top card of your opponent’s deck. If you played an Ancient Supporter card from your hand during this turn, discard 3 more cards in this way."
+82,Shiftry,Expelling Tornado,,"Choose 3 of your opponent’s Benched Pokémon. If you do, shuffle all of your opponent’s Benched Pokémon that you didn’t choose, and all cards attached to those Pokémon, into their deck."
+107,Volbeat,Quick Sign,,"If you go first, you can use this attack during your first turn. Search your deck for up to 2 Basic Pokémon and put them onto your Bench. Then, shuffle your deck."
+173,Sylveon,Mystical Return,,"Flip a coin. If heads, choose 1 of your opponent’s Benched Pokémon. Shuffle that Pokémon and all attached cards into their deck."
+202,Lapras ex,Larimar Rain,,Look at the top 20 cards of your deck and attach any number of Energy cards you find there to your Pokémon in any way you like. Shuffle the other cards back into your deck.
+213,Slowking,Seek Inspiration,,"Discard the top card of your deck, and if that card is a Pokémon that doesn’t have a Rule Box, choose 1 of its attacks and use it as this attack. (Pokémon {ex}, Pokémon {V}, etc. have Rule Boxes.)"
+215,Comfey,Flower Shower,,Each player draws 3 cards.
+234,Exeggcute,Precocious Evolution,,"If you go first, you can use this attack during your first turn. Search your deck for a card that evolves from this Pokémon and put it onto this Pokémon to evolve it. Then, shuffle your deck."
+252,Flygon ex,Sonic Peridot,,This attack does 100 damage to each of your opponent’s Pokémon {ex} and Pokémon {V}. This attack’s damage isn’t affected by Weakness or Resistance.
+259,Alolan Exeggutor ex,Swinging Sphene,,"Flip a coin. If heads, Knock Out your opponent’s Active Basic Pokémon. If tails, Knock Out 1 of your opponent’s Benched Basic Pokémon."
+284,Rotom,Crushing Pulse,,Your opponent reveals their hand. Discard all Item cards and Pokémon Tool cards you find there.
+303,PalossandEX,Barite Jail,,Put damage counters on each of your opponent’s Benched Pokémon until its remaining HP is 100.
+305,Annihilape,Destined Fight,,Both Active Pokémon are Knocked Out.
+317,Tatsugiri ex,Cinnabar Lure,,Look at the top 10 cards of your deck. You may put any number of Pokémon you find there onto your Bench. Shuffle the other cards back into your deck.
+331,Vaporeon ex,Severe Squall,,This attack does 60 damage to each of your opponent’s Pokémon {ex}. This attack’s damage isn’t affected by Weakness or Resistance.
+335,Glaceon ex,Euclase,,Knock Out 1 of your opponent’s Pokémon that has exactly 6 damage counters on it.
+338,Alakazam,Strange Hacking,,Your opponent’s Active Pokémon is now Confused. You may move any number of damage counters on your opponent’s Pokémon to their other Pokémon in any way you like.
+341,Espeon ex,Amazez,,Devolve each of your opponent’s evolved Pokémon by shuffling the highest Stage Evolution card on it into your opponent’s deck.
+364,Iono’s Electrode,Thump-Thump Boom,,"This Pokémon does 100 damage to itself. Flip a coin. If heads, your opponent’s Active Pokémon is Knocked Out."
+381,N’s Sigilyph,Victory Symbol,,"If you use this attack when you have exactly 1 Prize card remaining, you win this game."
+393,Rockruff,Dig It Up,,Look at the top card of your deck. You may discard that card.
+403,N’s Zoroark ex,Night Joker,,Choose 1 of your Benched N’s Pokémon’s attacks and use it as this attack.
+441,Sylveon ex,Angelite,,"Choose 2 of your opponent’s Benched Pokémon. Shuffle those Pokémon and all attached cards into your opponent’s deck. If 1 of your Pokémon used Angelite during your last turn, this attack can’t be used."
+558,Team Rocket's Blipbug,Searching Eyes,,Look at 1 of your opponent’s face-down Prize cards.
+564,Arboliva ex,Oil Salvo,,"Choose 1 of your opponent’s Pokémon 6 times. (You can choose the same Pokémon more than once.) For each time you chose a Pokémon, do 20 damage to it. This damage isn’t affected by Weakness or Resistance."
+571,Team Rocket's Moltres ex,Evil Incineration,,"Discard a Team Rocket’s Energy from this Pokémon. If you do, discard your opponent’s Active Pokémon and all attached cards."
+609,Team Rocket's Wobbuffet,Rocket Mirror,,Move all damage counters from 1 of your Benched Team Rocket’s Pokémon to your opponent’s Active Pokémon.
+613,Team Rocket's Dottler,Disruptive Radar,,Look at the top 5 cards of your opponent’s deck and put them back in any order.
+617,Primeape,Drag Off,,Switch in 1 of your opponent’s Benched Pokémon to the Active Spot. This attack does 30 damage to the new Active Pokémon.
+632,Team Rocket's Arbok,Spinning Tail,,This attack does 30 damage to each of your opponent’s Pokémon. (Don’t apply Weakness and Resistance for Benched Pokémon.)
+634,Team Rocket's Nidorina,Dark Awakening,,"Choose up to 2 of your {D} Pokémon. For each of those Pokémon, search your deck for a card that evolves from that Pokémon and put it onto that Pokémon to evolve it. Then, shuffle your deck."
+647,Team Rocket's Grimer,Corrosive Sludge,,"At the end of your opponent’s next turn, discard the Defending Pokémon and all attached cards."
+665,Team Rocket's Persian ex,Haughty Order,,Reveal the top 10 cards of your opponent’s deck. You may choose an attack from a Pokémon you find there and use it as this attack. Shuffle the revealed cards into your opponent’s deck.
+698,Litwick,Brighten and Burn,,Look at the top card of your deck. You may discard that card.
+719,Cryogonal,Drag Off,,Switch in 1 of your opponent’s Benched Pokémon to the Active Spot. This attack does 20 damage to the new Active Pokémon.
+785,Haxorus,Axe Blast,,"If your opponent’s Active Pokémon is a Basic Pokémon, it is Knocked Out."
+852,Cofagrigus,Extended Damagriiigus,,Move all damage counters from 1 of your Benched Pokémon to 1 of your opponent’s Pokémon.
+855,Gothorita,Fortunate Eye,,Look at the top 5 cards of your opponent’s deck and put them back in any order.
+905,Watchog,Focus Energy,,"During your next turn, this Pokémon’s Hyper Fang attack’s base damage is 240."
+951,Shiftry,Reversing Gust,,"Flip a coin. If heads, choose 1 of your opponent’s Pokémon. Shuffle that Pokémon and all attached cards into their deck."
+994,Mega Absol ex,Terminal Period,,"If your opponent’s Active Pokémon has exactly 6 damage counters on it, that Pokémon is Knocked Out."
+1052,Inteleon,Bring Down,,"Choose a Pokémon in play (yours or your opponent’s) that has the least HP remaining, except for this Pokémon, and it is Knocked Out."
+1055,Frosmoth,Chilling Wings,,This attack does 20 damage to each of your opponent’s Pokémon. (Don’t apply Weakness and Resistance for Benched Pokémon.) Your opponent’s Active Pokémon is now Asleep.
+1093,Delibird,Quick Gift,,"If you go first, you can use this attack during your first turn. Search your deck for a card and put it into your hand. Then, shuffle your deck."
+1246,N's Vanilluxe,Snow Coating,,Double the number of damage counters on each of your opponent’s Pokémon.
+1252,Mega Eelektross ex,Split Bomb,,This attack does 60 damage to each of 2 of your opponent’s Pokémon. (Don’t apply Weakness and Resistance for Benched Pokémon.)
+1257,Tapu Koko,Fast Flight,,"If you go first, you can use this attack during your first turn. Discard your hand and draw 5 cards."
+1260,Team Rocket's Exeggutor,Tri Kinesis,,"Flip 3 coins. If all of them are heads, Knock Out 1 of your opponent’s Pokémon."
+1393,Scream Tail ex,Scream,,"You can use this attack only if you go second, and only during your first turn. Your opponent can’t play any Supporter cards from their hand during their next turn."
+1397,Hitmontop,Spin and Draw,,"Shuffle your hand into your deck. Then, draw 6 cards."
+1414,Scolipede,Dastardly Jab,,Place damage counters on your opponent’s Active Pokémon until its remaining HP is 10.
+1436,Haxorus,Bring Down the Axe,,"If your opponent’s Active Pokémon has any Special Energy attached, it is Knocked Out."
+1497,Dedenne,Tail Generator,,Choose Basic {L} Energy cards from your discard pile up to the amount of Energy attached to all of your opponent’s Pokémon and attach them to your {L} Pokémon in any way you like.
+1526,Mega Zygarde ex,Nullifying Zero,,"For each of your opponent’s Pokémon, flip a coin. If heads, this attack does 150 damage to that Pokémon. (Don’t apply Weakness and Resistance for Benched Pokémon.)"
+1533,Yveltal ex,Soul Destroyer,,Knock Out each of your opponent’s Pokémon that has 50 HP or less remaining.
+1554,Furfrou,Hand Trim,,Discard random cards from your opponent’s hand until they have 5 cards in their hand.
