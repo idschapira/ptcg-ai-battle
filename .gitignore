@@ -2,6 +2,7 @@
 /data/processed/*.parquet
 /data/processed/replay_dataset.*
 /data/processed/bc_dataset.*
+/data/processed/replays/
 /data/processed/effects_to_review.csv
 
 # Raw Kaggle replays (redownload: python -m src.ingestion.replays_download)

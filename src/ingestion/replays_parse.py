@@ -5,13 +5,19 @@ never reimplemented — so replay-derived samples are bit-compatible with
 anything encoded live. Output feeds the Sprint-5 supervised warm start
 (the training itself does NOT live here).
 
-Dataset layout (data/processed/replay_dataset.npz, all np.savez_compressed):
+Dataset layout (all np.savez_compressed):
     states        [N, ENCODING_DIM] float32
     options_flat  [sum(counts), OPTION_DIM] float32  (legal options only)
     option_counts [N] uint16   (reconstruct ragged rows / masks)
     labels        [N] uint16   (chosen option index)
+    values        [N] int8     (z from the decider's view: +1 win/-1 loss/0)
     episode_ids   [N] int64
-plus replay_dataset.meta.json with provenance and the validation counters.
+plus a sibling .meta.json with provenance and the validation counters.
+
+Default output: data/processed/replay_dataset.npz (unchanged). With
+--date D the input becomes data/raw/replays/D and the output
+data/processed/replays/replay_dataset_D.npz — one file per day, nothing
+overwritten, ready for the multi-day merge (replays_merge.py).
 
 None-safe reconciliation: any card/attack id in a decision point that the
 CardIndex does not know skips that sample (counted per id), never raises.
@@ -51,6 +57,7 @@ logger = logging.getLogger(__name__)
 
 DATASET_PATH: Final[Path] = PROCESSED_DIR / "replay_dataset.npz"
 META_PATH: Final[Path] = PROCESSED_DIR / "replay_dataset.meta.json"
+REPLAYS_OUT_DIR: Final[Path] = PROCESSED_DIR / "replays"
 VIEWER_OUT_DIR: Final[Path] = REPO_ROOT / "viewer" / "replays"
 
 
@@ -159,7 +166,11 @@ def parse_replays(
     sides: str = "winner",
     emit_viewer: int = 0,
     index: CardIndex | None = None,
+    out_path: Path | None = None,
 ) -> ParseStats:
+    # resolved late so tests can patch the module-level default
+    out_path = out_path if out_path is not None else DATASET_PATH
+    meta_path = out_path.with_name(out_path.name.replace(".npz", ".meta.json"))
     index = index if index is not None else CardIndex()
     state_encoder = StateEncoder(index)
     option_encoder = OptionEncoder(index)
@@ -171,6 +182,7 @@ def parse_replays(
     options_flat: list[np.ndarray] = []
     option_counts: list[int] = []
     labels: list[int] = []
+    values: list[int] = []
     episode_ids: list[int] = []
     stats = ParseStats()
 
@@ -225,11 +237,13 @@ def parse_replays(
             legal = option_matrix[mask]
             # one supervised pair per chosen index (multi-select answers
             # contribute one sample each, same state)
+            z = 0 if winner is None else (1 if agent_index == winner else -1)
             for chosen in action:
                 states.append(state_vec)
                 options_flat.append(legal)
                 option_counts.append(legal.shape[0])
                 labels.append(chosen)
+                values.append(z)
                 episode_ids.append(int(episode_id))
                 stats.decision_pairs += 1
 
@@ -249,18 +263,19 @@ def parse_replays(
     encoding.logger.removeHandler(overflow_counter)
     stats.overflow_warnings = overflow_counter.count  # type: ignore[attr-defined]
 
-    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
-        DATASET_PATH,
+        out_path,
         states=np.asarray(states, dtype=np.float32).reshape(-1, ENCODING_DIM),
         options_flat=(np.concatenate(options_flat, axis=0)
                       if options_flat else np.zeros((0, OPTION_DIM), np.float32)),
         option_counts=np.asarray(option_counts, dtype=np.uint16),
         labels=np.asarray(labels, dtype=np.uint16),
+        values=np.asarray(values, dtype=np.int8),
         episode_ids=np.asarray(episode_ids, dtype=np.int64),
     )
     meta = {
-        "schema": "ptcg-replay-dataset-v1",
+        "schema": "ptcg-replay-dataset-v2",  # v2: + values (z per sample)
         "encoding_dim": ENCODING_DIM,
         "option_dim": OPTION_DIM,
         "max_options": MAX_OPTIONS,
@@ -275,7 +290,7 @@ def parse_replays(
         "overflow_warnings": overflow_counter.count,
         "overflow_lens": stats.overflow_lens,
     }
-    with open(META_PATH, "w", encoding="utf-8") as fh:
+    with open(meta_path, "w", encoding="utf-8") as fh:
         json.dump(meta, fh, indent=1)
     return stats
 
@@ -283,13 +298,27 @@ def parse_replays(
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--replay-dir", type=Path, default=REPLAYS_DIR)
+    parser.add_argument("--date", default=None, metavar="YYYY-MM-DD",
+                        help="parse data/raw/replays/DATE into "
+                             "data/processed/replays/replay_dataset_DATE.npz")
+    parser.add_argument("--replay-dir", type=Path, default=None)
+    parser.add_argument("--out", type=Path, default=None)
     parser.add_argument("--sides", choices=("winner", "both"), default="winner")
     parser.add_argument("--emit-viewer", type=int, default=1, metavar="N",
                         help="also write N games as ptcg-devrecord-v1 JSON")
     args = parser.parse_args()
 
-    stats = parse_replays(args.replay_dir, args.sides, args.emit_viewer)
+    replay_dir = args.replay_dir
+    out_path = args.out
+    if args.date is not None:
+        replay_dir = replay_dir if replay_dir is not None else REPLAYS_DIR / args.date
+        out_path = (out_path if out_path is not None
+                    else REPLAYS_OUT_DIR / f"replay_dataset_{args.date}.npz")
+    if replay_dir is None:
+        replay_dir = REPLAYS_DIR
+
+    stats = parse_replays(replay_dir, args.sides, args.emit_viewer,
+                          out_path=out_path)
     print(f"games parsed:          {stats.games}")
     print(f"decision pairs:        {stats.decision_pairs}")
     print(f"skipped (unknown id):  {stats.skipped_unknown_id}")
@@ -300,8 +329,9 @@ def main() -> None:
         print(f"unknown ids (top):     {dict(stats.unknown_ids.most_common(10))}")
     print(f"MAX_OPTIONS overflows: {getattr(stats, 'overflow_warnings', 0)}"
           f"{' lens=' + str(stats.overflow_lens) if stats.overflow_lens else ''}")
-    print(f"dataset: {DATASET_PATH.relative_to(REPO_ROOT)} "
-          f"({DATASET_PATH.stat().st_size:,} bytes)")
+    written = out_path if out_path is not None else DATASET_PATH
+    print(f"dataset: {written.relative_to(REPO_ROOT)} "
+          f"({written.stat().st_size:,} bytes)")
 
 
 if __name__ == "__main__":
