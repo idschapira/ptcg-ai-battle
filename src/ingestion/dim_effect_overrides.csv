@@ -1,0 +1,11 @@
+attack_id,effect_type,magnitude,target,condition,coin_flip,note
+146,NONE,,,cost_discount,false,"Conkeldurr: ignore all Energy in this attack's cost when affected by a Special Condition"
+253,PROTECT,,SELF,no_weakness,false,"Archaludon ex: this Pokemon has no Weakness during opponent's next turn"
+660,COUNTERS,,OPP_ACTIVE,on_attacker,false,"Zamazenta: counter damage counters on the Attacking Pokemon when damaged"
+678,STATUS,3,OPP_ACTIVE,if_heads,true,"Servine (JP text in EN CSV): flip a coin; if heads the Defending Pokemon is Paralyzed"
+680,SEARCH,,PLAYER,,false,"Serperior ex (JP text in EN CSV): search deck for up to 3 cards into hand"
+993,NONE,,,cost_discount,false,"Crawdaunt: attack can be used for {D} if this Pokemon has damage counters"
+1007,DAMAGE_BONUS,30,OPP_ACTIVE,base_becomes,false,"Mega Mawile ex: base damage becomes 30 if opponent's Active already damaged"
+1039,DISRUPT_RESOURCE,,PLAYER,stadium,false,"Chi-Yu: discard opponent's Stadium in play"
+1039,OPP_LOCK,,PLAYER,stadium_lock,false,"Chi-Yu: opponent can't play Stadium cards next turn"
+1130,DAMAGE_BONUS,,OPP_ACTIVE,mirror_damage,false,"Mega Heracross ex: does that much more damage as taken last turn"
