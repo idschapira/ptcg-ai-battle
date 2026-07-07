@@ -1,0 +1,13 @@
+# Processed artifacts (rebuilt from data/raw by src/ingestion/build_card_model.py)
+/data/processed/*.parquet
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# OS / editor
+.DS_Store
+Thumbs.db
