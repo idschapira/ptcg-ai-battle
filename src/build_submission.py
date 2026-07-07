@@ -37,15 +37,19 @@ BUNDLE: Final[tuple[str, ...]] = (
     "src/__init__.py",
     "src/ingestion/__init__.py",
     "src/ingestion/build_card_model.py",
+    "src/ingestion/build_effect_model.py",
+    "src/ingestion/dim_effect_overrides.csv",
     "src/ingestion/card_index.py",
     "src/environment_wrapper/__init__.py",
     "src/environment_wrapper/wrapper.py",
     "src/agent_heuristics/__init__.py",
     "src/agent_heuristics/random_agent.py",
+    "src/agent_heuristics/heuristic_agent.py",
     "data/processed/dim_card.parquet",
     "data/processed/dim_attack.parquet",
     "data/processed/dim_skill.parquet",
     "data/processed/bridge_attack_energy.parquet",
+    "data/processed/dim_effect.parquet",
 )
 
 _SMOKE_SCRIPT: Final[str] = textwrap.dedent(
