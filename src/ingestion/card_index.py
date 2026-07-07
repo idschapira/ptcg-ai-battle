@@ -23,6 +23,7 @@ from .build_card_model import (
     DIM_CARD_PARQUET,
     DIM_SKILL_PARQUET,
     PROCESSED_DIR,
+    EnergyType,
 )
 
 
@@ -75,6 +76,29 @@ class Card:
     is_tera: bool
     attack_ids: tuple[int, ...]
     skill_ids: tuple[int, ...]
+
+
+def is_cost_payable(cost: tuple[tuple[int, int], ...], energies: list[int]) -> bool:
+    """Can `energies` (engine EnergyType codes) pay this attack cost?
+
+    Typed requirements consume a matching unit or a RAINBOW unit;
+    whatever remains covers the COLORLESS part. Shared by the heuristic
+    agent and the RL encoders so "payable" always means the same thing.
+    """
+    pool = list(energies)
+    colorless_needed = 0
+    for energy_type, qty in cost:
+        if energy_type == int(EnergyType.COLORLESS):
+            colorless_needed += qty
+            continue
+        for _ in range(qty):
+            if energy_type in pool:
+                pool.remove(energy_type)
+            elif int(EnergyType.RAINBOW) in pool:
+                pool.remove(int(EnergyType.RAINBOW))
+            else:
+                return False
+    return len(pool) >= colorless_needed
 
 
 class CardIndex:

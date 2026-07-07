@@ -23,7 +23,7 @@ from cg.api import (
 from ..environment_wrapper.wrapper import EnvironmentWrapper
 from ..ingestion.build_card_model import EnergyType
 from ..ingestion.build_effect_model import EffectIndex, EffectRow, EffectType
-from ..ingestion.card_index import Attack, Card, CardIndex
+from ..ingestion.card_index import Attack, Card, CardIndex, is_cost_payable
 from .random_agent import read_deck_csv
 
 # MAIN score bands. The engine re-prompts MAIN after every non-turn-ending
@@ -122,20 +122,7 @@ class HeuristicAgent:
 
     @staticmethod
     def _affordable(attack: Attack, energies: list[int]) -> bool:
-        pool = list(energies)
-        colorless_needed = 0
-        for energy_type, qty in attack.cost:
-            if energy_type == int(EnergyType.COLORLESS):
-                colorless_needed += qty
-                continue
-            for _ in range(qty):
-                if energy_type in pool:
-                    pool.remove(energy_type)
-                elif int(EnergyType.RAINBOW) in pool:
-                    pool.remove(int(EnergyType.RAINBOW))
-                else:
-                    return False
-        return len(pool) >= colorless_needed
+        return is_cost_payable(attack.cost, energies)
 
     def _effect_adjustment(self, attack: Attack, base: float) -> float:
         """Expected-value tweak from dim_effect rows; scale gates multiply."""
