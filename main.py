@@ -12,9 +12,11 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
-from src.agent_heuristics.heuristic_agent import HeuristicAgent
+from src.rl_models.network_agent import NetworkAgent
 
-_agent = HeuristicAgent(deck_path=os.path.join(_HERE, "deck.csv"))
+# Policy-net brain (pure numpy inference). If models/*.npz were somehow
+# missing from the bundle it degrades to the heuristic, never crashes.
+_agent = NetworkAgent(deck_path=os.path.join(_HERE, "deck.csv"))
 
 
 def agent(obs_dict: dict) -> list[int]:

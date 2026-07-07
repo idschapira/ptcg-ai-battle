@@ -4,7 +4,9 @@ Bundle layout (tar root == agent root on Kaggle):
     main.py                     entrypoint exposing agent(obs_dict)
     deck.csv                    60 card ids
     cg/                         official engine bindings + binaries
-    src/                        runtime modules (ingestion, wrapper, agents)
+    src/                        runtime modules (ingestion, wrapper, agents,
+                                rl_models numpy inference — never torch)
+    models/*.npz                policy-net weights + frozen feature stats
     data/processed/*.parquet    CardIndex tables
 
 Validations: main.py resolves at the tar root, size stays under the
@@ -45,6 +47,13 @@ BUNDLE: Final[tuple[str, ...]] = (
     "src/agent_heuristics/__init__.py",
     "src/agent_heuristics/random_agent.py",
     "src/agent_heuristics/heuristic_agent.py",
+    "src/rl_models/__init__.py",
+    "src/rl_models/encoding.py",
+    "src/rl_models/normalization.py",
+    "src/rl_models/network_numpy.py",
+    "src/rl_models/network_agent.py",
+    "models/feature_stats.npz",
+    "models/policy_value.npz",
     "data/processed/dim_card.parquet",
     "data/processed/dim_attack.parquet",
     "data/processed/dim_skill.parquet",
@@ -70,6 +79,11 @@ _SMOKE_SCRIPT: Final[str] = textwrap.dedent(
     assert isinstance(answer, list), f"not a list: {answer!r}"
     assert len(answer) == 1, f"minCount/maxCount violated: {answer!r}"
     assert answer[0] in (0, 1), f"index out of range: {answer!r}"
+
+    # The bundle must run the NETWORK, not the heuristic fallback: a missing
+    # models/*.npz in the tar would silently downgrade the agent.
+    assert main._agent._fallback is None, "network weights not loaded in bundle"
+    assert main._agent.last_scores is not None, "policy net did not score options"
 
     deck = main.agent({"select": None, "logs": [], "current": None})
     assert len(deck) == 60, f"deck must have 60 cards, got {len(deck)}"
