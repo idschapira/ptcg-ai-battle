@@ -129,3 +129,59 @@ class NetworkAgent:
 
 
 __all__ = ["NetworkAgent"]
+
+
+# --------------------------------------------------------------------------- #
+# Latency benchmark (dev): µs per __call__ over real decision points
+# --------------------------------------------------------------------------- #
+
+
+def _bench(n_games: int = 6, seed: int = 0) -> None:
+    import copy
+    import time
+
+    from cg import game as cg_game
+
+    from ..agent_heuristics.heuristic_agent import HeuristicAgent
+    from ..agent_heuristics.random_agent import read_deck_csv
+
+    index = CardIndex()
+    effects = EffectIndex()
+    agent = NetworkAgent(index=index, effects=effects)
+    assert agent._fallback is None, "weights missing — export before benching"
+
+    deck = read_deck_csv()
+    observations: list[dict] = []
+    for game_index in range(n_games):
+        opponent = HeuristicAgent(seed=seed + game_index, index=index,
+                                  effects=effects)
+        agents = (agent, opponent) if game_index % 2 == 0 else (opponent, agent)
+        obs_dict, _ = cg_game.battle_start(list(deck), list(deck))
+        try:
+            for _ in range(20_000):
+                state = obs_dict["current"]
+                if state["result"] != -1:
+                    break
+                acting = state["yourIndex"]
+                if agents[acting] is agent:
+                    observations.append(copy.deepcopy(obs_dict))
+                obs_dict = cg_game.battle_select(agents[acting](obs_dict))
+        finally:
+            cg_game.battle_finish()
+
+    times_us: list[float] = []
+    for obs_dict in observations:
+        t0 = time.perf_counter()
+        agent(obs_dict)
+        times_us.append((time.perf_counter() - t0) * 1e6)
+    times_us.sort()
+    n = len(times_us)
+    print(f"decision points:  {n} (from {n_games} games vs heuristic)")
+    print(f"latency mean:     {sum(times_us) / n:8.1f} us/move")
+    print(f"latency p50:      {times_us[n // 2]:8.1f} us/move")
+    print(f"latency p99:      {times_us[min(n - 1, int(n * 0.99))]:8.1f} us/move")
+    print(f"latency max:      {times_us[-1]:8.1f} us/move")
+
+
+if __name__ == "__main__":
+    _bench()

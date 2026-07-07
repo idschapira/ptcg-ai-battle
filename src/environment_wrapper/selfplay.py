@@ -85,6 +85,9 @@ def _make_agent(kind: str, seed: int) -> Agent:
     if kind == "heuristic":
         from ..agent_heuristics.heuristic_agent import HeuristicAgent
         return HeuristicAgent(seed=seed)
+    if kind == "network":
+        from ..rl_models.network_agent import NetworkAgent
+        return NetworkAgent()  # deterministic: no rng to seed
     return RandomAgent(seed=seed)
 
 
