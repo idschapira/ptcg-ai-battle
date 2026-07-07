@@ -1,0 +1,6 @@
+# Dev-only dependencies — NEVER imported at submission runtime.
+# Training runs offline with torch; the packaged agent does inference in
+# pure numpy (src/rl_models/network_numpy.py). See CLAUDE.md.
+-r requirements.txt
+torch>=2.6
+kaggle>=2.2
