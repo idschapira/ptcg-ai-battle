@@ -1,6 +1,9 @@
 # Processed artifacts (rebuilt from data/raw by src/ingestion/build_card_model.py)
 /data/processed/*.parquet
 
+# Submission bundle (rebuilt by src/build_submission.py)
+/submission.tar.gz
+
 # Python
 __pycache__/
 *.py[cod]
