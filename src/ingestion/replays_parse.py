@@ -92,14 +92,24 @@ def _engine_obs(observation: dict) -> dict | None:
 
 
 def _iter_decisions(replay: dict) -> Iterator[tuple[int, dict, list[int]]]:
-    """Yield (agent_index, engine_obs_dict, action) per decision point."""
-    for step_pair in replay.get("steps") or []:
-        if not isinstance(step_pair, list):
+    """Yield (agent_index, engine_obs_dict, action) per decision point.
+
+    kaggle-environments pairing (verified on real 2026-07-05 episodes):
+    steps[t][agent].action answers steps[t-1][agent].observation — the
+    action is stored one step AFTER the observation it responded to.
+    The deck-selection action pairs with an observation whose select is
+    None, so it drops out here without counting as a decision.
+    """
+    steps = replay.get("steps") or []
+    for step_index in range(1, len(steps)):
+        prev_pair, step_pair = steps[step_index - 1], steps[step_index]
+        if not isinstance(prev_pair, list) or not isinstance(step_pair, list):
             continue
-        for agent_index, entry in enumerate(step_pair[:2]):
-            if not isinstance(entry, dict):
+        for agent_index in range(min(2, len(prev_pair), len(step_pair))):
+            prev_entry, entry = prev_pair[agent_index], step_pair[agent_index]
+            if not isinstance(prev_entry, dict) or not isinstance(entry, dict):
                 continue
-            obs_dict = _engine_obs(entry.get("observation") or {})
+            obs_dict = _engine_obs(prev_entry.get("observation") or {})
             action = entry.get("action")
             if obs_dict is None or not isinstance(action, list) or not action:
                 continue

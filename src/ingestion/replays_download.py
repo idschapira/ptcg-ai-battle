@@ -13,10 +13,11 @@ VERIFIED (Kaggle web, 2026-07-07):
     schema_version 1): configuration, info{Agents, EpisodeId, TeamNames},
     rewards, statuses, steps.
 
-NOT yet verified against a real download (no Kaggle credentials in this
-dev environment): the exact per-agent keys inside steps[i]. They follow
-the standard kaggle-environments schema {action, observation, reward,
-status, info}; replays_parse.py treats them defensively either way.
+VERIFIED against real downloads (2026-07-05 episodes): steps[i] entries
+follow the standard kaggle-environments schema {action, observation,
+reward, status, info}, and steps[t].action answers steps[t-1].observation
+(the action is stored one step AFTER the observation it responded to).
+generate_sample_replays() below emits the same pairing.
 
 Everything is parameterizable via ReplaySource so a schema change is a
 config edit, not a rewrite. Auth: Kaggle CLI conventions (KAGGLE_USERNAME
@@ -155,7 +156,7 @@ def generate_sample_replays(n_games: int, dest: Path = REPLAYS_DIR / "sample",
     for game_index in range(n_games):
         agents = (HeuristicAgent(seed=seed + 2 * game_index),
                   RandomAgent(seed=seed + 2 * game_index + 1))
-        steps: list[list[dict]] = []
+        decisions: list[tuple[int, dict, list[int]]] = []
         obs_dict, start = cg_game.battle_start(list(deck), list(deck))
         if obs_dict is None:
             raise RuntimeError(f"battle_start failed: {start.errorType}")
@@ -168,22 +169,32 @@ def generate_sample_replays(n_games: int, dest: Path = REPLAYS_DIR / "sample",
                     break
                 acting = state["yourIndex"]
                 answer = agents[acting](obs_dict)
-                pair = []
-                for agent_index in range(2):
-                    if agent_index == acting:
-                        observation = {k: obs_dict.get(k)
-                                       for k in ("select", "logs", "current")}
-                        observation["remainingOverageTime"] = 60
-                        pair.append({"action": answer, "observation": observation,
-                                     "reward": 0, "status": "ACTIVE", "info": {}})
-                    else:
-                        pair.append({"action": None,
-                                     "observation": {"remainingOverageTime": 60},
-                                     "reward": 0, "status": "INACTIVE", "info": {}})
-                steps.append(pair)
+                observation = {k: obs_dict.get(k)
+                               for k in ("select", "logs", "current")}
+                observation["remainingOverageTime"] = 60
+                decisions.append((acting, observation, answer))
                 obs_dict = cg_game.battle_select(answer)
         finally:
             cg_game.battle_finish()
+        # kaggle-environments pairing: the answer to steps[t-1]'s observation
+        # is stored in steps[t], so each action lands one step after its
+        # observation (the final step exists only to carry the last action).
+        steps: list[list[dict]] = []
+        for step_index in range(len(decisions) + 1):
+            pair = []
+            for agent_index in range(2):
+                entry: dict = {"action": None,
+                               "observation": {"remainingOverageTime": 60},
+                               "reward": 0, "status": "INACTIVE", "info": {}}
+                if (step_index < len(decisions)
+                        and decisions[step_index][0] == agent_index):
+                    entry["observation"] = decisions[step_index][1]
+                    entry["status"] = "ACTIVE"
+                if (step_index > 0
+                        and decisions[step_index - 1][0] == agent_index):
+                    entry["action"] = decisions[step_index - 1][2]
+                pair.append(entry)
+            steps.append(pair)
         rewards = ([0, 0] if result == 2 else
                    [1 if player == result else -1 for player in range(2)])
         replay = {
