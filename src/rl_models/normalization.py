@@ -14,6 +14,9 @@ stats file is missing, FeatureStats.load falls back to identity stats
 
 Regenerate (repo root):
     python -m src.rl_models.normalization --games-per-matchup 40
+    # Sprint 5B (mix real leader-replay states into the corpus):
+    python -m src.rl_models.normalization --games-per-matchup 150 \
+        --replay-corpus data/processed/replays/replay_corpus.npz
 """
 
 from __future__ import annotations
@@ -161,6 +164,19 @@ def build_corpus(games_per_matchup: int,
             np.stack(options).astype(np.float32))
 
 
+def load_replay_corpus(path: Path) -> tuple[np.ndarray, np.ndarray]:
+    """Raw (un-normalized) states/options from a parsed replay corpus.
+
+    replays_parse.py stores the same raw encoder outputs as build_corpus,
+    so the arrays concatenate directly. Real leader games shift the state
+    distribution vs self-play (Sprint 5B) — stats built from the mix keep
+    normalize() representative for both.
+    """
+    with np.load(path) as data:
+        return (data["states"].astype(np.float32),
+                data["options_flat"].astype(np.float32))
+
+
 def compute_stats(states: np.ndarray, options: np.ndarray) -> FeatureStats:
     return FeatureStats(
         state_mean=states.mean(axis=0).astype(np.float32),
@@ -176,13 +192,25 @@ def main() -> None:
     parser.add_argument("--games-per-matchup", type=int, default=40)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--out", type=Path, default=FEATURE_STATS_PATH)
+    parser.add_argument("--replay-corpus", type=Path, default=None,
+                        help="replay_corpus.npz to mix into the stats "
+                             "corpus (Sprint 5B: leader-replay states)")
     args = parser.parse_args()
 
     t0 = time.perf_counter()
     states, options = build_corpus(args.games_per_matchup, args.seed)
+    n_replay_states = 0
+    if args.replay_corpus is not None:
+        replay_states, replay_options = load_replay_corpus(args.replay_corpus)
+        n_replay_states = len(replay_states)
+        states = np.concatenate([states, replay_states], axis=0)
+        options = np.concatenate([options, replay_options], axis=0)
+        print(f"mixed in replay corpus: {n_replay_states} states, "
+              f"{len(replay_options)} options ({args.replay_corpus})")
     stats = compute_stats(states, options)
     stats.save(args.out, extra_meta={"n_state_samples": len(states),
-                                     "n_option_samples": len(options)})
+                                     "n_option_samples": len(options),
+                                     "n_replay_states": n_replay_states})
     normalized = stats.normalize_state(states)
     print(f"corpus: {len(states)} states, {len(options)} options "
           f"({time.perf_counter() - t0:.1f}s, "
