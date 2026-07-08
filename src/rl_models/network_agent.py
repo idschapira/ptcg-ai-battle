@@ -53,13 +53,15 @@ class NetworkAgent:
         index: CardIndex | None = None,
         effects: EffectIndex | None = None,
         weights_path=None,
+        stats_path=None,
     ) -> None:
         self._index = index if index is not None else CardIndex()
         self._effects = effects if effects is not None else EffectIndex()
         self._wrapper = EnvironmentWrapper(self._index)
         self._state_encoder = StateEncoder(self._index, self._effects)
         self._option_encoder = OptionEncoder(self._index, self._effects)
-        self._stats = FeatureStats.load()
+        self._stats = (FeatureStats.load(stats_path)
+                       if stats_path is not None else FeatureStats.load())
         self._net = (NumpyPolicyValueNet.load(weights_path)
                      if weights_path is not None else NumpyPolicyValueNet.load())
         self._fallback: HeuristicAgent | None = None

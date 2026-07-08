@@ -10,12 +10,17 @@ Run from the repo root:
     python -m src.environment_wrapper.arena --games 100            # Gate B
     python -m src.environment_wrapper.arena --a network --b heuristic
     python -m src.environment_wrapper.arena --a network --b random
+    # network generations head-to-head (each pinned to its own stats):
+    python -m src.environment_wrapper.arena --a network --b network \
+        --b-weights models/policy_value_bc5a.npz \
+        --b-stats models/feature_stats_bc5a.npz
 """
 
 from __future__ import annotations
 
 import argparse
 import time
+from pathlib import Path
 from typing import Callable
 
 from ..agent_heuristics.random_agent import RandomAgent, read_deck_csv
@@ -28,26 +33,38 @@ GATE_B_WINRATE: float = 0.65
 AGENT_KINDS = ("random", "heuristic", "network")
 
 
-def _factory(kind: str, index: CardIndex,
-             effects: EffectIndex) -> Callable[[int], Agent]:
-    """Per-game agent factory (index/effects shared across games)."""
+def _factory(kind: str, index: CardIndex, effects: EffectIndex,
+             weights: Path | None = None,
+             stats: Path | None = None) -> Callable[[int], Agent]:
+    """Per-game agent factory (index/effects shared across games).
+
+    weights/stats only apply to kind == "network": they pin a specific
+    exported model (e.g. models/policy_value_bc5a.npz with its matching
+    feature_stats_bc5a.npz) so two network generations can be compared.
+    """
     if kind == "heuristic":
         from ..agent_heuristics.heuristic_agent import HeuristicAgent
         return lambda seed: HeuristicAgent(seed=seed, index=index, effects=effects)
     if kind == "network":
         from ..rl_models.network_agent import NetworkAgent
-        network = NetworkAgent(index=index, effects=effects)  # deterministic
+        network = NetworkAgent(index=index, effects=effects,  # deterministic
+                               weights_path=weights, stats_path=stats)
+        assert network._fallback is None, f"weights missing for network ({weights})"
         return lambda seed: network
     return lambda seed: RandomAgent(seed=seed)
 
 
 def run_arena(n_games: int, seed: int = 0, a: str = "heuristic",
-              b: str = "random") -> tuple[int, int, int, list[int], list[str]]:
+              b: str = "random",
+              a_weights: Path | None = None, a_stats: Path | None = None,
+              b_weights: Path | None = None, b_stats: Path | None = None,
+              ) -> tuple[int, int, int, list[int], list[str]]:
     """Returns (A wins, B wins, draws, turns per game, errors)."""
     deck = read_deck_csv()
     index = CardIndex()
     effects = EffectIndex()
-    make_a, make_b = _factory(a, index, effects), _factory(b, index, effects)
+    make_a = _factory(a, index, effects, a_weights, a_stats)
+    make_b = _factory(b, index, effects, b_weights, b_stats)
 
     a_wins = b_wins = draws = 0
     turns_seen: list[int] = []
@@ -78,11 +95,18 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--a", choices=AGENT_KINDS, default="heuristic")
     parser.add_argument("--b", choices=AGENT_KINDS, default="random")
+    parser.add_argument("--a-weights", type=Path, default=None,
+                        help="network A: exported .npz weights override")
+    parser.add_argument("--a-stats", type=Path, default=None,
+                        help="network A: feature_stats .npz override")
+    parser.add_argument("--b-weights", type=Path, default=None)
+    parser.add_argument("--b-stats", type=Path, default=None)
     args = parser.parse_args()
 
     t0 = time.perf_counter()
-    wins, losses, draws, turns, errors = run_arena(args.games, args.seed,
-                                                   args.a, args.b)
+    wins, losses, draws, turns, errors = run_arena(
+        args.games, args.seed, args.a, args.b,
+        args.a_weights, args.a_stats, args.b_weights, args.b_stats)
     elapsed = time.perf_counter() - t0
     decided = wins + losses
     winrate = wins / decided if decided else 0.0
