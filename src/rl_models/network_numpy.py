@@ -46,7 +46,14 @@ def _relu(x: np.ndarray) -> np.ndarray:
 
 
 class NumpyPolicyValueNet:
-    """Forward pass of PolicyValueNet with numpy matmuls only."""
+    """Forward pass of PolicyValueNet with numpy matmuls only.
+
+    Accumulates in float64 on purpose: the layers are tiny (<1 MFLOP per
+    call, latency unaffected) and float64 removes the fp32 BLAS
+    reduction-order noise between torch and numpy, so parity with the
+    torch net evaluated in double holds well below atol 1e-5 even for
+    trained (large-magnitude) weights.
+    """
 
     __slots__ = ("_w", "_emb_scale")
 
@@ -54,7 +61,7 @@ class NumpyPolicyValueNet:
         missing = [key for key in _KEY_MAP.values() if key not in weights]
         if missing:
             raise KeyError(f"weights file missing arrays: {missing}")
-        self._w = {key: np.ascontiguousarray(weights[key], dtype=np.float32)
+        self._w = {key: np.ascontiguousarray(weights[key], dtype=np.float64)
                    for key in _KEY_MAP.values()}
         self._emb_scale = 1.0 / math.sqrt(self._w["query_w"].shape[0])
 
@@ -70,8 +77,10 @@ class NumpyPolicyValueNet:
     def forward(self, state: np.ndarray,
                 options: np.ndarray) -> tuple[np.ndarray, float]:
         """state [ENCODING_DIM], options [K, OPTION_DIM] (legal only, K>=1)
-        -> (logits [K], value). Inputs must already be normalized."""
+        -> (logits [K] float64, value). Inputs must already be normalized."""
         w = self._w
+        state = state.astype(np.float64, copy=False)
+        options = options.astype(np.float64, copy=False)
         state_emb = _relu(w["trunk_w0"] @ state + w["trunk_b0"])
         state_emb = _relu(w["trunk_w1"] @ state_emb + w["trunk_b1"])
 
@@ -82,7 +91,7 @@ class NumpyPolicyValueNet:
 
         hidden = _relu(w["val_w0"] @ state_emb + w["val_b0"])
         value = math.tanh(float((w["val_w1"] @ hidden)[0] + w["val_b1"][0]))
-        return logits.astype(np.float32), value
+        return logits, value
 
 
 # --------------------------------------------------------------------------- #
