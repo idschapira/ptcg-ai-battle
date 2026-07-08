@@ -58,9 +58,16 @@ def run_arena(n_games: int, seed: int = 0, a: str = "heuristic",
               b: str = "random",
               a_weights: Path | None = None, a_stats: Path | None = None,
               b_weights: Path | None = None, b_stats: Path | None = None,
+              a_deck: Path | None = None, b_deck: Path | None = None,
               ) -> tuple[int, int, int, list[int], list[str]]:
-    """Returns (A wins, B wins, draws, turns per game, errors)."""
-    deck = read_deck_csv()
+    """Returns (A wins, B wins, draws, turns per game, errors).
+
+    a_deck/b_deck (deck-vs-deck gauntlet, Task 4.5d): each side's 60-card
+    list; default is the repo deck.csv for both. The deck follows its
+    agent when seats alternate.
+    """
+    deck_a = read_deck_csv(str(a_deck)) if a_deck is not None else read_deck_csv()
+    deck_b = read_deck_csv(str(b_deck)) if b_deck is not None else read_deck_csv()
     index = CardIndex()
     effects = EffectIndex()
     make_a = _factory(a, index, effects, a_weights, a_stats)
@@ -74,8 +81,9 @@ def run_arena(n_games: int, seed: int = 0, a: str = "heuristic",
         agent_b = make_b(seed + 10_000 + game_index)
         a_seat = game_index % 2  # alternate who starts as player 0
         agents = (agent_a, agent_b) if a_seat == 0 else (agent_b, agent_a)
+        decks = (deck_a, deck_b) if a_seat == 0 else (deck_b, deck_a)
         try:
-            result, turns = play_one_game(agents, list(deck), list(deck))
+            result, turns = play_one_game(agents, list(decks[0]), list(decks[1]))
         except Exception as exc:  # noqa: BLE001 — exceptions are a gate metric
             errors.append(f"game {game_index}: {type(exc).__name__}: {exc}")
             continue
@@ -101,12 +109,17 @@ def main() -> None:
                         help="network A: feature_stats .npz override")
     parser.add_argument("--b-weights", type=Path, default=None)
     parser.add_argument("--b-stats", type=Path, default=None)
+    parser.add_argument("--a-deck", type=Path, default=None,
+                        help="deck csv for side A (default: repo deck.csv)")
+    parser.add_argument("--b-deck", type=Path, default=None,
+                        help="deck csv for side B (default: repo deck.csv)")
     args = parser.parse_args()
 
     t0 = time.perf_counter()
     wins, losses, draws, turns, errors = run_arena(
         args.games, args.seed, args.a, args.b,
-        args.a_weights, args.a_stats, args.b_weights, args.b_stats)
+        args.a_weights, args.a_stats, args.b_weights, args.b_stats,
+        args.a_deck, args.b_deck)
     elapsed = time.perf_counter() - t0
     decided = wins + losses
     winrate = wins / decided if decided else 0.0
