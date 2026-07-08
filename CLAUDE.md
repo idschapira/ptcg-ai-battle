@@ -85,6 +85,11 @@ Avaliar impacto de performance antes de adicionar bibliotecas pesadas de RL.
   `dim_effect_overrides.csv`, `deck.csv`, docs.
 
 ## Status atual
-Sprints 1–4 concluídas. Gate A (submissão válida) e Gate B (91%) OK. Encoders, viewer e pipeline
-de replays prontos. Próximo: Sprint 5 — 5A (rede + behavioral cloning do heurístico + inferência
-numpy), 5B (self-play RL, Gate C), 5C (deck building, Epic 4.5).
+Sprints 1–5B concluídas. Gates A, B (91%) e C OK. Modelo em produção (`models/policy_value.npz`):
+policy fine-tunada por imitação dos líderes do Kaggle (corpus 600 jogos / 55,8k decisões,
+`leader_train.py`) — top-1 60,1% vs líderes; arena 57,5% vs heurístico, 58,0% vs clone 5A
+(`policy_value_bc5a.npz`, preservada como baseline), 86,0% vs random; latência 440µs/jogada
+(inferência numpy em float64 — paridade com torch em ~1e-14). ATENÇÃO: o value head está
+congelado desde o 5A e ficou descalibrado pelo fine-tune do trunk — nada em runtime o consome;
+o critic será retreinado na 5C. Próximo: 5C — self-play RL (critic + policy) e deck building
+(Epic 4.5).
