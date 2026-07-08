@@ -91,7 +91,7 @@ class BcArrays:
     counts: np.ndarray        # [N] int64
     labels: np.ndarray        # [N] int64
     values: np.ndarray        # [N] float32
-    game_ids: np.ndarray      # [N] int64
+    game_ids: np.ndarray      # [N] int64 (bc: game_ids; replays: episode_ids)
 
     @classmethod
     def load(cls, path: Path, stats: FeatureStats) -> "BcArrays":
@@ -99,6 +99,7 @@ class BcArrays:
             counts = data["option_counts"].astype(np.int64)
             offsets = np.zeros(len(counts) + 1, dtype=np.int64)
             np.cumsum(counts, out=offsets[1:])
+            ids_key = "game_ids" if "game_ids" in data else "episode_ids"
             return cls(
                 states=stats.normalize_state(data["states"]),
                 options_flat=stats.normalize_options(data["options_flat"]),
@@ -106,7 +107,7 @@ class BcArrays:
                 counts=counts,
                 labels=data["labels"].astype(np.int64),
                 values=data["values"].astype(np.float32),
-                game_ids=data["game_ids"].astype(np.int64),
+                game_ids=data[ids_key].astype(np.int64),
             )
 
     def batch(self, indices: np.ndarray) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
