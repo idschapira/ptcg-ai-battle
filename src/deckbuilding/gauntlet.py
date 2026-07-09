@@ -154,6 +154,11 @@ def main() -> None:
     parser.add_argument("--games", type=int, default=100,
                         help="games per pairing (>=60 recommended)")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--weights", type=Path, default=None,
+                        help="pilot policy .npz (default: production; "
+                             "ALWAYS pass its paired --stats along)")
+    parser.add_argument("--stats", type=Path, default=None,
+                        help="pilot feature_stats .npz (default: production)")
     args = parser.parse_args()
 
     index = CardIndex()
@@ -161,9 +166,12 @@ def main() -> None:
     decks = _load_validated_decks(index)
 
     from ..rl_models.network_agent import NetworkAgent
-    pilot = NetworkAgent(index=index, effects=effects)  # production pair
+    pilot = NetworkAgent(index=index, effects=effects,
+                         weights_path=args.weights, stats_path=args.stats)
+    print(f"pilot: weights={args.weights or 'production'} "
+          f"stats={args.stats or 'production'}")
     if pilot._fallback is not None:
-        raise SystemExit("production weights missing — gauntlet needs the net")
+        raise SystemExit("pilot weights missing — gauntlet needs the net")
 
     names = list(DECKS)
     winrate: dict[tuple[str, str], float] = {}

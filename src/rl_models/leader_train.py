@@ -69,10 +69,16 @@ def top1_accuracy(net: PolicyValueNet, arrays: BcArrays,
 def train(corpus_path: Path = CORPUS_PATH, epochs: int = 20,
           batch_size: int = 512, lr: float = 3e-4, seed: int = 0,
           warm_start: Path | None = WARM_START_PATH,
-          checkpoint_path: Path = CHECKPOINT_5B_PATH) -> dict[str, float]:
+          checkpoint_path: Path = CHECKPOINT_5B_PATH,
+          stats_path: Path | None = None) -> dict[str, float]:
+    """stats_path pins the feature_stats the corpus is normalized with
+    (PAIRED with the resulting policy — promote them together or not at
+    all); None keeps the production default of FeatureStats.load()."""
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
-    stats = FeatureStats.load()
+    stats = (FeatureStats.load(stats_path) if stats_path is not None
+             else FeatureStats.load())
+    print(f"feature stats: {stats_path if stats_path is not None else 'default'}")
     arrays = BcArrays.load(corpus_path, stats)
     train_idx, val_idx = split_by_game(arrays.game_ids)
     n_episodes = len(np.unique(arrays.game_ids))
@@ -136,9 +142,12 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--warm-start", type=Path, default=WARM_START_PATH)
     parser.add_argument("--checkpoint", type=Path, default=CHECKPOINT_5B_PATH)
+    parser.add_argument("--stats", type=Path, default=None,
+                        help="feature_stats .npz override (paired with the "
+                             "trained policy; default: production stats)")
     args = parser.parse_args()
     best = train(args.corpus, args.epochs, args.batch_size, args.lr,
-                 args.seed, args.warm_start, args.checkpoint)
+                 args.seed, args.warm_start, args.checkpoint, args.stats)
     metrics_path = args.checkpoint.with_suffix(".metrics.json")
     with open(metrics_path, "w", encoding="utf-8") as fh:
         json.dump(best, fh, indent=1)
