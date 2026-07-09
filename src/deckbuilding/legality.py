@@ -10,7 +10,10 @@ Rules enforced (Kaggle/cabt deck construction):
   6. energies support the attackers: every Pokémon that has attacks must
      have at least one attack whose typed cost is coverable by the energy
      types the deck provides (RAINBOW-providing special energy covers any
-     type; Colorless is payable by any energy card).
+     type; Colorless is payable by any energy card). Pokémon with an
+     ability are EXEMPT — real lists run ability techs whose attack is
+     never meant to be used (e.g. Chien-Pao/Snow Sink in the city-league
+     Clefairy list, whose {W} attack has no water in the deck).
 
 None-safe: unknown ids become errors, never exceptions; all other checks
 still run over the known cards. Pure lookup — no engine calls.
@@ -126,7 +129,8 @@ def validate_deck(card_ids: Sequence[int],
                          if c.stage_code in _ENERGY_STAGES
                          and c.type_code is not None)
     has_energy = any(c.stage_code in _ENERGY_STAGES for c in cards)
-    for name in sorted({c.card_name for c in cards if c.attack_ids}):
+    for name in sorted({c.card_name for c in cards
+                        if c.attack_ids and not c.skill_ids}):
         card = next(c for c in cards if c.card_name == name)
         attacks = [index.get_attack(a) for a in card.attack_ids]
         costs = [a.cost for a in attacks if a is not None]

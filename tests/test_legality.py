@@ -88,6 +88,14 @@ class TestDeckLegality(unittest.TestCase):
         self.assertIn("no deck energy can pay any attack of 'Kyogre'",
                       self._errors(deck))
 
+    def test_ability_tech_exempt_from_energy_rule(self) -> None:
+        # Real city-league Clefairy list runs Chien-Pao (209, {W} attack,
+        # Snow Sink ability) with zero water energy — must stay legal.
+        deck = read_deck_ids(REPO_ROOT / "data" / "decks" / "seed_clefairy.csv")
+        report = validate_deck(deck, self.index)
+        self.assertTrue(report.ok, msg="\n".join(report.errors))
+        self.assertIn(209, deck)
+
     def test_no_energy_at_all_fails(self) -> None:
         # Strip every energy card: attacks with any cost become unpayable
         # (the size violation is reported alongside — both must appear).
