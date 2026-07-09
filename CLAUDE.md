@@ -85,11 +85,13 @@ Avaliar impacto de performance antes de adicionar bibliotecas pesadas de RL.
   `dim_effect_overrides.csv`, `deck.csv`, docs.
 
 ## Status atual
-Sprints 1–5B concluídas. Gates A, B (91%) e C OK. Modelo em produção (`models/policy_value.npz`):
-policy fine-tunada por imitação dos líderes do Kaggle (corpus 600 jogos / 55,8k decisões,
-`leader_train.py`) — top-1 60,1% vs líderes; arena 57,5% vs heurístico, 58,0% vs clone 5A
-(`policy_value_bc5a.npz`, preservada como baseline), 86,0% vs random; latência 440µs/jogada
-(inferência numpy em float64 — paridade com torch em ~1e-14). ATENÇÃO: o value head está
-congelado desde o 5A e ficou descalibrado pelo fine-tune do trunk — nada em runtime o consome;
-o critic será retreinado na 5C. Próximo: 5C — self-play RL (critic + policy) e deck building
-(Epic 4.5).
+Sprints 1–5D concluídas. Gates A, B (91%) e C OK. Produção = par casado DECK-AGNÓSTICO 5D
+(`models/policy_value.npz` + `models/feature_stats.npz`): imitação dos líderes sob stats mistas
+(3 decks self-play + replays; val top-1 56,4%), Gate C 51–53% sobre o par 5B anterior
+(preservado como `*_pre5d.npz`; clone 5A em `*_bc5a.npz`). Latência 545µs/jogada; paridade
+torch↔numpy ~1e-14. Deck de submissão segue **Abomasnow**: no gauntlet justo (piloto agnóstico
+dos dois lados, `src/deckbuilding/gauntlet.py`) Abomasnow 73% > Lucario 39% > Iono 38% — nenhum
+piloto atual executa a linha de setup do Lucario (vs random no Lucario: só 65%). ATENÇÃO: par
+policy+stats é CASADO — nunca promover um sem o outro. Value head segue congelado/descalibrado
+(critic é da 5C). Próximo: Fase E (especializar piloto no deck de maior teto — Lucario — via
+BC/self-play deck-específico) e/ou 5C (self-play RL).
