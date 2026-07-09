@@ -2,10 +2,12 @@
 
 Measures the deck lever in isolation: the production NetworkAgent
 (models/policy_value.npz + models/feature_stats.npz) plays BOTH sides of
-every game — only the decks differ — over a full round-robin of
-data/decks/ seeds with alternating seats. Also runs the sanity check:
-the top candidate deck with the network pilot vs HeuristicAgent and vs
-RandomAgent (mirror deck, pilots differ).
+every game — only the decks differ — over a full round-robin of every
+csv in data/decks/ (auto-discovered) with alternating seats. Then a
+per-deck sanity: the pilot vs HeuristicAgent and vs RandomAgent on each
+deck (mirror deck, pilots differ) — contextualizes how well the pilot
+actually executes each deck, so evolution-heavy results can be read
+with the proper discount.
 
 Every deck is validated by src/deckbuilding/legality.py before any
 simulation; an illegal deck aborts the run. Game loop = play_one_game
@@ -35,12 +37,19 @@ from ..ingestion.card_index import CardIndex
 from .legality import read_deck_ids, validate_deck
 
 DECKS_DIR: Final[Path] = REPO_ROOT / "data" / "decks"
-DECKS: Final[dict[str, Path]] = {
-    "mega_lucario": DECKS_DIR / "seed_mega_lucario.csv",
-    "iono": DECKS_DIR / "seed_iono.csv",
-    "abomasnow": DECKS_DIR / "placeholder_abomasnow.csv",
-}
-CANDIDATE: Final[str] = "mega_lucario"  # sanity-check deck (60.4% in cabt)
+
+
+def discover_decks(decks_dir: Path = DECKS_DIR) -> dict[str, Path]:
+    """Every csv under data/decks/, named by stem minus the seed_/
+    placeholder_ prefix (e.g. seed_raging_bolt.csv -> raging_bolt).
+    The whole curated field enters the round-robin automatically."""
+    decks: dict[str, Path] = {}
+    for path in sorted(decks_dir.glob("*.csv")):
+        name = path.stem
+        for prefix in ("seed_", "placeholder_"):
+            name = name.removeprefix(prefix)
+        decks[name] = path
+    return decks
 
 
 class TimedAgent:
@@ -127,7 +136,7 @@ def run_pair(make_a: Callable[[int], Agent], make_b: Callable[[int], Agent],
 def _load_validated_decks(index: CardIndex) -> dict[str, list[int]]:
     """Read every gauntlet deck; abort (SystemExit) on any illegal one."""
     decks: dict[str, list[int]] = {}
-    for name, path in DECKS.items():
+    for name, path in discover_decks().items():
         ids = read_deck_ids(path)
         report = validate_deck(ids, index)
         if not report.ok:
@@ -173,7 +182,7 @@ def main() -> None:
     if pilot._fallback is not None:
         raise SystemExit("pilot weights missing — gauntlet needs the net")
 
-    names = list(DECKS)
+    names = list(decks)
     winrate: dict[tuple[str, str], float] = {}
     print(f"\n=== round-robin: production pilot both sides, "
           f"{args.games} games/pair ===")
@@ -208,19 +217,20 @@ def main() -> None:
         mean = sum(rates) / len(rates)
         print(f"{name_a:<{width}s}  " + "  ".join(cells) + f"  {mean:>7.1%}")
 
-    print(f"\n=== sanity: deck {CANDIDATE} mirror, pilots differ, "
+    print(f"\n=== sanity per deck: mirror deck, pilots differ, "
           f"{args.games} games each ===")
-    candidate = decks[CANDIDATE]
-    timed = TimedAgent(pilot)
-    res = run_pair(lambda s: timed,
-                   lambda s: HeuristicAgent(seed=s, index=index,
-                                            effects=effects),
-                   candidate, candidate, args.games, args.seed, timed)
-    print(_fmt_pair("network vs heuristic", res))
-    timed = TimedAgent(pilot)
-    res = run_pair(lambda s: timed, lambda s: RandomAgent(seed=s),
-                   candidate, candidate, args.games, args.seed, timed)
-    print(_fmt_pair("network vs random", res))
+    for name in names:
+        deck = decks[name]
+        timed = TimedAgent(pilot)
+        res = run_pair(lambda s: timed,
+                       lambda s: HeuristicAgent(seed=s, index=index,
+                                                effects=effects),
+                       deck, deck, args.games, args.seed, timed)
+        print(_fmt_pair(f"{name}: network vs heuristic", res))
+        timed = TimedAgent(pilot)
+        res = run_pair(lambda s: timed, lambda s: RandomAgent(seed=s),
+                       deck, deck, args.games, args.seed, timed)
+        print(_fmt_pair(f"{name}: network vs random", res))
 
 
 if __name__ == "__main__":
