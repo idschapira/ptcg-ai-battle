@@ -32,12 +32,15 @@ if _HERE not in sys.path:
 
 from src.agent_heuristics.crustle_agent import CrustleAgent
 
-# Ship = (Crustle deck, CrustleAgent): kernel-inspired stall rules over
-# the generic heuristic; every path degrades to a legal answer, never
-# crashes. NetworkAgent + models/*.npz stay in the bundle as the
-# rollback pilot (swap this import/constructor to revert to the 5D par).
-# read_deck_csv itself falls back to /kaggle_simulations/agent/deck.csv.
-_agent = CrustleAgent(deck_path=os.path.join(_HERE, "deck.csv"))
+# Ship = (Crustle deck, CrustleAgent v2): kernel-blueprint stall rules
+# (gust-to-trap, mill>damage, Guidance-aware search/discard) over the
+# generic heuristic; every path degrades to a legal answer, never
+# crashes. Rollbacks, in order: remove variant="v2" -> v1 pilot (the
+# previous ship); swap the import/constructor to NetworkAgent -> the 5D
+# par (models/*.npz stay bundled). read_deck_csv itself falls back to
+# /kaggle_simulations/agent/deck.csv.
+_agent = CrustleAgent(deck_path=os.path.join(_HERE, "deck.csv"),
+                      variant="v2")
 
 
 def agent(obs_dict: dict) -> list[int]:
