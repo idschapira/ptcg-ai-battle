@@ -85,13 +85,14 @@ Avaliar impacto de performance antes de adicionar bibliotecas pesadas de RL.
   `dim_effect_overrides.csv`, `deck.csv`, docs.
 
 ## Status atual
-Sprints 1–5D concluídas. Gates A, B (91%) e C OK. Produção = par casado DECK-AGNÓSTICO 5D
-(`models/policy_value.npz` + `models/feature_stats.npz`): imitação dos líderes sob stats mistas
-(3 decks self-play + replays; val top-1 56,4%), Gate C 51–53% sobre o par 5B anterior
-(preservado como `*_pre5d.npz`; clone 5A em `*_bc5a.npz`). Latência 545µs/jogada; paridade
-torch↔numpy ~1e-14. Deck de submissão segue **Abomasnow**: no gauntlet justo (piloto agnóstico
-dos dois lados, `src/deckbuilding/gauntlet.py`) Abomasnow 73% > Lucario 39% > Iono 38% — nenhum
-piloto atual executa a linha de setup do Lucario (vs random no Lucario: só 65%). ATENÇÃO: par
-policy+stats é CASADO — nunca promover um sem o outro. Value head segue congelado/descalibrado
-(critic é da 5C). Próximo: Fase E (especializar piloto no deck de maior teto — Lucario — via
-BC/self-play deck-específico) e/ou 5C (self-play RL).
+Sprints 1–5D + pivô Crustle concluídos. Gates A, B (91%) e C OK. **SHIP = (deck.csv = Crustle
+LibraryOut, `CrustleAgent`)** — heurístico especializado (`src/agent_heuristics/crustle_agent.py`:
+anti-self-mill, Ancient→Land Collapse, muro anti-ex, resposta a não-ex), mecânica de stall
+de-riscada no motor (`tests/test_crustle_stall_contract.py`). Evidência: Gate C 53% sobre o ship
+anterior; média 86,8% vs campo (genérico: 72,3%); 77,5% vs Dragapult. **ROLLBACK**: ship anterior
+= (Abomasnow, NetworkAgent par 5D) — deck em `data/decks/placeholder_abomasnow.csv`, par
+`models/policy_value.npz`+`feature_stats.npz` segue EMPACOTADO como piloto reserva (reverter =
+restaurar deck.csv + trocar o construtor no `main.py`). Par policy+stats da rede é CASADO — nunca
+promover um sem o outro; value head congelado/descalibrado (critic é da 5C). O gauntlet
+(`src/deckbuilding/gauntlet.py`) mede força-de-deck condicionada ao piloto. Próximo: monitorar ELO
+do ship; 5C (self-play RL) e/ou pilotos especializados para outros decks (Dragapult).

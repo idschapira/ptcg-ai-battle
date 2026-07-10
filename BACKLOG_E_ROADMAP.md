@@ -6,26 +6,30 @@ building — agora integrados aqui). Guia operacional em `CLAUDE.md`; arquitetur
 
 ---
 
-## Status atual (09/Jul/2026)
+## Status atual (10/Jul/2026)
 
-- **Sprints 1–4, 5A, 5B e 5D (parte 2) concluídas** — muito à frente do cronograma semanal original.
-- **Gate A** (submissão válida) ✅ · **Gate B** (heurística 91% vs random) ✅ · **Gate C** (rede treinada > baseline) ✅.
-- Submissão atual: **par casado DECK-AGNÓSTICO 5D** (`models/policy_value.npz` + `feature_stats.npz`) —
-  imitação dos líderes sob stats mistas multi-deck; val top-1 56,4%; Gate C 51% ≥ 49% do par 5B
-  (preservado em `*_pre5d.npz`; clone 5A em `*_bc5a.npz`). 5,0 MiB, latência 545µs/jogada (852µs p99),
-  paridade torch↔numpy ~4e-14, 0 exceções. **`deck.csv` = Abomasnow** — venceu o gauntlet JUSTO
-  (Abomasnow 73% > Lucario 39% > Iono 38%) mesmo com o piloto desconfundido.
-- **ATENÇÃO (par casado):** `feature_stats` e a policy são treinadas juntas — nunca promover uma sem a
-  outra. Value head segue congelado/descalibrado (será calibrado no 5C).
-- **Achado 5D:** o gargalo do deck não é normalização — é o **piloto**, que não executa linhas de setup
-  de decks de evolução (Lucario/Dragapult/Clefairy colapsam vs random). O gauntlet mede força-de-deck
-  **condicionada ao piloto**; o teto do Lucario (60,4% cabt) segue não capturado.
-- **Próxima sessão:** liberar a **Fase 2 do CP4** (gauntlet expandido) — CP4a já instalou
-  `seed_dragapult.csv` e `seed_clefairy.csv` (top-cut reais; Gardevoir/Jellicent saiu por ausência da
-  carta-núcleo no pool). O prompt da Fase 2 (no histórico do chat) pede **adicionar 1–2 decks de baixo
-  setup** (aggro de Básicos) antes de rodar, pois são o único confronto não-confundido pela fraqueza do
-  piloto. Pergunta decisória: algum deck de baixo setup supera o Abomasnow? Depois: **Fase E**
-  (especializar piloto no deck de maior teto) e/ou **5C** (self-play RL, causa-raiz do setup).
+- **Sprints 1–4, 5A, 5B, 5D e pivô Crustle concluídos** — muito à frente do cronograma original.
+- **Gate A** ✅ · **Gate B** (heurística 91% vs random) ✅ · **Gate C** ✅ (re-rodado a cada promoção).
+- **SHIP ATUAL: (deck.csv = Crustle LibraryOut, `CrustleAgent`)** — heurístico especializado com regras
+  kernel-inspired (anti-self-mill, sequenciamento Ancient→Land Collapse, muro anti-ex, resposta a
+  ameaça não-ex). Evidência da troca: Gate C 53,0% sobre o ship anterior no pior matchup interno;
+  média vs campo 86,8% (genérico fazia 72,3%; 6/7 matchups melhores); 77,5% vs Dragapult (deck nº1 do
+  meta real); 0 empates/0 exceções; mecânica de stall de-riscada no motor
+  (`tests/test_crustle_stall_contract.py`: ability zera dano ex, deck-out = derrota de quem não compra,
+  caps de 10k turnos/3k ações nunca tocados). Submissão 5,0 MiB com smoke fim-a-fim (partida completa
+  dentro do pacote extraído).
+- **ROLLBACK:** ship anterior = (Abomasnow, NetworkAgent par 5D). O deck está em
+  `data/decks/placeholder_abomasnow.csv` (hash conferido) e o par `models/policy_value.npz` +
+  `feature_stats.npz` segue empacotado como piloto reserva — reverter = restaurar deck.csv + trocar o
+  construtor em `main.py` de volta para `NetworkAgent`. Pares históricos: `*_pre5d.npz` (5B),
+  `*_bc5a.npz` (clone 5A).
+- **ATENÇÃO (par casado):** `feature_stats` e a policy da rede são treinadas juntas — nunca promover
+  uma sem a outra. Value head segue congelado/descalibrado (calibração é do 5C).
+- **Achado 5D (segue válido):** o gauntlet mede força-de-deck **condicionada ao piloto**; a rede 5D só
+  executa bem o Abomasnow; decks de evolução exigem piloto especializado (o CrustleAgent é o primeiro —
+  e confirmou a tese do relatório de meta de que stall é o arquétipo mais heurística-amigável).
+- **Próximo:** monitorar o ELO real do ship Crustle no leaderboard; 5C (self-play RL / critic) e/ou
+  especializar pilotos para outros decks de teto alto (Dragapult) se o ELO estagnar.
 
 ## Arquitetura (resumo)
 
@@ -85,9 +89,10 @@ As sprints eram semanais no plano original, mas o Claude Code fecha uma sprint p
 | Sprint 5A | behavioral cloning do heurístico | ✅ |
 | Sprint 5B | imitação dos líderes (replays top) | ✅ |
 | Sprint 5D | deck building + co-otimização (Epic 4.5) | ✅ (par 5D promovido; deck Abomasnow) |
-| Sprint 5D — CP4b | gauntlet expandido vs meta real → decidir deck | 🔄 próximo |
+| Sprint 5D — CP4b | gauntlet expandido vs meta real → decidir deck | ✅ (Abomasnow segurou; ranking condicionado ao piloto) |
+| Pivô Crustle | seeds reais + de-risk motor + `CrustleAgent` + troca de ship | ✅ (ship = Crustle/CrustleAgent; Gate C 53%, campo 86,8%) |
 | Sprint 5C | self-play RL fine-tune (value head + setup) | ⬜ |
-| Fase E | especializar piloto no deck de maior teto | ⏸ opcional pós-CP4b |
+| Fase E | especializar pilotos p/ outros decks de teto alto (Dragapult) | ⏸ se o ELO estagnar |
 | Infra paralela | 4.4e coleta diária + 5.4 redesign do viewer | ⬜ quando conveniente |
 | Polimento final | empacotamento, testes contra meta | ⬜ até 16/Ago |
 
@@ -97,7 +102,8 @@ para a parte difícil/arriscada (RL e deck building) e para iteração.
 ## Gates de qualidade
 - **Gate A** ✅ submissão válida pontuando.
 - **Gate B** ✅ heurística > random (>65% → 91%).
-- **Gate C** ✅ política treinada ≥ melhor baseline (par 5D 51% ≥ par 5B 49%, 0 exceções; será reforçado no 5C).
+- **Gate C** ✅ candidato ≥ melhor baseline a cada promoção (par 5D 51% ≥ par 5B; ship Crustle 53% ≥
+  par 5D + campo 86,8% ≥ 72,3% do genérico, 0 exceções; será reforçado no 5C).
 - **Invariantes:** `exceptions=0` em toda arena/self-play; **paridade torch↔numpy obrigatória** antes de cada submissão.
 
 ## Riscos & mitigação
