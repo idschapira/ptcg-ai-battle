@@ -73,11 +73,18 @@ def _kaggle(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[
     return result
 
 
-def _download_file(slug: str, file_name: str, dest_dir: Path) -> Path:
-    """Download one dataset file (idempotent: skips if already present)."""
+def _download_file(slug: str, file_name: str, dest_dir: Path,
+                   force: bool = False) -> Path:
+    """Download one dataset file (idempotent: skips if already present).
+
+    force=True re-fetches even when cached — used to refresh the INDEX
+    manifest, which grows a new row per published day (a stale cache
+    made the daily job miss every new date)."""
     target = dest_dir / file_name
     if target.exists():
-        return target
+        if not force:
+            return target
+        target.unlink()
     dest_dir.mkdir(parents=True, exist_ok=True)
     _kaggle("datasets", "download", slug, "-f", file_name, "-p", str(dest_dir))
     archive = dest_dir / f"{file_name}.zip"
@@ -105,6 +112,14 @@ def download_replays(source: ReplaySource, date: str | None,
         raise RuntimeError("index manifest.csv is empty")
     row = (next((d for d in days if d.get("date") == date), None)
            if date else days[-1])
+    if row is None and date is not None:
+        # self-heal: the cached index may predate the requested day
+        logger.info("date %s not in cached index — refreshing manifest", date)
+        index_manifest = _download_file(source.index_slug,
+                                        source.manifest_name, index_dir,
+                                        force=True)
+        days = _read_manifest(index_manifest)
+        row = next((d for d in days if d.get("date") == date), None)
     if row is None:
         raise RuntimeError(f"date {date} not present in index manifest")
     slug_name = row["daily_dataset_slug"]

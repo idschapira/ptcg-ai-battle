@@ -1,0 +1,2 @@
+# Shell scripts run under WSL/cron — CRLF would break the shebang/heredocs.
+*.sh text eol=lf
