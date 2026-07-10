@@ -30,7 +30,7 @@ from .selfplay import RESULT_DRAW, Agent, play_one_game
 
 GATE_B_WINRATE: float = 0.65
 
-AGENT_KINDS = ("random", "heuristic", "network")
+AGENT_KINDS = ("random", "heuristic", "network", "crustle")
 
 
 def _factory(kind: str, index: CardIndex, effects: EffectIndex,
@@ -45,6 +45,9 @@ def _factory(kind: str, index: CardIndex, effects: EffectIndex,
     if kind == "heuristic":
         from ..agent_heuristics.heuristic_agent import HeuristicAgent
         return lambda seed: HeuristicAgent(seed=seed, index=index, effects=effects)
+    if kind == "crustle":
+        from ..agent_heuristics.crustle_agent import CrustleAgent
+        return lambda seed: CrustleAgent(seed=seed, index=index, effects=effects)
     if kind == "network":
         from ..rl_models.network_agent import NetworkAgent
         network = NetworkAgent(index=index, effects=effects,  # deterministic
