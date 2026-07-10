@@ -47,6 +47,7 @@ BUNDLE: Final[tuple[str, ...]] = (
     "src/agent_heuristics/__init__.py",
     "src/agent_heuristics/random_agent.py",
     "src/agent_heuristics/heuristic_agent.py",
+    "src/agent_heuristics/crustle_agent.py",
     "src/rl_models/__init__.py",
     "src/rl_models/encoding.py",
     "src/rl_models/normalization.py",
@@ -80,16 +81,39 @@ _SMOKE_SCRIPT: Final[str] = textwrap.dedent(
     assert len(answer) == 1, f"minCount/maxCount violated: {answer!r}"
     assert answer[0] in (0, 1), f"index out of range: {answer!r}"
 
-    # The bundle must run the NETWORK, not the heuristic fallback: a missing
-    # models/*.npz in the tar would silently downgrade the agent.
-    assert main._agent._fallback is None, "network weights not loaded in bundle"
-    assert main._agent.last_scores is not None, "policy net did not score options"
+    # The bundle must ship the SPECIALIZED pilot (Crustle strategy overlay),
+    # and the rollback pilot (NetworkAgent + models/*.npz) must stay loadable.
+    assert type(main._agent).__name__ == "CrustleAgent", type(main._agent)
+    from src.rl_models.network_agent import NetworkAgent
+    rollback = NetworkAgent(deck_path="deck.csv")
+    assert rollback._fallback is None, "rollback network weights not in bundle"
 
+    # Initial selection: obs.select is None -> the 60 deck.csv ids.
     deck = main.agent({"select": None, "logs": [], "current": None})
     assert len(deck) == 60, f"deck must have 60 cards, got {len(deck)}"
     assert all(isinstance(c, int) for c in deck), "deck ids must be int"
+    assert 345 in deck, "packaged deck.csv must be the Crustle list"
 
-    print(f"smoke OK: selection={answer} deck head={deck[:5]}")
+    # End to end: a full engine game piloted by the packaged agent on both
+    # sides. Must finish decisively with every answer legal (the engine
+    # rejects illegal answers by ending the game with an error result).
+    from cg import game
+    obs_dict, start = game.battle_start(list(deck), list(deck))
+    assert obs_dict is not None, f"battle_start failed: {start}"
+    try:
+        result = -1
+        for _ in range(3000):
+            result = obs_dict["current"]["result"]
+            if result != -1:
+                break
+            obs_dict = game.battle_select(main.agent(obs_dict))
+        assert result in (0, 1, 2), f"game did not finish (result={result})"
+        turn = obs_dict["current"]["turn"]
+    finally:
+        game.battle_finish()
+
+    print(f"smoke OK: selection={answer} deck head={deck[:5]} "
+          f"full game result={result} turn={turn}")
     """
 )
 

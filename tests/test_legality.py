@@ -1,8 +1,10 @@
 """Unit tests for src/deckbuilding/legality.py (Task 4.5a).
 
-Base fixture = the repo's deck.csv (the official Kaggle sample deck,
-Mega Abomasnow): it must validate as LEGAL, and each rule is exercised
-by mutating one aspect of a copy of it. Card ids used in mutations
+Base fixture = data/decks/placeholder_abomasnow.csv (the official Kaggle
+sample deck, stable and versioned — the root deck.csv is the SHIP deck
+and changes over time; a separate test only asserts it stays legal).
+The fixture must validate as LEGAL, and each rule is exercised by
+mutating one aspect of a copy of it. Card ids used in mutations
 (verified against dim_card): 3=Basic {W} Energy, 5=Basic {P} Energy,
 721=Kyogre, 722=Snover, 723=Mega Abomasnow ex (Stage 1, prev Snover),
 1080=Unfair Stamp (ACE SPEC), 1158=Maximum Belt (ACE SPEC).
@@ -35,7 +37,8 @@ class TestDeckLegality(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.index = CardIndex()
-        cls.legal = read_deck_ids(REPO_ROOT / "deck.csv")
+        cls.legal = read_deck_ids(
+            REPO_ROOT / "data" / "decks" / "placeholder_abomasnow.csv")
 
     def _errors(self, deck: list[int]) -> str:
         return "\n".join(validate_deck(deck, self.index).errors)
@@ -44,6 +47,13 @@ class TestDeckLegality(unittest.TestCase):
         report = validate_deck(self.legal, self.index)
         self.assertTrue(report.ok, msg="\n".join(report.errors))
         self.assertEqual(len(self.legal), DECK_SIZE)
+
+    def test_ship_deck_csv_is_legal(self) -> None:
+        # Deck-agnostic guard: whatever the current ship deck is, the
+        # root deck.csv that gets packaged must always validate.
+        ship = read_deck_ids(REPO_ROOT / "deck.csv")
+        report = validate_deck(ship, self.index)
+        self.assertTrue(report.ok, msg="\n".join(report.errors))
 
     def test_wrong_size_fails(self) -> None:
         self.assertIn("59 cards", self._errors(self.legal[:-1]))
