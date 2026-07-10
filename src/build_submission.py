@@ -117,6 +117,57 @@ _SMOKE_SCRIPT: Final[str] = textwrap.dedent(
     """
 )
 
+# kaggle_environments does NOT import main.py: it runs exec(source, env)
+# in a namespace WITHOUT __file__. This step replicates that loader
+# exactly — it would have caught the "Validation Episode failed"
+# NameError on __file__ that a run-as-file smoke cannot see.
+_EXEC_LOADER_SCRIPT: Final[str] = textwrap.dedent(
+    """
+    env = {}
+    with open("main.py", encoding="utf-8") as fh:
+        source = fh.read()
+    exec(compile(source, "<kaggle-exec>", "exec"), env)  # no __file__
+    assert "__file__" not in env, "loader fidelity broken: __file__ leaked"
+    agent = env["agent"]
+
+    fake_select = {
+        "select": {
+            "type": 9, "context": 41, "minCount": 1, "maxCount": 1,
+            "remainDamageCounter": 0, "remainEnergyCost": 0,
+            "option": [{"type": 1}, {"type": 2}],
+            "deck": None, "contextCard": None, "effect": None,
+        },
+        "logs": [],
+        "current": None,
+    }
+    answer = agent(fake_select)
+    assert isinstance(answer, list) and len(answer) == 1, repr(answer)
+    assert answer[0] in (0, 1), f"index out of range: {answer!r}"
+
+    deck = agent({"select": None, "logs": [], "current": None})
+    assert len(deck) == 60, f"deck must have 60 cards, got {len(deck)}"
+    assert all(isinstance(c, int) for c in deck), "deck ids must be int"
+    assert 345 in deck, "packaged deck.csv must be the Crustle list"
+
+    from cg import game
+    obs_dict, start = game.battle_start(list(deck), list(deck))
+    assert obs_dict is not None, f"battle_start failed: {start}"
+    try:
+        result = -1
+        for _ in range(3000):
+            result = obs_dict["current"]["result"]
+            if result != -1:
+                break
+            obs_dict = game.battle_select(agent(obs_dict))
+        assert result in (0, 1, 2), f"game did not finish (result={result})"
+    finally:
+        game.battle_finish()
+
+    print(f"exec-loader smoke OK (no __file__): selection={answer} "
+          f"deck head={deck[:5]} full game result={result}")
+    """
+)
+
 
 def _iter_bundle_files() -> list[Path]:
     files: list[Path] = []
@@ -156,20 +207,24 @@ def validate(archive: Path) -> None:
 
 
 def smoke_test(archive: Path) -> None:
-    """Import the packaged main.py in a clean subprocess and run fake selections."""
+    """Run the packaged main.py in a clean subprocess, twice: as a module
+    import (dev loader) and via exec() without __file__ (the REAL Kaggle
+    loader — kaggle_environments never sets __file__)."""
     with tempfile.TemporaryDirectory() as tmp:
         with tarfile.open(archive, "r:gz") as tar:
             tar.extractall(tmp, filter="data")
-        result = subprocess.run(
-            [sys.executable, "-c", _SMOKE_SCRIPT],
-            cwd=tmp,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-    if result.returncode != 0:
-        raise AssertionError(f"smoke test failed:\n{result.stdout}\n{result.stderr}")
-    print(result.stdout.strip())
+        for script in (_SMOKE_SCRIPT, _EXEC_LOADER_SCRIPT):
+            result = subprocess.run(
+                [sys.executable, "-c", script],
+                cwd=tmp,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if result.returncode != 0:
+                raise AssertionError(
+                    f"smoke test failed:\n{result.stdout}\n{result.stderr}")
+            print(result.stdout.strip())
 
 
 def main() -> None:
