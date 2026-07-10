@@ -15,8 +15,16 @@ from selfplay (never reimplemented); seat/deck alternation mirrors
 arena.run_arena. Pilot latency is measured per pairing (µs per
 NetworkAgent call, encode+normalize+forward included).
 
+Focus mode (Sprint 5D pivot, baselines for a candidate deck): with
+--focus <deck> [<deck> ...], each focus deck plays the whole field once
+PER PILOT KIND (heuristic, random, network) — same pilot on both sides,
+only decks differ — answering "how does this deck rank under each pilot
+we can ship today?". The mirror sanity then runs for the focus decks
+only.
+
 Run from the repo root:
     python -m src.deckbuilding.gauntlet --games 100 --seed 0
+    python -m src.deckbuilding.gauntlet --games 80 --focus crustle mega_lucario
 """
 
 from __future__ import annotations
@@ -158,6 +166,65 @@ def _fmt_pair(label: str, res: PairResult) -> str:
             f"exceptions {len(res.errors)}")
 
 
+def _run_focus_mode(focus: list[str], decks: dict[str, list[int]],
+                    index: CardIndex, effects: EffectIndex,
+                    n_games: int, seed: int, net_agent: Agent) -> None:
+    """Focus decks vs the whole field, once per pilot kind (mirror pilots)."""
+    for name in focus:
+        if name not in decks:
+            raise SystemExit(f"unknown focus deck '{name}' "
+                             f"(field: {sorted(decks)})")
+    opponents = [n for n in decks]
+
+    for kind in ("heuristic", "random", "network"):
+        print(f"\n=== focus baselines: pilot = {kind}, "
+              f"{n_games} games/pair ===")
+        for focus_name in focus:
+            rates: list[float] = []
+            for opp_name in opponents:
+                if opp_name == focus_name:
+                    continue
+                timed: TimedAgent | None = None
+                if kind == "network":
+                    timed = TimedAgent(net_agent)
+                    make_a = make_b = (lambda s, t=timed: t)
+                elif kind == "heuristic":
+                    make_a = make_b = (
+                        lambda s: HeuristicAgent(seed=s, index=index,
+                                                 effects=effects))
+                else:
+                    make_a = make_b = (lambda s: RandomAgent(seed=s))
+                res = run_pair(make_a, make_b, decks[focus_name],
+                               decks[opp_name], n_games, seed, timed)
+                rates.append(res.winrate_a)
+                print(_fmt_pair(f"{focus_name} vs {opp_name}", res))
+                for error in res.errors[:5]:
+                    print(f"  {error}")
+            mean = sum(rates) / len(rates) if rates else 0.0
+            print(f"  -> {focus_name} mean winrate vs field "
+                  f"({kind} pilot): {mean:.1%}")
+
+    print(f"\n=== sanity (focus decks): mirror deck, pilots differ, "
+          f"{n_games} games each ===")
+    for name in focus:
+        deck = decks[name]
+        timed = TimedAgent(net_agent)
+        res = run_pair(lambda s: timed,
+                       lambda s: HeuristicAgent(seed=s, index=index,
+                                                effects=effects),
+                       deck, deck, n_games, seed, timed)
+        print(_fmt_pair(f"{name}: network vs heuristic", res))
+        timed = TimedAgent(net_agent)
+        res = run_pair(lambda s: timed, lambda s: RandomAgent(seed=s),
+                       deck, deck, n_games, seed, timed)
+        print(_fmt_pair(f"{name}: network vs random", res))
+        res = run_pair(lambda s: HeuristicAgent(seed=s, index=index,
+                                                effects=effects),
+                       lambda s: RandomAgent(seed=s + 77_000),
+                       deck, deck, n_games, seed)
+        print(_fmt_pair(f"{name}: heuristic vs random", res))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--games", type=int, default=100,
@@ -168,6 +235,9 @@ def main() -> None:
                              "ALWAYS pass its paired --stats along)")
     parser.add_argument("--stats", type=Path, default=None,
                         help="pilot feature_stats .npz (default: production)")
+    parser.add_argument("--focus", type=str, nargs="+", default=None,
+                        help="focus decks: baselines per pilot kind "
+                             "instead of the full round-robin")
     args = parser.parse_args()
 
     index = CardIndex()
@@ -181,6 +251,11 @@ def main() -> None:
           f"stats={args.stats or 'production'}")
     if pilot._fallback is not None:
         raise SystemExit("pilot weights missing — gauntlet needs the net")
+
+    if args.focus is not None:
+        _run_focus_mode(args.focus, decks, index, effects,
+                        args.games, args.seed, pilot)
+        return
 
     names = list(decks)
     winrate: dict[tuple[str, str], float] = {}
