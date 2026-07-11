@@ -9,6 +9,9 @@
 /data/raw/replays/
 /viewer/replays/
 
+# Our own ladder episodes (refetch: python -m src.analysis.fetch_my_episodes)
+/viewer/episodes/
+
 # Daily ELO tracking (volatile, rebuilt by scripts/track_elo.sh)
 /data/elo/
 
