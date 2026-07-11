@@ -9,6 +9,9 @@
 /data/raw/replays/
 /viewer/replays/
 
+# Daily ELO tracking (volatile, rebuilt by scripts/track_elo.sh)
+/data/elo/
+
 # Torch checkpoint + train metrics (dev artifacts; the exported
 # models/policy_value.npz used at runtime IS versioned)
 /models/*.pt
