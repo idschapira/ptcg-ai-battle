@@ -131,6 +131,18 @@ par (deck, piloto) fundamentado e a uma disciplina de avaliação estatística.
   leitura; a verdade só veio do ladder. Detalhe diagnóstico: as derrotas mais caras (−14,6/−10,3 ELO)
   foram contra oponentes de rating mais BAIXO → misplays nossos exploráveis (o corpus da caça de
   misplays). 0 empates em 64 confirma que o cap de 3.000 ações não é risco no jogo real.
+- **12/Jul/2026 — fix v3 valida a tese (fecha o arco do board-wipe):** implementado o piso absoluto de
+  deck (só freia thinning com deck ≤15, ou ≤30 e perdendo) + `desired_field_floor` (board-builders sobem
+  a 42 quando <3 Pokémon em jogo). Validação por 3 ângulos que furam a saturação do winrate: (1) mirror
+  NÃO regride (v3 48,1%, IC[44,7–51,6] contém 50% → mantém a defesa anti-self-mill); (2) vs agressivos
+  95,4%→98,0% (p≈0,002); (3) **diagnóstico mecanístico direto**: taxa de board-wipe 30%→10%, derrotas
+  com assinatura de wipe 26→6, board@t5 ~3,78. Figura-chave do relatório: o ciclo completo
+  *observar derrota real → medir a causa → corrigir → provar mecanicamente*. Gate de campo completo
+  APROVADO: v3 92,1% vs v2 89,6% no agregado (+2,5pp, p≈0,005, 4200 jogos), nenhum matchup regride.
+  **Ponto elegante do relatório:** a maior melhora foi o Abomasnow/não-ex (68,0%→78,3%, +10,3pp) — a
+  fraqueza estrutural que tínhamos despriorizado foi consertada DE GRAÇA pelo board-floor, porque
+  board-wipe (vs agressivo) e ser KO'd por não-ex compartilham a MESMA raiz: banco vazio. Um fix
+  principiado, duas fraquezas. v3 empacotada e subida ao Kaggle ao lado da v2 (A/B de ELO real em curso).
 - **11/Jul/2026 — ACHADO CENTRAL (a espinha da seção de rigor do relatório):** caça de misplays nas
   derrotas reais da v2 (fidelidade de reconstrução 474/474 = 100%). Padrão: **a v2 não perde como um deck
   de mill — perde como um deck sem banco.** ~11/12 derrotas são *board-wipe* (morremos com deck cheio,
