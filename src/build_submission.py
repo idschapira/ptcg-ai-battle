@@ -82,10 +82,10 @@ _SMOKE_SCRIPT: Final[str] = textwrap.dedent(
     assert answer[0] in (0, 1), f"index out of range: {answer!r}"
 
     # The bundle must ship the SPECIALIZED pilot (Crustle strategy overlay)
-    # in its v2 variant, and the rollback pilot (NetworkAgent + models/*.npz)
-    # must stay loadable.
+    # in its v3 variant (_v3 implies the v2 rule set), and the rollback
+    # pilot (NetworkAgent + models/*.npz) must stay loadable.
     assert type(main._agent).__name__ == "CrustleAgent", type(main._agent)
-    assert main._agent._v2 is True, "packaged pilot must be the v2 variant"
+    assert main._agent._v3 is True, "packaged pilot must be the v3 variant"
     from src.rl_models.network_agent import NetworkAgent
     rollback = NetworkAgent(deck_path="deck.csv")
     assert rollback._fallback is None, "rollback network weights not in bundle"
@@ -131,7 +131,7 @@ _EXEC_LOADER_SCRIPT: Final[str] = textwrap.dedent(
     exec(compile(source, "<kaggle-exec>", "exec"), env)  # no __file__
     assert "__file__" not in env, "loader fidelity broken: __file__ leaked"
     agent = env["agent"]
-    assert env["_agent"]._v2 is True, "packaged pilot must be the v2 variant"
+    assert env["_agent"]._v3 is True, "packaged pilot must be the v3 variant"
 
     fake_select = {
         "select": {
