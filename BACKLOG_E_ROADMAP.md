@@ -120,14 +120,16 @@ As sprints eram semanais no plano original, mas o Claude Code fecha uma sprint p
 | Tuning v2 | correção de 2 bugs + regras de controle (kernel) + re-ship | ✅ (A/B 77%; ladder v2 +243 > v1) |
 | Infra de avaliação | harness A/B (IC Wilson) + coleta diária + tracker de ELO | ✅ |
 | Caça de misplays | fetch dos nossos episódios + review determinístico | ✅ (achado: board-wipe = derrota nº1) |
-| **v3 (próximo)** | fix do estrangulamento de setup: piso de deck + piso de board | ⬜ ← **PRÓXIMO** |
+| v3 | fix do estrangulamento de setup: piso de deck + piso de board | ✅ (gate de campo 92,1% vs 89,6%; shipada 12/Jul ao lado da v2) |
+| **Observação pós-ship (próximo)** | ELO real v3 vs v2 no tracker; **TODO: densidade de energia** — 8/60 (4 Mist + 4 Rock Fighting, zero básicas); Land Collapse só pede 2 incolores e Gong×4/Colress×2 buscam, mas nunca medimos turnos-até-Tusk-pronto nem perdas por falta de energia; Jumbo quase nunca liga (exige 3 energias no ativo). Se suspeitar, A/B de deck `--mode deck --pilot crustle-v3` com +2 energias no lugar de Jumbo/1 Pokégear | ⬜ ← **PRÓXIMO** |
 | Strategy (Epic 6) | aceitar regras (6/Set) + relatório ≤2000 palavras (13/Set) | 🔄 diário vivo em curso |
 | Sprint 5C | self-play RL fine-tune (value head + teto) | ⏸ aposta de teto alto |
 | Fase E | pilotos especializados p/ outros decks (Dragapult) | ⏸ se o ELO estagnar |
 | Viewer 5.4 | redesign estilo batalha | ⏸ polimento opcional |
 
-**Estado:** ship no ar medindo ELO (59,4% real, convergindo); infra de coleta/avaliação toda automatizada;
-próximo lever de dev = v3 (board-floor). ~5 semanas até 16/Ago (Simulação) e ~9 até 13/Set (Strategy).
+**Estado:** v3 shipada (12/Jul) ao lado da v2 — A/B de ELO real em curso; infra de coleta/avaliação toda
+automatizada; próximos levers = leitura do ladder v3, questão da energia (acima), depois 5C/Fase E.
+~5 semanas até 16/Ago (Simulação) e ~9 até 13/Set (Strategy).
 
 ## Gates de qualidade
 - **Gate A** ✅ submissão válida pontuando.
