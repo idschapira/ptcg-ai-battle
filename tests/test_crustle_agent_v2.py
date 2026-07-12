@@ -66,12 +66,22 @@ class TestCrustleV2Rules(unittest.TestCase):
                  opp_bench: list[dict] | None = None,
                  my_deck: int | None = None,
                  opp_deck: int | None = None,
-                 opp_hand_count: int | None = None):
+                 opp_hand_count: int | None = None,
+                 no_zone: bool = False):
         obs_dict = copy.deepcopy(self.base_obs)
         state = obs_dict["current"]
         me = state["yourIndex"]
         mine, theirs = state["players"][me], state["players"][1 - me]
         template = dict(mine["active"][0])
+        if no_zone:
+            # The Zone is a 1-of: the randomly captured hand sometimes
+            # holds it, which legitimately disables the Colress rescue —
+            # scrub it so the signal under test is deterministic.
+            from src.agent_heuristics.crustle_agent import NEUTRAL_ZONE
+            for card in mine["hand"]:
+                if card and card.get("id") == NEUTRAL_ZONE:
+                    card["id"] = 6  # inert basic energy
+            state["stadium"] = []
         if my_deck is not None:
             mine["deckCount"] = my_deck
         if hand0_id is not None:
@@ -151,9 +161,10 @@ class TestCrustleV2Rules(unittest.TestCase):
     def test_colress_boosted_when_zone_needed_vs_ex(self) -> None:
         # losing the race RELATIVELY (30 < 35): Zone fetch must still win
         vs_ex = self._mutated(hand0_id=COLRESS, opp_active_id=KYUREM_EX,
-                              my_deck=30, opp_deck=35)
+                              my_deck=30, opp_deck=35, no_zone=True)
         vs_non_ex = self._mutated(hand0_id=COLRESS, opp_active_id=KYOGRE,
-                                  opp_bench=[], my_deck=30, opp_deck=35)
+                                  opp_bench=[], my_deck=30, opp_deck=35,
+                                  no_zone=True)
         option = self._play0()
         self.assertGreater(self.v2._main_score(vs_ex, option), TRAINER_BAND)
         self.assertLess(self.v2._main_score(vs_non_ex, option), END_SCORE,
