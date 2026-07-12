@@ -125,6 +125,24 @@ par (deck, piloto) fundamentado e a uma disciplina de avaliação estatística.
   CrustleAgent (gap até o top-20 ~230 pts).
 - **11/Jul/2026** — Tracker de ELO no ar; 1º dia de dados reais confirma a previsão interna: v2 +243,6
   sobre v1 no ladder (o A/B interno de 77% se materializou na direção certa). Gap ao topo (~1254): −424.
+- **11/Jul/2026 — calibração interno×real (figura/ponto forte do relatório):** primeira amostra de
+  ladder da v2 (64 jogos, ~19h) = **59,4% winrate real** (38V/26D, 0 empates), com ELO subindo (829→841).
+  Contraste com os ~90% do gauntlet interno **quantifica a saturação**: o campo interno inflava a
+  leitura; a verdade só veio do ladder. Detalhe diagnóstico: as derrotas mais caras (−14,6/−10,3 ELO)
+  foram contra oponentes de rating mais BAIXO → misplays nossos exploráveis (o corpus da caça de
+  misplays). 0 empates em 64 confirma que o cap de 3.000 ações não é risco no jogo real.
+- **11/Jul/2026 — ACHADO CENTRAL (a espinha da seção de rigor do relatório):** caça de misplays nas
+  derrotas reais da v2 (fidelidade de reconstrução 474/474 = 100%). Padrão: **a v2 não perde como um deck
+  de mill — perde como um deck sem banco.** ~11/12 derrotas são *board-wipe* (morremos com deck cheio,
+  6/6 prêmios intactos, às vezes a 1 turno de vencer por mill); 0 por self-deck-out ou cap de ações.
+  **Causa medida:** a regra anti-self-mill de gatilho RELATIVO (meu deck < deck dele) — a MESMA que
+  venceu o A/B do espelho por 77% — estrangula o setup: 37 supressões de itens de consistência com deck
+  >30 cartas (25 nos turnos 1–4), levando a board final de 0–2 Pokémon em 11/12. **Lição-tese:** nossa
+  MELHOR métrica interna (o mirror A/B) aprovou uma regra NOCIVA no jogo real — no espelho os dois lados
+  se auto-estrangulavam igual, escondendo o dano; só o ladder, contra oponentes que montam board e
+  atacam, revelou. Correção escopada (próxima sprint): piso ABSOLUTO de deck + piso de board (os 2
+  contrapesos do kernel Elo 1208 não-portados: `desired_field_floor` + guard conservador), validada dos
+  dois lados (A/B interno garante não-regressão do mirror; ELO do ladder confirma o ganho real).
 - **11/Jul/2026 — insight metodológico (candidato forte ao relatório):** o gauntlet interno **saturou** —
   a v2 faz ~90% vs o nosso campo, então o campo perdeu poder de discriminar melhorias futuras. Combinado
   com o motor não-reproduzível (todo winrate é amostra), isso define nossa **hierarquia de evidência**:

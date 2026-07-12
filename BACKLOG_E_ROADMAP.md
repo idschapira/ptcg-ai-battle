@@ -1,35 +1,44 @@
 # PTCG AI Battle — Backlog & Roadmap (consolidado)
 
-**Deadline (categoria Simulação):** 16 de Agosto de 2026 · **Atualizado:** 09/Jul/2026
+**Deadlines:** Simulação 16/Ago/2026 · **Strategy** (relatório): entry até 6/Set, submissão 13/Set ·
+**Atualizado:** 11/Jul/2026
 Documento único de backlog + roadmap. Substitui os adendos anteriores (visualização/replays e deck
-building — agora integrados aqui). Guia operacional em `CLAUDE.md`; arquitetura em `ARQUITETURA_DECISAO.md`.
+building — agora integrados aqui). Guia operacional em `CLAUDE.md`; arquitetura em `ARQUITETURA_DECISAO.md`;
+relatório da Strategy em `STRATEGY_JOURNAL.md`.
 
 ---
 
-## Status atual (10/Jul/2026)
+## Status atual (11/Jul/2026)
 
-- **Sprints 1–4, 5A, 5B, 5D e pivô Crustle concluídos** — muito à frente do cronograma original.
-- **Gate A** ✅ · **Gate B** (heurística 91% vs random) ✅ · **Gate C** ✅ (re-rodado a cada promoção).
-- **SHIP ATUAL: (deck.csv = Crustle LibraryOut, `CrustleAgent`)** — heurístico especializado com regras
-  kernel-inspired (anti-self-mill, sequenciamento Ancient→Land Collapse, muro anti-ex, resposta a
-  ameaça não-ex). Evidência da troca: Gate C 53,0% sobre o ship anterior no pior matchup interno;
-  média vs campo 86,8% (genérico fazia 72,3%; 6/7 matchups melhores); 77,5% vs Dragapult (deck nº1 do
-  meta real); 0 empates/0 exceções; mecânica de stall de-riscada no motor
-  (`tests/test_crustle_stall_contract.py`: ability zera dano ex, deck-out = derrota de quem não compra,
-  caps de 10k turnos/3k ações nunca tocados). Submissão 5,0 MiB com smoke fim-a-fim (partida completa
-  dentro do pacote extraído).
-- **ROLLBACK:** ship anterior = (Abomasnow, NetworkAgent par 5D). O deck está em
-  `data/decks/placeholder_abomasnow.csv` (hash conferido) e o par `models/policy_value.npz` +
-  `feature_stats.npz` segue empacotado como piloto reserva — reverter = restaurar deck.csv + trocar o
-  construtor em `main.py` de volta para `NetworkAgent`. Pares históricos: `*_pre5d.npz` (5B),
-  `*_bc5a.npz` (clone 5A).
-- **ATENÇÃO (par casado):** `feature_stats` e a policy da rede são treinadas juntas — nunca promover
-  uma sem a outra. Value head segue congelado/descalibrado (calibração é do 5C).
-- **Achado 5D (segue válido):** o gauntlet mede força-de-deck **condicionada ao piloto**; a rede 5D só
-  executa bem o Abomasnow; decks de evolução exigem piloto especializado (o CrustleAgent é o primeiro —
-  e confirmou a tese do relatório de meta de que stall é o arquétipo mais heurística-amigável).
-- **Próximo:** monitorar o ELO real do ship Crustle no leaderboard; 5C (self-play RL / critic) e/ou
-  especializar pilotos para outros decks de teto alto (Dragapult) se o ELO estagnar.
+- **Sprints 1–4, 5A, 5B, 5D, pivô Crustle e tuning v2 concluídos** — muito à frente do cronograma.
+- **Duas competições conectadas:** Simulação (agente por ELO) + **Strategy** (relatório escrito;
+  entrar na Strategy exige estar na Simulação — ver Epic 6 e `STRATEGY_JOURNAL.md`).
+- **Gate A** ✅ · **Gate B** (91% vs random) ✅ · **Gate C** ✅ (re-rodado a cada promoção).
+- **SHIP ATUAL: (deck.csv = Crustle LibraryOut, `CrustleAgent` variant="v2")** — heurístico especializado.
+  A **v2 = v1 + correção de 2 bugs** (v1 preferia o ataque de DANO ao de MILL num deck de mill; o handler
+  de descarte sabotava os próprios picks do Explorer's Guidance) + regras de controle portadas do kernel
+  Elo 1208 (gust-to-trap, timing de Xerosic, Colress→Neutralization Zone, pivô proativo, heal cedo).
+  A/B interno v2×v1 = **77%**; média vs campo **90,7%** (v1 fazia 86,8%); +18,7pp vs Dragapult.
+- **No ladder (múltiplas submissões permitidas): v1 e v2 rodando lado a lado.** ELO real (11/jul, ~19h de
+  v2): **v2 ≈ 829→841 > v1 ≈ 586**; **winrate real 59,4%** (38V/26D, 0 empates); topo do leaderboard
+  ~1254 (gap ~−420). O A/B interno (77%) confirmou-se no real (+243 ELO da v2 sobre a v1).
+- **⚠️ O gauntlet interno SATUROU** (v2 ~90% vs nosso campo) → melhorias já não são mensuráveis contra
+  nossos decks; **o sinal confiável agora é o ELO do ladder** (lento). O motor é NÃO-reproduzível
+  (`std::random_device` por shuffle) → todo winrate é uma amostra; leitura honesta = IC de Wilson.
+- **🎯 ACHADO CENTRAL (caça de misplays nas derrotas reais, fidelidade 474/474):** ~11/12 derrotas são
+  **board-wipe** (morremos com deck cheio, 6/6 prêmios, sem banco), NÃO por mill/self-deck-out. Causa
+  medida: a regra anti-self-mill de **gatilho relativo** (a que venceu o A/B do mirror) **estrangula o
+  setup early** (37 supressões de itens c/ deck >30; board final 0–2 em 11/12). **PRÓXIMO FIX (v3):**
+  trocar por piso ABSOLUTO de deck + piso de BOARD (contrapesos do kernel Elo 1208), validado por A/B
+  (não regredir o mirror) + série de ELO (confirmar o ganho real).
+- **ROLLBACK:** v1 acessível via flag `variant`; ship pré-Crustle = (Abomasnow, NetworkAgent 5D) segue
+  empacotado (`placeholder_abomasnow.csv` + `models/policy_value.npz`+`feature_stats.npz`; `*_pre5d`,
+  `*_bc5a`). Reverter = 1 linha no `main.py`.
+- **Infra de avaliação/observabilidade (nova):** harness A/B com IC de Wilson + verdicto PASS/HOLD/FAIL
+  (`ab_test.py`); coleta diária de replays + tracker diário de ELO (ambos no Task Scheduler); fetch dos
+  NOSSOS episódios (`fetch_my_episodes.py`) + pipeline de review determinístico (`episode_review.py`).
+- **Próximo:** aplicar o fix do board-floor (v3) + validar (A/B + ELO); manter o `STRATEGY_JOURNAL.md`;
+  **aceitar as regras da Strategy até 6/Set**; 5C (self-play RL / critic) como aposta de teto alto.
 
 ## Arquitetura (resumo)
 
@@ -66,15 +75,32 @@ Star schema in-memory → Parquet. `dim_card`/`dim_attack`/`dim_skill`/`dim_effe
 - **4.4** Ingestão de replays:
   - 4.4a download ✅ · 4.4b parser ✅ (pareamento ação↔obs corrigido + teste de regressão) · 4.4d ponte com viewer ✅
   - 4.4c warm-start por imitação (= Sprint 5B) ✅
-  - 4.4e **coleta diária automatizada** ⬜ (infra Task Scheduler; ver `PROMPT_replays_diarios.md`)
-- **4.5** Deck building (offline) 🔄:
-  - 4.5a validador de legalidade ✅ · 4.5b sementes de arquétipo ✅ · 4.5c busca por winrate na arena ✅ (`gauntlet.py`) · 4.5d gauntlet de decks reais ✅ · 4.5e co-otimização deck↔piloto ✅ (par 5D agnóstico promovido)
-  - **em curso:** expandir campo do gauntlet com meta real (CP4b) → decidir deck de submissão · **Fase E** especialização opcional
-- **4.6** Empacotamento final ⬜ (submissão já válida a 5 MiB; quantização/pruning só se necessário)
+  - 4.4e **coleta diária automatizada** ✅ (`scripts/daily_replays.sh` + Task Scheduler; venv dedicado
+    `.venv` + auth Kaggle; corpus cresce ~10k pares/dia; bug do índice cacheado corrigido)
+- **4.5** Deck building (offline) ✅:
+  - 4.5a validador ✅ · 4.5b sementes ✅ · 4.5c busca na arena ✅ (`gauntlet.py`) · 4.5d gauntlet de decks reais ✅ · 4.5e co-otimização deck↔piloto ✅
+  - CP4b (campo expandido vs meta real) ✅ → **conclusão: força-de-deck é condicionada ao piloto; pivô
+    para o Crustle** (arquétipo stall/LibraryOut, o mais heurística-amigável do relatório de meta)
+- **4.6** Empacotamento final ✅ (submissão 5,0 MiB; smoke fim-a-fim nos 2 modos — módulo + exec-sem-
+  `__file__` fiel ao loader do Kaggle; guard que aborta build se o piloto empacotado não for o esperado)
 
-### Epic 5 — Observabilidade & Battle Viewer 🔄
+### Epic 5 — Observabilidade & Avaliação 🔄
 - 5.1 gravador (recorder) ✅ · 5.2 viewer single-file offline ✅ · 5.3 scores por jogada ✅
-- 5.4 redesign estilo batalha Pokémon ⬜ (ver `PROMPT_viewer_redesign.md` + `battle_viewer_concept.html`)
+- 5.4 redesign estilo batalha Pokémon ⏸ (polimento opcional; ver `PROMPT_viewer_redesign.md`)
+- 5.5 **harness A/B** ✅ (`ab_test.py`: modos agente/deck/campo, IC de Wilson, verdicto PASS/HOLD/FAIL;
+  CRN impossível — motor não-reproduzível, provado na fonte)
+- 5.6 **tracker de ELO** ✅ (`scripts/track_elo.sh` + `elo_report.py`; série por submissão via API Kaggle)
+- 5.7 **caça de misplays** ✅ (`fetch_my_episodes.py` puxa nossos episódios; `episode_review.py`
+  reconstrói decisões via CrustleAgent determinístico; achou o board-wipe como derrota nº1)
+
+### Epic 6 — Strategy Category (relatório) 🔄
+Competição-irmã: Kaggle Writeup ≤2.000 palavras. Rubrica **Model 70% / Deck 20% / Report 10%** — premia
+rigor/originalidade e **não** exige ELO alto. Prazo: entry 6/Set, submissão 13/Set. Prêmio 8×$30k + final
+em Tóquio.
+- 6.1 diário vivo `STRATEGY_JOURNAL.md` ✅ (mantido pelo chat; pré-populado com a jornada e a rubrica)
+- 6.2 **aceitar as regras da Strategy no Kaggle** ⬜ (até 6/Set — AÇÃO do Ilan)
+- 6.3 capturar figuras (matrizes de gauntlet, deltas v1→v2, série de ELO, timeline de decisões) ⬜
+- 6.4 destilar o Writeup ≤2.000 palavras ⬜ (até 13/Set)
 
 ---
 
@@ -90,14 +116,18 @@ As sprints eram semanais no plano original, mas o Claude Code fecha uma sprint p
 | Sprint 5B | imitação dos líderes (replays top) | ✅ |
 | Sprint 5D | deck building + co-otimização (Epic 4.5) | ✅ (par 5D promovido; deck Abomasnow) |
 | Sprint 5D — CP4b | gauntlet expandido vs meta real → decidir deck | ✅ (Abomasnow segurou; ranking condicionado ao piloto) |
-| Pivô Crustle | seeds reais + de-risk motor + `CrustleAgent` + troca de ship | ✅ (ship = Crustle/CrustleAgent; Gate C 53%, campo 86,8%) |
-| Sprint 5C | self-play RL fine-tune (value head + setup) | ⬜ |
-| Fase E | especializar pilotos p/ outros decks de teto alto (Dragapult) | ⏸ se o ELO estagnar |
-| Infra paralela | 4.4e coleta diária + 5.4 redesign do viewer | ⬜ quando conveniente |
-| Polimento final | empacotamento, testes contra meta | ⬜ até 16/Ago |
+| Pivô Crustle | seeds reais + de-risk motor + `CrustleAgent` v1 + troca de ship | ✅ |
+| Tuning v2 | correção de 2 bugs + regras de controle (kernel) + re-ship | ✅ (A/B 77%; ladder v2 +243 > v1) |
+| Infra de avaliação | harness A/B (IC Wilson) + coleta diária + tracker de ELO | ✅ |
+| Caça de misplays | fetch dos nossos episódios + review determinístico | ✅ (achado: board-wipe = derrota nº1) |
+| **v3 (próximo)** | fix do estrangulamento de setup: piso de deck + piso de board | ⬜ ← **PRÓXIMO** |
+| Strategy (Epic 6) | aceitar regras (6/Set) + relatório ≤2000 palavras (13/Set) | 🔄 diário vivo em curso |
+| Sprint 5C | self-play RL fine-tune (value head + teto) | ⏸ aposta de teto alto |
+| Fase E | pilotos especializados p/ outros decks (Dragapult) | ⏸ se o ELO estagnar |
+| Viewer 5.4 | redesign estilo batalha | ⏸ polimento opcional |
 
-**Buffer:** com a fundação + 5A prontas em ~2 dias e ~5,5 semanas até o deadline, o tempo extra vai
-para a parte difícil/arriscada (RL e deck building) e para iteração.
+**Estado:** ship no ar medindo ELO (59,4% real, convergindo); infra de coleta/avaliação toda automatizada;
+próximo lever de dev = v3 (board-floor). ~5 semanas até 16/Ago (Simulação) e ~9 até 13/Set (Strategy).
 
 ## Gates de qualidade
 - **Gate A** ✅ submissão válida pontuando.
@@ -107,13 +137,16 @@ para a parte difícil/arriscada (RL e deck building) e para iteração.
 - **Invariantes:** `exceptions=0` em toda arena/self-play; **paridade torch↔numpy obrigatória** antes de cada submissão.
 
 ## Riscos & mitigação
-- *Imitação não superar o heurístico (corpus pequeno):* ampliar dias de replay (4.4e) antes de concluir.
-- *RL instável/caro em 2 vCPU:* rede pequena, avaliar por arena a cada N iters, manter melhor checkpoint; fallback = rede supervisionada.
-- *Deck ilegal:* validador 4.5a antes de gastar simulação; verdade final = engine na seleção inicial.
-- *Latência/memória:* `CardIndex` in-memory + inferência numpy (~0,42 ms/jogada, com folga).
+- *Métrica interna saturada:* o gauntlet não distingue mais melhorias (v2 ~90% vs campo). Sinal confiável
+  = ELO do ladder (lento) + A/B no mirror p/ não-regressão. Considerar oponentes internos mais fortes.
+- *Fraqueza atual conhecida (board-wipe):* a v2 perde ~11/12 por não montar banco no early (regra
+  anti-self-mill sobrecorrige). Fix v3 = piso de deck + piso de board. É a prioridade de dev.
+- *Motor não-reproduzível:* todo winrate é amostra (sem seeding); usar IC de Wilson, nunca ler snapshot único.
+- *RL instável/caro em 2 vCPU (5C):* rede pequena, avaliar por arena a cada N iters, manter melhor checkpoint.
+- *Latência/memória:* `CardIndex` in-memory; CrustleAgent ~160µs/jogada (com folga).
 
 ## Docs relacionados
 - `CLAUDE.md` — guia operacional (convenções, gotchas de domínio).
 - `ARQUITETURA_DECISAO.md` — arquitetura de decisão detalhada.
-- `PROMPT_viewer_redesign.md`, `PROMPT_replays_diarios.md` — prompts prontos para rodar.
-- `battle_viewer_concept.html` — referência visual do redesign do viewer.
+- `STRATEGY_JOURNAL.md` — diário vivo / fonte do relatório da Strategy (Epic 6).
+- `battle_viewer_concept.html`, `PROMPT_viewer_redesign.md` — referência do redesign do viewer (5.4, opcional).
