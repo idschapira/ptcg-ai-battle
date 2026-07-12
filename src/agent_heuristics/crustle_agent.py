@@ -41,6 +41,24 @@ default) adds, all None-safe and capped under the same invariants:
 (F) search/discard handlers (TO_HAND / DISCARD) — the generic default
     picked the FIRST indices, wasting Explorer's Guidance picks;
 (H) earlier heal: Jumbo at >=40 damage regardless of the threat type.
+
+variant="v3" (board-wipe fix) = v2 + releasing the setup throttle. The
+ladder misplay hunt (474/474 fidelity) showed ~11/12 v2 losses were
+BOARD-WIPES: we died with a nearly full deck and no bench, because rule
+(i)'s RELATIVE trigger (my deck < opponent's) suppressed consistency
+items from turn 1. The Elo-1208 kernel carried two counterweights v2
+never ported; v3 adds them, changing nothing else:
+(I)   conservative deck guard replaces the relative trigger: suppress
+      thinners only at an ABSOLUTE low deck (<= LOW_DECK, unchanged) or
+      when the race is genuinely tight — deck <= V3_RACE_FLOOR *and*
+      losing the race. A healthy deck never suppresses setup.
+(II)  desired_field_floor: with fewer than DESIRED_FIELD_FLOOR pokémon
+      in play, board-building searches (BOARD_BUILDERS) are rescued
+      from suppression and raised to V3_REBUILD_SCORE — urgent rebuild
+      above every plain trainer (this is also the board-aware
+      tie-break: builders no longer tie with other 35.0 trainers when
+      the board is thin). Only the absolute low-deck invariant outranks
+      it (never rebuild into deck-out).
 """
 
 from __future__ import annotations
@@ -106,11 +124,25 @@ V2_JUMBO_MIN_DAMAGE: Final[int] = 40
 V2_OPP_BIG_HAND: Final[int] = 8
 V2_ENDGAME_OPP_DECK: Final[int] = 10
 
+# ---- v3 (board-wipe fix) thresholds and score band ---- #
+V3_RACE_FLOOR: Final[int] = 30          # relative race only matters this low
+DESIRED_FIELD_FLOOR: Final[int] = 3     # kernel: minimum pokémon in play
+V3_REBUILD_SCORE: Final[float] = 42.0   # > trainer band (35), < attach (55)
+
+# SELF_THINNERS that put pokémon within reach (search basics/pokémon):
+# the ones worth rescuing when the board is about to be wiped.
+BOARD_BUILDERS: Final[frozenset[int]] = frozenset({
+    1086,  # Buddy-Buddy Poffin (2 basics straight to the bench)
+    1121,  # Ultra Ball (any pokémon to hand)
+    1142,  # Fighting Gong ({F} pokémon or energy)
+    1152,  # Poké Pad (non-Rule-Box pokémon)
+})
+
 
 class CrustleAgent(HeuristicAgent):
     """HeuristicAgent + Crustle-stall strategy (see module docstring)."""
 
-    __slots__ = ("_land_collapse", "_mill_attack_ids", "_v2")
+    __slots__ = ("_land_collapse", "_mill_attack_ids", "_v2", "_v3")
 
     def __init__(
         self,
@@ -127,7 +159,8 @@ class CrustleAgent(HeuristicAgent):
         self._mill_attack_ids = frozenset(
             a.attack_id for a in self._land_collapse
             if a.effect and "deck" in a.effect.lower())
-        self._v2 = variant == "v2"
+        self._v2 = variant in ("v2", "v3")  # v3 keeps every v2 rule
+        self._v3 = variant == "v3"
 
     # ------------------------------------------------------------------ #
     # Signals (all None-safe: unknown -> None / False)
@@ -146,13 +179,21 @@ class CrustleAgent(HeuristicAgent):
             return None, None
 
     def _losing_mill_race(self, obs: Observation) -> bool:
-        """True when thinning our own deck is a liability."""
+        """True when thinning our own deck is a liability.
+
+        v1/v2: relative trigger — ANY deficit in the race suppresses.
+        v3 rule (I): conservative guard — the race only matters once our
+        deck is actually low (<= V3_RACE_FLOOR); a healthy deck never
+        suppresses setup (the measured board-wipe cause)."""
         mine, theirs = self._deck_counts(obs)
         if mine is None:
             return False
         if mine <= LOW_DECK:
             return True
-        return theirs is not None and mine < theirs
+        losing = theirs is not None and mine < theirs
+        if self._v3:
+            return mine <= V3_RACE_FLOOR and losing
+        return losing
 
     def _opp_active_is_ex(self, obs: Observation) -> bool | None:
         """True/False when the opposing active is known; None otherwise."""
@@ -268,6 +309,23 @@ class CrustleAgent(HeuristicAgent):
         except (IndexError, TypeError, AttributeError):
             return False
 
+    def _field_count(self, obs: Observation) -> int | None:
+        """How many of MY pokémon are in play (active + bench)."""
+        state = obs.current
+        if state is None or state.yourIndex is None:
+            return None
+        try:
+            me = state.players[state.yourIndex]
+            return (len([p for p in (me.active or []) if p is not None])
+                    + len([p for p in (me.bench or []) if p is not None]))
+        except (IndexError, TypeError, AttributeError):
+            return None
+
+    def _board_thin(self, obs: Observation) -> bool:
+        """v3 rule (II) signal; unknown field -> False (v2 behavior)."""
+        count = self._field_count(obs)
+        return count is not None and count < DESIRED_FIELD_FLOOR
+
     def _pivot_on_bench(self, obs: Observation) -> float | None:
         """Score of the pivot the bench offers (None when there is none):
         a mill-ready Great Tusk, or Crustle under opposing ex pressure."""
@@ -298,11 +356,18 @@ class CrustleAgent(HeuristicAgent):
 
         if kind == OptionType.PLAY:
             card_id = self._wrapper.resolve_card_id(obs, option)
+            mine, _ = self._deck_counts(obs)
+            if (self._v3 and card_id in BOARD_BUILDERS
+                    and self._board_thin(obs)
+                    and (mine is None or mine > LOW_DECK)):
+                # v3 rule (II): urgent board rebuild outranks suppression
+                # and breaks the 35.0 trainer tie — only the absolute
+                # low-deck invariant (rule i) stays above survival.
+                return max(base, V3_REBUILD_SCORE)
             if card_id in SELF_THINNERS and self._losing_mill_race(obs):
                 # v2 rule (C) precedence: fetching the defensive Zone under
                 # ex pressure beats the RELATIVE race trigger — but never
                 # the ABSOLUTE low-deck invariant (rule i stays king there).
-                mine, _ = self._deck_counts(obs)
                 zone_rescue = (self._v2 and card_id == COLRESS
                                and self._zone_needed(obs)
                                and self._opp_any_ex(obs)

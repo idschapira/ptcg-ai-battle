@@ -34,7 +34,7 @@ CLI (repo root):
       --baseline-ref refs/field_v1.json --save-ref refs/field_v2.json
 
 Arm spec grammar: kind[,weights[,stats]] with kind in
-{random, heuristic, crustle, crustle-v2, network}.
+{random, heuristic, crustle, crustle-v2, crustle-v3, network}.
 """
 
 from __future__ import annotations
@@ -58,7 +58,7 @@ Z_95: Final[float] = 1.959963984540054
 REGRESSION_MARGIN: Final[float] = 0.05
 
 ARM_KINDS: Final[tuple[str, ...]] = (
-    "random", "heuristic", "crustle", "crustle-v2", "network")
+    "random", "heuristic", "crustle", "crustle-v2", "crustle-v3", "network")
 
 
 # --------------------------------------------------------------------------- #
@@ -162,10 +162,11 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
     elif spec.kind == "crustle":
         from ..agent_heuristics.crustle_agent import CrustleAgent
         base = lambda s: CrustleAgent(seed=s, index=index, effects=effects)
-    elif spec.kind == "crustle-v2":
+    elif spec.kind in ("crustle-v2", "crustle-v3"):
         from ..agent_heuristics.crustle_agent import CrustleAgent
+        variant = spec.kind.removeprefix("crustle-")
         base = lambda s: CrustleAgent(seed=s, index=index, effects=effects,
-                                      variant="v2")
+                                      variant=variant)
     elif spec.kind == "network":
         from ..rl_models.network_agent import NetworkAgent
         network = NetworkAgent(index=index, effects=effects,
