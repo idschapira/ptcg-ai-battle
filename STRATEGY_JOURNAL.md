@@ -163,3 +163,18 @@ par (deck, piloto) fundamentado e a uma disciplina de avaliação estatística.
   processo: parar de "tunar às cegas" e investir em (a) observabilidade qualitativa (viewer) e (b)
   oponentes internos mais fortes, antes de mudanças que não conseguiríamos medir. Essa disciplina —
   reconhecer quando a própria métrica saturou — é o tipo de rigor que o Model Score (70%) premia.
+- **13/Jul/2026 — caça de misplays rodada 2 (v3 real, 37 derrotas): o teto agora é o DECK.** Submission
+  v3 = 54619473, reconciliada por 2 fontes (CLI + tracker). Amostra: 78 jogos, 41V/37D (**52,6%** real);
+  ELO do dia: v3 856,8 vs v2 871,3 (v3 ainda paga as derrotas de placement de −93/−94). **Correção de
+  premissa:** v3 é piloto-only (deck.csv byte-idêntico ao da v2; hash git confirmado no tarball) — o
+  A/B em curso no ladder mede o FIX do piloto, não deck. Fidelidade de reconstrução 1699/1699 = **100%**
+  (após consertar o classificador: a visão final *stale* do perdedor rotulava wipe real de "unknown";
+  fix commitado em `episode_review.py`, + flag `--variant`). **Perfil v3 vs v2 (mesmo classificador):**
+  board-wipe 83%→57%, donks t2–3 eliminados (derrota mais cedo: t7), MAS surge prize-race 19% (+24%
+  ambíguo wipe/prize) — em 34/37 derrotas tomamos 0 prêmios e o oponente levou os 6 através do muro.
+  Zero misplays das classes conhecidas em 1699 decisões (só empates de score). **Diagnóstico: um
+  TORNO** — o muro morre cedo demais (wipes t7–17 com 26–43 cartas nossas no deck) E o mill mal
+  completa (derrotas com deck adversário em 0–2 cartas: 85631888 perdeu por exatamente 1 turno).
+  O piloto v3 moveu a cauda; o formato persiste com o mesmo deck → limite estrutural. Próxima alavanca:
+  A/B offline de densidade de energia (8/60 é o suspeito conhecido) — testar se quebra o torno ou só
+  desloca (energia salva o muro mas rouba consistência do mill?).
