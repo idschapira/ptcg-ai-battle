@@ -1,5 +1,6 @@
 # Processed artifacts (rebuilt from data/raw by src/ingestion/build_card_model.py)
 /data/processed/*.parquet
+/data/processed/energy_ab/
 /data/processed/replay_dataset.*
 /data/processed/bc_dataset.*
 /data/processed/replays/
