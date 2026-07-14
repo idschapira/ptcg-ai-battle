@@ -178,3 +178,18 @@ par (deck, piloto) fundamentado e a uma disciplina de avaliação estatística.
   O piloto v3 moveu a cauda; o formato persiste com o mesmo deck → limite estrutural. Próxima alavanca:
   A/B offline de densidade de energia (8/60 é o suspeito conhecido) — testar se quebra o torno ou só
   desloca (energia salva o muro mas rouba consistência do mill?).
+- **13/Jul/2026 — A/B offline de energia + PRÉ-REGISTRO do A/B de ladder do deck e10.** Offline (4200
+  jogos, piloto fixo crustle-v3, mecanismo por jogo com o mesmo estimador do ladder): **e10** (−2
+  Pokégear, +2 Basic {F} = 10/60) venceu o gate pareado — família muro-furado (prize-race+ambíguo)
+  5,3%→2,9%/jogo (ICs de Wilson **disjuntos**), out-milled 0,7%→0,4%, derrotas-por-um-fio 37→14,
+  buffer estável, winrate 90,7%→92,6% (p≈0,075; campo interno saturado). e12 (+4 {F}, −2 Xerosic)
+  devolve o ganho (Xerosic importa vs controle). Ship: deck.csv := e10 com **piloto v3 congelado**
+  (isola o deck; hash de main/agente no tarball == ship v3). **Critério de leitura PRÉ-REGISTRADO
+  (antes de qualquer dado de ladder):** e10 vence a v3 se, sobre ≥30 derrotas colhidas (~2–4 dias de
+  ladder): **(a) DECISIVO** — a fração de derrotas da família muro-furado (prize-race + final-KO
+  ambíguo, classificador do episode_review) cair vs a referência da v3 = **16/37 ≈ 43%** (predição
+  offline: ~metade disso), com ICs de Wilson comparados; e **(b)** ELO do e10 ≥ v3 dentro do IC no
+  mesmo período de coleta. Campo interno saturado → o teste mecanístico (a) MANDA; ELO (b) é
+  confirmação, não veto — exceto colapso claro (e10 abaixo da v3 além do IC com amostra ≥ à da v3
+  atual). Guardrail no ladder: self-deck-out e out-milled continuam ~0 (qualquer aparição vira
+  investigação antes de conclusão). Rollback documentado no commit do ship (blob b915628).
