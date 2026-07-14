@@ -193,3 +193,16 @@ par (deck, piloto) fundamentado e a uma disciplina de avaliação estatística.
   confirmação, não veto — exceto colapso claro (e10 abaixo da v3 além do IC com amostra ≥ à da v3
   atual). Guardrail no ladder: self-deck-out e out-milled continuam ~0 (qualquer aparição vira
   investigação antes de conclusão). Rollback documentado no commit do ship (blob b915628).
+
+## [14/Jul] Estratégia de portfólio: mill + meta, e o moat é o piloto
+Decisão de rumo pós-e10: usar os 2 slots de Final como portfólio de eixos diferentes — Crustle mill
+(imune a ex) + 2º deck meta com piloto dedicado. Insight central: nosso moat não é o deck, é o PILOTO
+especializado; um deck só vale o que seu piloto vale (Lucario 39–50% sob pilotos que não sabem seu
+setup). Adicionar arquétipo = adicionar PILOTO, não um csv. Seleção (a validar por survey): o 2º deck
+cobre a fraqueza estrutural do Crustle (corridas aggro não-ex) e é escolhido contra o que os líderes
+jogam de fato — corpus de replays diário como RADAR de meta (vantagem de informação). Aggro de Básicos
+lidera por custo-de-piloto; Dragapult por valor-de-meta; Lucario por último (ROI baixo). Disciplina:
+decisão adiada até evidência; A/B e10 + piloto v4 têm prioridade. Recusa explícita do atalho sedutor
+(self-play Lucario-vs-mill) por ser sparring contra o próprio counter — mesma classe de erro do
+anti-self-mill (métrica interna enganosa). Escolher alvo com dado e nomear a armadilha antes de cair =
+material de writeup.
