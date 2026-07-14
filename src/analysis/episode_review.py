@@ -5,7 +5,8 @@ fetch_my_episodes.py):
 
 (a) find OUR seat via info.TeamNames;
 (b) replay every one of OUR decision points through the SHIPPED pilot
-    (CrustleAgent v2, deterministic given the observation), capturing
+    (CrustleAgent, --variant selects which ship; deterministic given
+    the observation), capturing
     last_scores and checking it REPRODUCES the recorded action —
     reproduction fidelity is a GATE: a low rate means state/parsing
     divergence and any reconstructed reasoning would be untrustworthy;
@@ -86,16 +87,29 @@ def _our_seat(replay: dict, team: str) -> int | None:
 
 
 def _final_current(replay: dict) -> dict | None:
-    """Last non-null engine state seen by either agent (None-safe)."""
+    """FRESHEST final engine state across both agents (None-safe).
+
+    In the last step the two views can differ by one action: the loser's
+    observation often predates the terminal KO, while the winner's shows
+    it (e.g. our side already at 0 pokémon). Picking the first view here
+    used to misclassify real board-wipes as "unknown", so within the
+    last step that has any state we take the view with the highest turn.
+    """
     for step in reversed(replay.get("steps") or []):
         if not isinstance(step, list):
             continue
+        candidates = []
         for entry in step:
             if not isinstance(entry, dict):
                 continue
             current = (entry.get("observation") or {}).get("current")
             if isinstance(current, dict):
-                return current
+                candidates.append(current)
+        if candidates:
+            # tie-break on position: with equal turns the later entry is
+            # the fresher view (the winner's, holding the terminal KO)
+            return max(enumerate(candidates),
+                       key=lambda ic: ((ic[1].get("turn") or 0), ic[0]))[1]
     return None
 
 
@@ -135,8 +149,19 @@ def _classify(current: dict | None, our_index: int,
             else "prize-race win"
     active = loser.get("active") or []
     bench = loser.get("bench") or []
-    if not [p for p in list(active) + list(bench) if p]:
+    loser_pokemon = len([p for p in list(active) + list(bench) if p])
+    if loser_pokemon == 0:
         return result, "board-wipe (no pokémon left)"
+    # The terminal action (the winner's last attack) frequently resolves
+    # AFTER the freshest recorded observation, so infer it from how close
+    # each win condition was: which one the unseen KO can still trigger.
+    winner_prizes = len(winner_side.get("prize") or [None])
+    if winner_prizes <= 1 and loser_pokemon > 1:
+        return result, "prize-race (wall pierced)"
+    if winner_prizes > 1 and loser_pokemon == 1:
+        return result, "board-wipe (no pokémon left)"
+    if winner_prizes <= 1 and loser_pokemon == 1:
+        return result, "final-KO (wipe/prize ambíguo)"
     return result, "unknown"
 
 
@@ -253,11 +278,17 @@ def main() -> None:
     parser.add_argument("--team", type=str, default=OUR_TEAM)
     parser.add_argument("--render", type=int, nargs="*", default=[],
                         help="episode ids to emit for the viewer")
+    parser.add_argument("--variant", choices=("v1", "v2", "v3"),
+                        default="v3",
+                        help="which shipped CrustleAgent to replay with "
+                             "(must match the submission that played the "
+                             "episodes, or fidelity drops)")
     args = parser.parse_args()
 
     index = CardIndex()
     effects = EffectIndex()
-    agent = CrustleAgent(index=index, effects=effects, variant="v2")
+    agent = CrustleAgent(index=index, effects=effects,
+                         variant=args.variant)
 
     paths = sorted(args.episodes_dir.glob("*.json"))
     if not paths:
