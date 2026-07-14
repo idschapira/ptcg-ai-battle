@@ -152,3 +152,21 @@ automatizada; próximos levers = leitura do ladder v3, questão da energia (acim
 - `ARQUITETURA_DECISAO.md` — arquitetura de decisão detalhada.
 - `STRATEGY_JOURNAL.md` — diário vivo / fonte do relatório da Strategy (Epic 6).
 - `battle_viewer_concept.html`, `PROMPT_viewer_redesign.md` — referência do redesign do viewer (5.4, opcional).
+
+## [Backlog] 2º arquétipo + 2º piloto (portfólio de 2 finais) — DEFERIDO
+- Regras Kaggle: 5 submissões/dia, 2 Final Submissions julgadas. Objetivo = portfólio de EIXOS
+  DIFERENTES: Final A = Crustle mill (força consolidada, imune a ex); Final B = 1 deck META a definir,
+  com PILOTO NOVO dedicado (piloto de mill NÃO roda aggro — separação obrigatória).
+- Critério de seleção do Final B: cobrir a fraqueza do Crustle (aggro/corrida não-ex, a família
+  "muro furado" que o e10 só reduziu) + contra-atacar o que os líderes REALMENTE jogam (minerar do
+  corpus de replays diário) + maximizar teto-de-deck × (baixo) custo-de-piloto × cobertura.
+- Candidatos rankeados (a confirmar no survey): (1) Aggro de Básicos (Raging Bolt/Gouging Fire/
+  Miraidon) — piloto MAIS BARATO (sem evolução), cobre o buraco do Crustle; (2) Dragapult — maior
+  valor de meta (deck nº1 dos líderes, nosso matchup mais apertado), piloto mais caro; (3) Lucario
+  (desejo do Ilan) — menor ROI: piloto mais difícil + vulnerável a muros ex-imunes (inclusive o nosso).
+  Gardevoir/Jellicent NÃO buildável (carta-núcleo fora do pool).
+- Pré-requisito = SURVEY DE PILOTABILIDADE (offline, barato): enumerar decks legais + minerar decks
+  dos líderes do corpus + gauntlet rápido deck×piloto (IC Wilson, âncora "bate random?") + ranking de
+  alvo. NÃO iniciar até: A/B do e10 concluir (≥30 derrotas) E piloto v4 (esta investigação) reportar.
+- Anti-erro registrado: NÃO treinar o 2º piloto só contra o nosso mill (Crustle imune a ex = hard-
+  counter; overfit a matchup raro no ladder). Sparring útil = aggro vs mill como corrida real + campo diverso.
