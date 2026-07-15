@@ -151,3 +151,41 @@ O sucesso dos investigadores nesta jornada assentará inapelavelmente na sua mes
 48. The Pokémon Company \- PTCG AI Battle Challenge Simulation | Kaggle, [https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/discussion/716045](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/discussion/716045)  
 49. The Pokémon Company \- PTCG AI Battle Challenge Simulation | Kaggle, [https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/discussion/712621](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/discussion/712621)  
 50. A Sample Rule-Based Agent Iono's Deck \- Kaggle, [https://www.kaggle.com/code/kiyotah/a-sample-rule-based-agent-iono-s-deck](https://www.kaggle.com/code/kiyotah/a-sample-rule-based-agent-iono-s-deck)
+## **ADENDO EMPÍRICO (14/Jul/2026) — Radar de meta do ladder (top-100/dia, 5 dias)**
+
+Validação deste relatório contra o que o TOPO do ladder Kaggle REALMENTE joga. Fonte: corpus de
+replays diário (top-100 episódios/dia por rating, 07-09 a 07-13 = 500 episódios / 1.000 decks
+observados; rotulagem 99%). Ferramenta: `python -m src.analysis.meta_radar` (decklists observadas
+por `(playerIndex, serial)`; saída em `data/processed/meta_radar/`).
+
+**O que MUDOU (o meta do ladder ≠ meta físico deste relatório):**
+
+| Arquétipo (ladder) | Share 5 dias | Tendência (07-09 → 07-13) | Fura o muro do Crustle? |
+| :---- | :---- | :---- | :---- |
+| Alakazam box (não-ex, "Powerful Hand") | 64% | 84% → 39% (caindo) | SIM (não-ex + contadores) |
+| Crustle \+ Mega Kangaskhan stall | 16% | 5% → 12% (pico 39% em 07-11) | NÃO (probe: dano 0) |
+| Team Rocket Spidops (não-ex swarm) | 13% | 8% → 46% (DISPARANDO) | SIM (não-ex) |
+| Mega Starmie / Mega Froslass | 5% | só 07-12 (23%) | SIM (Nebula Beam ignora efeitos; probe: KO) |
+
+Dragapult ex, Gardevoir/Jellicent, Lillie's Clefairy, Mega Lucario e Slowking/Kyurem — os
+protagonistas deste relatório — têm presença ZERO no top-500 episódios do ladder. O topo é um
+metagame vivo de ~7 times (Yushin Ito e Majkel1337 jogam o MESMO Alakazam box; Budew/MPGaming a
+mesma lista Crustle+Kangaskhan). Decklists consenso por líder em
+`data/processed/meta_radar/leader_decklists.csv` (piso de 60/60 cartas para os 5 líderes).
+
+**O que este adendo CONFIRMOU do relatório:** (a) stall/controle domina agentes autônomos — o
+princípio "Crustle neutraliza construções agressivas de ex" segue válido (nosso ship) e o topo
+roda DUAS variantes de Crustle stall; (b) Shaymin como tech de banco aparece em 4 dos 5 decks
+líderes; (c) a tese "não-ex fura muros" é exatamente o eixo dos 2 líderes em ascensão.
+
+**Fatos novos de motor (probes com o harness do teste de contrato, 3 medições cada):**
+o muro (Mysterious Rock Inn) BLOQUEIA Mega ex (Rapid-Fire Combo do Mega Kangaskhan = 0 de dano),
+mas NÃO bloqueia ataques com a cláusula "isn't affected by any effects" (Nebula Beam do Mega
+Starmie ex = KO através do muro). O engine flag `is_ex=False, is_mega_ex=True` NÃO decide — o
+que decide é o texto do ataque.
+
+**Limitações da amostra:** top-100/dia = só o que o topo joga ENTRE SI (não o campo médio que
+enfrentamos hoje a ~870 de ELO — nossas 12 derrotas locais incluem 4 vs Mega Lucario, que não
+existe no topo); decklists são OBSERVADAS (cartas não compradas ficam invisíveis; 79% dos decks
+com ≥45/60 vistas); composição ≠ matchup (a ascensão do TR Spidops não prova que ele bate o
+Alakazam); o job diário APAGA os brutos após parse (re-download necessário para reanalisar).
