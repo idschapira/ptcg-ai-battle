@@ -5,15 +5,24 @@ Rules enforced (Kaggle/cabt deck construction):
   2. at most 4 copies per card NAME (Basic Energy is unlimited);
   3. at least one Basic Pokémon (a deck must open with an Active);
   4. evolution lines are coherent: no Stage 1/2 (or Mega evolving from a
-     listed previous stage) without its previous-stage NAME in the deck;
+     listed previous stage) without its previous-stage NAME in the deck.
+     Pokémon with an ability are EXEMPT: the engine itself never enforces
+     lines, and real ladder lists run lineless ability techs (taksai's
+     Mega Starmie deck plays Cinderace with no Raboot — its Explosiveness
+     ability places it during setup; deck verified engine-legal via
+     battle_start, 2026-07-16);
   5. at most 1 ACE SPEC card in total (across names and copies);
   6. energies support the attackers: every Pokémon that has attacks must
      have at least one attack whose typed cost is coverable by the energy
      types the deck provides (RAINBOW-providing special energy covers any
-     type; Colorless is payable by any energy card). Pokémon with an
-     ability are EXEMPT — real lists run ability techs whose attack is
-     never meant to be used (e.g. Chien-Pao/Snow Sink in the city-league
-     Clefairy list, whose {W} attack has no water in the deck).
+     type, and TEAM_ROCKET energy counts the same way — it pays any type
+     on the Team Rocket's Pokémon that use it; kashiwashira's ladder deck
+     runs TR Mimikyu {P}{C} with only {G}+TR energy, verified engine-legal
+     via battle_start, 2026-07-16; Colorless is payable by any energy
+     card). Pokémon with an ability are EXEMPT — real lists run ability
+     techs whose attack is never meant to be used (e.g. Chien-Pao/Snow
+     Sink in the city-league Clefairy list, whose {W} attack has no water
+     in the deck).
 
 None-safe: unknown ids become errors, never exceptions; all other checks
 still run over the known cards. Pure lookup — no engine calls.
@@ -73,7 +82,8 @@ def _cost_coverable(cost: tuple[tuple[int, int], ...],
         return True
     if not has_energy:
         return False
-    rainbow = int(EnergyType.RAINBOW) in provided
+    rainbow = (int(EnergyType.RAINBOW) in provided
+               or int(EnergyType.TEAM_ROCKET) in provided)
     for energy_type, _qty in cost:
         if energy_type == int(EnergyType.COLORLESS):
             continue  # any energy card pays colorless
@@ -109,11 +119,12 @@ def validate_deck(card_ids: Sequence[int],
     if not any(c.stage_code == STAGE_BASIC for c in cards):
         errors.append("no Basic Pokémon in deck")
 
-    # 4. evolution coherence by previous-stage name
+    # 4. evolution coherence by previous-stage name (ability techs exempt)
     deck_names = set(copies_by_name)
     for name in sorted({c.card_name for c in cards
-                        if c.stage_code in _EVOLVED_STAGES
-                        or c.previous_stage is not None}):
+                        if (c.stage_code in _EVOLVED_STAGES
+                            or c.previous_stage is not None)
+                        and not c.skill_ids}):
         card = next(c for c in cards if c.card_name == name)
         if card.previous_stage and card.previous_stage not in deck_names:
             errors.append(f"'{name}' without its previous stage "

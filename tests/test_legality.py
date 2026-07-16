@@ -106,6 +106,17 @@ class TestDeckLegality(unittest.TestCase):
         self.assertTrue(report.ok, msg="\n".join(report.errors))
         self.assertIn(209, deck)
 
+    def test_real_ladder_decks_are_legal(self) -> None:
+        # Mined 60/60 from the daily top-100 corpus and verified engine-
+        # legal via battle_start (2026-07-16): Cinderace without Raboot
+        # (setup ability) and TR Mimikyu paid by TR Energy must pass.
+        for name in ("meta_starmie.csv", "meta_spidops.csv",
+                     "meta_alakazam.csv", "meta_crustle_kangaskhan.csv"):
+            deck = read_deck_ids(REPO_ROOT / "data" / "decks" / name)
+            report = validate_deck(deck, self.index)
+            self.assertTrue(report.ok,
+                            msg=f"{name}:\n" + "\n".join(report.errors))
+
     def test_no_energy_at_all_fails(self) -> None:
         # Strip every energy card: attacks with any cost become unpayable
         # (the size violation is reported alongside — both must appear).
