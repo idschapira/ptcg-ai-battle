@@ -72,6 +72,12 @@ ARCHETYPE_RULES: Final[tuple[tuple[str, frozenset[str]], ...]] = (
     # (team taksai): Mega Starmie ex / Mega Froslass ex + Cinderace.
     ("Mega Starmie / Mega Froslass", frozenset({"Mega Starmie ex"})),
     ("Mega Starmie / Mega Froslass", frozenset({"Mega Froslass ex"})),
+    # mid-ladder archetypes promoted from OUR episodes' "unknown"
+    # opponents (A/B e10 reading, 2026-07-16):
+    ("Archaludon ex box", frozenset({"Archaludon ex"})),
+    ("Archaludon ex box", frozenset({"Duraludon"})),
+    ("Marnie's Grimmsnarl ex", frozenset({"Marnie's Grimmsnarl ex"})),
+    ("Marnie's Grimmsnarl ex", frozenset({"Marnie's Impidimp"})),
     ("Crustle stall (other)", frozenset({"Crustle"})),
     # weak fallbacks for partially observed decks: pieces unique to the
     # archetype's evolution line still identify it when the top of the

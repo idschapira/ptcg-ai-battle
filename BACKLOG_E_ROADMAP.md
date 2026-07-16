@@ -170,3 +170,7 @@ automatizada; próximos levers = leitura do ladder v3, questão da energia (acim
   alvo. NÃO iniciar até: A/B do e10 concluir (≥30 derrotas) E piloto v4 (esta investigação) reportar.
 - Anti-erro registrado: NÃO treinar o 2º piloto só contra o nosso mill (Crustle imune a ex = hard-
   counter; overfit a matchup raro no ladder). Sparring útil = aggro vs mill como corrida real + campo diverso.
+- [ ] Minerar decks dos líderes do corpus de replays diário (radar de meta) — baixo custo, independente do e10; alimenta a escolha do 2º arquétipo. NÃO iniciar até a leitura do A/B do e10.
+- [ ] Probe de matchup 2º arquétipo (gated: DEPOIS da leitura do A/B do e10). Montar Spidops + Alakazam
+  das listas 60/60 mineradas → medir pilotabilidade (bate random?) + matchups Spidops/Alakazam vs Crustle-e10
+  e entre si (IC Wilson). Decide SE e QUAL vale como 2º piloto. NÃO construir piloto ainda.
