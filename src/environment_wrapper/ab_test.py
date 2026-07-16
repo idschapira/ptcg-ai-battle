@@ -32,9 +32,16 @@ CLI (repo root):
   python -m src.environment_wrapper.ab_test --mode field \
       --candidate data/decks/seed_crustle.csv@crustle-v2 --games 80 \
       --baseline-ref refs/field_v1.json --save-ref refs/field_v2.json
+  python -m src.environment_wrapper.ab_test --mode matchup \
+      --a deck.csv@crustle-v3 \
+      --b "data/decks/meta_alakazam.csv@network,models/bc_alakazam.npz" \
+      --games 200
 
 Arm spec grammar: kind[,weights[,stats]] with kind in
 {random, heuristic, crustle, crustle-v2, crustle-v3, network}.
+matchup mode pairs deck AND pilot per side (<deck.csv>@<armspec>) — the
+full cross needed to calibrate the internal field against ladder
+matchups (each side plays its own deck with its own brain).
 """
 
 from __future__ import annotations
@@ -278,6 +285,26 @@ def _mode_deck(args, index: CardIndex, effects: EffectIndex) -> None:
     print_comparison(c)
 
 
+def _parse_deck_arm(text: str, flag: str,
+                    index: CardIndex) -> tuple[Path, list[int], ArmSpec]:
+    """<deck.csv>@<armspec> -> (path, validated deck ids, arm spec)."""
+    if "@" not in text:
+        raise SystemExit(f"{flag} must be <deck.csv>@<armspec>")
+    deck_text, arm_text = text.split("@", 1)
+    path = Path(deck_text)
+    return path, _load_deck(path, index), ArmSpec.parse(arm_text)
+
+
+def _mode_matchup(args, index: CardIndex, effects: EffectIndex) -> None:
+    path_a, deck_a, spec_a = _parse_deck_arm(args.a, "--a", index)
+    path_b, deck_b, spec_b = _parse_deck_arm(args.b, "--b", index)
+    c = compare(f"[matchup] A={path_a.name}@{spec_a.label()} vs "
+                f"B={path_b.name}@{spec_b.label()}",
+                spec_a, spec_b, deck_a, deck_b, args.games, args.seed,
+                args.bar, index, effects)
+    print_comparison(c)
+
+
 def _mode_field(args, index: CardIndex, effects: EffectIndex) -> None:
     if "@" not in args.candidate:
         raise SystemExit("--candidate must be <deck.csv>@<armspec>")
@@ -330,14 +357,18 @@ def _mode_field(args, index: CardIndex, effects: EffectIndex) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=("agent", "deck", "field"),
+    parser.add_argument("--mode", choices=("agent", "deck", "field", "matchup"),
                         required=True)
     parser.add_argument("--games", type=int, default=200)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--bar", type=float, default=0.5)
     parser.add_argument("--deck", type=Path, help="agent mode: shared deck")
-    parser.add_argument("--a", type=str, help="agent mode: arm A spec")
-    parser.add_argument("--b", type=str, help="agent mode: arm B spec")
+    parser.add_argument("--a", type=str,
+                        help="agent mode: arm A spec; "
+                             "matchup mode: <deck.csv>@<armspec>")
+    parser.add_argument("--b", type=str,
+                        help="agent mode: arm B spec; "
+                             "matchup mode: <deck.csv>@<armspec>")
     parser.add_argument("--pilot", type=str, help="deck mode: shared pilot")
     parser.add_argument("--a-deck", type=Path, help="deck mode: deck A")
     parser.add_argument("--b-deck", type=Path, help="deck mode: deck B")
@@ -357,6 +388,10 @@ def main() -> None:
         if not (args.pilot and args.a_deck and args.b_deck):
             parser.error("--mode deck requires --pilot, --a-deck, --b-deck")
         _mode_deck(args, index, effects)
+    elif args.mode == "matchup":
+        if not (args.a and args.b):
+            parser.error("--mode matchup requires --a, --b")
+        _mode_matchup(args, index, effects)
     else:
         if not args.candidate:
             parser.error("--mode field requires --candidate")

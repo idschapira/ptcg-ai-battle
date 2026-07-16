@@ -352,8 +352,9 @@ def main() -> None:
     print(f"MAX_OPTIONS overflows: {getattr(stats, 'overflow_warnings', 0)}"
           f"{' lens=' + str(stats.overflow_lens) if stats.overflow_lens else ''}")
     written = out_path if out_path is not None else DATASET_PATH
-    print(f"dataset: {written.relative_to(REPO_ROOT)} "
-          f"({written.stat().st_size:,} bytes)")
+    shown = (written.relative_to(REPO_ROOT)
+             if written.is_relative_to(REPO_ROOT) else written)
+    print(f"dataset: {shown} ({written.stat().st_size:,} bytes)")
 
 
 if __name__ == "__main__":
