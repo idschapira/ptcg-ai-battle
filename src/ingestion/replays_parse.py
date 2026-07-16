@@ -167,7 +167,12 @@ def parse_replays(
     emit_viewer: int = 0,
     index: CardIndex | None = None,
     out_path: Path | None = None,
+    team: str | None = None,
 ) -> ParseStats:
+    """`team` (dev tooling, behavior cloning de um líder): mantém apenas
+    as decisões do agente cujo TeamNames == team (as duas metades win/
+    loss dele — z continua por resultado), ignorando o filtro `sides`;
+    jogos sem esse time são pulados inteiros."""
     # resolved late so tests can patch the module-level default
     out_path = out_path if out_path is not None else DATASET_PATH
     meta_path = out_path.with_name(out_path.name.replace(".npz", ".meta.json"))
@@ -196,9 +201,19 @@ def parse_replays(
             logger.warning("unreadable replay %s: %s", replay_path.name, exc)
             continue
         rewards = replay.get("rewards") or []
+        # None-safe: an errored agent leaves reward None (seen on real
+        # 2026-07 episodes) — treat as no decided winner, never argmax
         winner = (int(np.argmax(rewards))
-                  if len(rewards) == 2 and rewards[0] != rewards[1] else None)
+                  if (len(rewards) == 2
+                      and all(isinstance(r, (int, float)) for r in rewards)
+                      and rewards[0] != rewards[1]) else None)
         episode_id = (replay.get("info") or {}).get("EpisodeId") or 0
+        team_index: int | None = None
+        if team is not None:
+            names = (replay.get("info") or {}).get("TeamNames") or []
+            team_index = names.index(team) if team in names else None
+            if team_index is None:
+                continue  # game without the cloned leader
         stats.games += 1
 
         recorder = (GameRecorder(index, tuple((replay.get("info") or {})
@@ -206,7 +221,11 @@ def parse_replays(
                     if emit_viewer > 0 else None)
 
         for agent_index, obs_dict, action in _iter_decisions(replay):
-            if sides == "winner" and winner is not None and agent_index != winner:
+            if team_index is not None:
+                if agent_index != team_index:
+                    stats.skipped_side += 1
+                    continue
+            elif sides == "winner" and winner is not None and agent_index != winner:
                 stats.skipped_side += 1
                 continue
             try:
@@ -304,6 +323,9 @@ def main() -> None:
     parser.add_argument("--replay-dir", type=Path, default=None)
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument("--sides", choices=("winner", "both"), default="winner")
+    parser.add_argument("--team", default=None,
+                        help="behavior cloning: só decisões deste TeamNames "
+                             "(ignora --sides; jogos sem o time são pulados)")
     parser.add_argument("--emit-viewer", type=int, default=1, metavar="N",
                         help="also write N games as ptcg-devrecord-v1 JSON")
     args = parser.parse_args()
@@ -318,7 +340,7 @@ def main() -> None:
         replay_dir = REPLAYS_DIR
 
     stats = parse_replays(replay_dir, args.sides, args.emit_viewer,
-                          out_path=out_path)
+                          out_path=out_path, team=args.team)
     print(f"games parsed:          {stats.games}")
     print(f"decision pairs:        {stats.decision_pairs}")
     print(f"skipped (unknown id):  {stats.skipped_unknown_id}")
