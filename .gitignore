@@ -5,6 +5,7 @@
 /data/processed/replay_dataset.*
 /data/processed/bc_dataset.*
 /data/processed/bc_alakazam/
+/data/processed/bc_spidops/
 /data/processed/replays/
 /data/processed/meta_radar/
 /data/processed/effects_to_review.csv
@@ -25,6 +26,7 @@
 /models/*.metrics.json
 # BC do piloto líder (sparring/dev — só versionar se promovido a ship)
 /models/bc_alakazam*
+/models/bc_spidops*
 
 # Submission bundle (rebuilt by src/build_submission.py)
 /submission.tar.gz

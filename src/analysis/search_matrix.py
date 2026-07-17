@@ -6,13 +6,17 @@ Destravada pela calibração da Camada 2 (search_calibration): no orçamento
 
     crustle-v3        CrustleAgent v3 (o ship)
     heuristic         HeuristicAgent genérico
+    network           NetworkAgent plano (--net-weights/--net-stats;
+                      piloto RÁPIDO submissível, ex. BC-Spidops)
     search:heuristic  SearchAgent com prior heurístico (deck sem clone)
     search:network    SearchAgent com prior BC (default: BC-Alakazam)
 
 Opponent-model dos rollouts de um lado buscador = a política PLANA do
-outro lado (crustle-v3/heuristic; para search:network o proxy é
-heuristic — o prior BC custaria ~2x por rollout para ~55% de fidelidade,
-escolha reportada). Rollout do próprio lado = heuristic, como calibrado.
+outro lado quando barata (crustle-v3/heuristic); para network e
+search:network o proxy é heuristic — mantém o lado buscador IDÊNTICO
+entre comparações (a força do oponente calibrado não muda conforme o
+lado A troca de piloto) e evita ~2x de custo por rollout para ~55% de
+fidelidade. Rollout do próprio lado = heuristic, como calibrado.
 
 Rodar da raiz do repo (dev offline):
     python -m src.analysis.search_matrix --games 30 --seed 0 \
@@ -38,7 +42,7 @@ from ..rl_models.network_agent import NetworkAgent
 from ..rl_models.search_agent import SearchAgent, SearchStats
 from .search_calibration import BC_STATS, BC_WEIGHTS, _load_deck, _parse_budget
 
-ARMS: Final[tuple[str, ...]] = ("crustle-v3", "heuristic",
+ARMS: Final[tuple[str, ...]] = ("crustle-v3", "heuristic", "network",
                                 "search:heuristic", "search:network")
 
 
@@ -56,7 +60,12 @@ def _side_factory(arm: str, own_ids: list[int], opp_ids: list[int],
                   opp_arm: str, budget: tuple[int, int], index: CardIndex,
                   effects: EffectIndex, stats: SearchStats,
                   bc_prior: NetworkAgent | None,
+                  plain_net: NetworkAgent | None = None,
                   ) -> Callable[[int], Agent]:
+    if arm == "network":
+        if plain_net is None:
+            raise SystemExit("arm 'network' requer --net-weights")
+        return lambda s: plain_net
     if arm in ("crustle-v3", "heuristic"):
         return _plain_factory(arm, index, effects)
     k, d = budget
@@ -93,8 +102,12 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--budget", default="4x8", metavar="KxD",
                         help="orçamento calibrado da busca (default 4x8)")
-    parser.add_argument("--weights", type=Path, default=BC_WEIGHTS)
+    parser.add_argument("--weights", type=Path, default=BC_WEIGHTS,
+                        help="prior do arm search:network")
     parser.add_argument("--stats", type=Path, default=BC_STATS)
+    parser.add_argument("--net-weights", type=Path, default=None,
+                        help="pesos do arm 'network' (piloto rápido)")
+    parser.add_argument("--net-stats", type=Path, default=BC_STATS)
     args = parser.parse_args()
 
     index = CardIndex()
@@ -113,11 +126,19 @@ def main() -> None:
         if bc_prior._fallback is not None:
             bc_prior = None
 
+    plain_net: NetworkAgent | None = None
+    if "network" in (arm_a, arm_b) and args.net_weights is not None:
+        plain_net = NetworkAgent(index=index, effects=effects,
+                                 weights_path=args.net_weights,
+                                 stats_path=args.net_stats)
+        if plain_net._fallback is not None:
+            plain_net = None
+
     stats_a, stats_b = SearchStats(), SearchStats()
     make_a = _side_factory(arm_a, ids_a, ids_b, arm_b, budget, index,
-                           effects, stats_a, bc_prior)
+                           effects, stats_a, bc_prior, plain_net)
     make_b = _side_factory(arm_b, ids_b, ids_a, arm_a, budget, index,
-                           effects, stats_b, bc_prior)
+                           effects, stats_b, bc_prior, plain_net)
 
     label = f"{path_a.name}@{arm_a} vs {path_b.name}@{arm_b}"
     print(f"[matriz] {label} | busca {args.budget} | {args.games} jogos "
