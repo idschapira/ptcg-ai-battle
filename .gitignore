@@ -8,6 +8,8 @@
 /data/processed/bc_spidops/
 /data/processed/replays/
 /data/processed/meta_radar/
+/data/processed/portfolio/
+/data/portfolio_watch.md
 /data/processed/effects_to_review.csv
 
 # Raw Kaggle replays (redownload: python -m src.ingestion.replays_download)

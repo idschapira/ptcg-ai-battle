@@ -64,6 +64,15 @@ if ! python -m src.ingestion.replays_parse --date "$TARGET_DATE" --sides winner;
     exit 1
 fi
 
+# f2. colheita do radar do portfólio ANTES de apagar o raw (a série
+#     persistente vive em data/processed/portfolio/radar_history.csv;
+#     falha aqui mantém o raw para retry manual e é erro real)
+log "harvest radar ${TARGET_DATE} -> radar_history.csv"
+if ! python -m src.analysis.portfolio_watch --harvest "$TARGET_DATE"; then
+    log "ERRO: harvest do radar falhou — raw MANTIDO em $RAW_DIR para retry"
+    exit 1
+fi
+
 # g. só o npz fica; brutos são reproduzíveis via download
 rm -rf "$RAW_DIR"
 log "raw apagado: $RAW_DIR"
