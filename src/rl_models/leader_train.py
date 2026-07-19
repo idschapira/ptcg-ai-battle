@@ -70,7 +70,8 @@ def train(corpus_path: Path = CORPUS_PATH, epochs: int = 20,
           batch_size: int = 512, lr: float = 3e-4, seed: int = 0,
           warm_start: Path | None = WARM_START_PATH,
           checkpoint_path: Path = CHECKPOINT_5B_PATH,
-          stats_path: Path | None = None) -> dict[str, float]:
+          stats_path: Path | None = None,
+          save_last: bool = False) -> dict[str, float]:
     """stats_path pins the feature_stats the corpus is normalized with
     (PAIRED with the resulting policy — promote them together or not at
     all); None keeps the production default of FeatureStats.load()."""
@@ -128,6 +129,13 @@ def train(corpus_path: Path = CORPUS_PATH, epochs: int = 20,
             checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
             torch.save(net.state_dict(), checkpoint_path)
 
+    if save_last:
+        # destilação ExIt: o objetivo é FORÇA, não o val top-1 do mix
+        # (que pune a saída da distribuição do professor original) —
+        # salva a última época incondicionalmente.
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(net.state_dict(), checkpoint_path)
+        print(f"save-last: época {epochs} salva em {checkpoint_path}")
     print(f"best epoch {best['epoch'] + 1}: val top-1 {best['val_top1']:.4f} "
           f"-> {checkpoint_path}")
     return best
@@ -145,9 +153,13 @@ def main() -> None:
     parser.add_argument("--stats", type=Path, default=None,
                         help="feature_stats .npz override (paired with the "
                              "trained policy; default: production stats)")
+    parser.add_argument("--save-last", action="store_true",
+                        help="salva a última época mesmo sem melhora no "
+                             "val (destilação ExIt: o alvo é força)")
     args = parser.parse_args()
     best = train(args.corpus, args.epochs, args.batch_size, args.lr,
-                 args.seed, args.warm_start, args.checkpoint, args.stats)
+                 args.seed, args.warm_start, args.checkpoint, args.stats,
+                 args.save_last)
     metrics_path = args.checkpoint.with_suffix(".metrics.json")
     with open(metrics_path, "w", encoding="utf-8") as fh:
         json.dump(best, fh, indent=1)
