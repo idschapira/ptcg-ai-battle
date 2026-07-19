@@ -111,6 +111,10 @@ class SearchAgent:
         self._cap = rollout_max_selections
         self._rng = random.Random(seed)
         self.stats = stats if stats is not None else SearchStats()
+        # soft targets (ExIt): após cada busca completa, os candidatos
+        # avaliados e a taxa média de vitória de cada um (por
+        # determinização). None quando a decisão não foi buscada.
+        self.last_candidate_values: dict[int, float] | None = None
 
     # ------------------------------------------------------------------ #
     # Contrato
@@ -118,6 +122,7 @@ class SearchAgent:
 
     def __call__(self, obs_dict: dict) -> list[int]:
         self.stats.decisions += 1
+        self.last_candidate_values = None
         if not isinstance(obs_dict, dict) or obs_dict.get("select") is None:
             return list(self._own_deck)  # seleção inicial de deck
         answer = self._prior(copy.deepcopy(obs_dict))
@@ -202,6 +207,8 @@ class SearchAgent:
                     values[i] += self._rollout(branch, seat)
             finally:
                 api.search_end()
+        self.last_candidate_values = {i: values[i] / self._d
+                                      for i in candidates}
         # empate resolve pelo score do prior (busca só troca com evidência)
         return max(candidates, key=lambda i: (values[i], scores[i]))
 
