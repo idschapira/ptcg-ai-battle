@@ -6,6 +6,7 @@
 /data/processed/bc_dataset.*
 /data/processed/bc_alakazam/
 /data/processed/bc_spidops/
+/data/processed/bc_grimmsnarl/
 /data/processed/replays/
 /data/processed/meta_radar/
 /data/processed/portfolio/
@@ -29,6 +30,7 @@
 # BC do piloto líder (sparring/dev — só versionar se promovido a ship)
 /models/bc_alakazam*
 /models/bc_spidops*
+/models/bc_grimmsnarl*
 # ...promovido: a v2 é o piloto do Final B (par CASADO com feature_stats.npz)
 !/models/bc_spidops_v2.npz
 
