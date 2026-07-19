@@ -140,8 +140,14 @@ def validate_deck(card_ids: Sequence[int],
                          if c.stage_code in _ENERGY_STAGES
                          and c.type_code is not None)
     has_energy = any(c.stage_code in _ENERGY_STAGES for c in cards)
+    # fodder de evolução é isento: um Pokémon cuja evolução está no deck
+    # pode ter ataque impagável — ele existe para evoluir (verificado
+    # empiricamente via battle_start com a lista real de Grimmsnarl do
+    # ladder: Snorunt {W} num deck só-{D}, aceito pelo engine, 17/Jul).
+    evolves_in_deck = {c.previous_stage for c in cards if c.previous_stage}
     for name in sorted({c.card_name for c in cards
-                        if c.attack_ids and not c.skill_ids}):
+                        if c.attack_ids and not c.skill_ids
+                        and c.card_name not in evolves_in_deck}):
         card = next(c for c in cards if c.card_name == name)
         attacks = [index.get_attack(a) for a in card.attack_ids]
         costs = [a.cost for a in attacks if a is not None]

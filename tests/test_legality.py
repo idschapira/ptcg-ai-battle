@@ -110,8 +110,11 @@ class TestDeckLegality(unittest.TestCase):
         # Mined 60/60 from the daily top-100 corpus and verified engine-
         # legal via battle_start (2026-07-16): Cinderace without Raboot
         # (setup ability) and TR Mimikyu paid by TR Energy must pass.
+        # 2026-07-18: meta_grimmsnarl adds the evolution-fodder case
+        # (Snorunt {W} in a mono-{D} deck, engine-accepted).
         for name in ("meta_starmie.csv", "meta_spidops.csv",
-                     "meta_alakazam.csv", "meta_crustle_kangaskhan.csv"):
+                     "meta_alakazam.csv", "meta_crustle_kangaskhan.csv",
+                     "meta_grimmsnarl.csv"):
             deck = read_deck_ids(REPO_ROOT / "data" / "decks" / name)
             report = validate_deck(deck, self.index)
             self.assertTrue(report.ok,
