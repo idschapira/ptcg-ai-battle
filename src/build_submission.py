@@ -9,6 +9,11 @@ Targets (--target):
                         packaged AS main.py + data/decks/meta_spidops.csv
                         packaged AS deck.csv (NetworkAgent with the MATED
                         pair bc_spidops_v2.npz + feature_stats.npz).
+    grimmsnarl          submission_grimmsnarl.tar.gz  Grimmsnarl probe:
+                        main_grimmsnarl.py AS main.py +
+                        data/decks/meta_grimmsnarl.csv AS deck.csv
+                        (NetworkAgent with the MATED pair
+                        bc_grimmsnarl.npz + feature_stats.npz).
 
 The target NEVER touches the tracked Final-A files: per-target sources
 are renamed via tar arcname at build time, so shipping one final cannot
@@ -126,6 +131,21 @@ TARGETS: Final[dict[str, TargetConfig]] = {
         ),
         pilot_assert_exec=(
             'assert env["_agent"]._fallback is None, "bc_spidops_v2 weights not in bundle"\n'
+        ),
+    ),
+    "grimmsnarl": TargetConfig(
+        name="grimmsnarl",
+        output_name="submission_grimmsnarl.tar.gz",
+        main_source="main_grimmsnarl.py",
+        deck_source="data/decks/meta_grimmsnarl.csv",
+        extra_entries=("models/bc_grimmsnarl.npz",),
+        deck_sentinel=648,  # Marnie's Grimmsnarl ex
+        pilot_assert_module=(
+            'assert type(main._agent).__name__ == "NetworkAgent", type(main._agent)\n'
+            'assert main._agent._fallback is None, "bc_grimmsnarl weights not in bundle"\n'
+        ),
+        pilot_assert_exec=(
+            'assert env["_agent"]._fallback is None, "bc_grimmsnarl weights not in bundle"\n'
         ),
     ),
 }

@@ -35,9 +35,10 @@
 # ...promovido: a v2 é o piloto do Final B (par CASADO com feature_stats.npz)
 !/models/bc_spidops_v2.npz
 
-# Submission bundles (rebuilt by src/build_submission.py [--target spidops])
+# Submission bundles (rebuilt by src/build_submission.py [--target ...])
 /submission.tar.gz
 /submission_spidops.tar.gz
+/submission_grimmsnarl.tar.gz
 
 # Recorded dev games (regenerate: selfplay --record viewer/recordings);
 # viewer/sample_game.json stays versioned as a small working example
