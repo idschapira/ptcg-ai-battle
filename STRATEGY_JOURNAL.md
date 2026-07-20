@@ -206,3 +206,20 @@ decisão adiada até evidência; A/B e10 + piloto v4 têm prioridade. Recusa exp
 (self-play Lucario-vs-mill) por ser sparring contra o próprio counter — mesma classe de erro do
 anti-self-mill (métrica interna enganosa). Escolher alvo com dado e nomear a armadilha antes de cair =
 material de writeup.
+
+## [19/Jul] Probe Grimmsnarl no ar: gate de persistência aprovado, V3 evictada
+A BC-Grimmsnarl estava VETADA como ship imediato (bate o ship 57,5% e o zoo 75,3% ≥ barra 65%, mas
+perde do Alakazam-Search 35,6%) e gated em **persistência do meta** — critério pré-declarado: share do
+Grimmsnarl ≥ ~25% do topo no radar de 19–20/Jul. **Gate aprovado**: watch de 19/Jul mostra 41% no dia
+mais recente (07-18, 82/200 decks), segundo dia consecutivo ≥40% (07-17: 47%) — o topo virou pra
+engine de contadores e ficou. Ship como PROBE no slot livre: `submission_grimmsnarl.tar.gz` via
+`build_submission --target grimmsnarl` (playbook parametrizado do Spidops; main_grimmsnarl.py
+exec-safe; par CASADO bc_grimmsnarl.npz + feature_stats.npz; sentinela deck = 648). Gates: 5,0 MiB;
+2 smokes OK com coleta ExIt pausada; latência mean 653µs / p99 1109µs; unittest verde; prova por hash
+das 4 peças; main.py/deck.csv rastreados intocados (Final A preservado por arcname). Submissão
+**54841794** ("Grimmsnarl BC — probe", 20/Jul 00:48 UTC). Eviction pelo cap de 3 ativas = **V3
+(54619473)**, a última não-final; V4 (54667957) e Spidops (54791820) seguem ativas. **Guarda nova
+explícita: o PRÓXIMO ship evictaria a Spidops (Final B)** — qualquer ship futuro é decisão de
+portfólio, não de conveniência. Leitura da probe: ELO no watch diário (entra na coleta de 20/Jul);
+a hipótese testada é a do radar — cobrir o meta que os líderes jogam AGORA vale mais que o zoo
+interno sugere.
