@@ -67,8 +67,12 @@ _DAY_RE: Final[re.Pattern[str]] = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 FINALS: Final[dict[str, str]] = {
     "54667957": "Final A (Crustle e10, V4)",
     "54791820": "Final B (Spidops BC v2)",
+    "54841794": "Grimmsnarl BC (probe)",
 }
-ACTIVE_REFS: Final[tuple[str, ...]] = ("54619473", "54667957", "54791820")
+# cap Kaggle = 3 ativas; a probe Grimmsnarl (20/Jul) evictou a V3
+# (54619473). PRÓXIMO ship evictaria a Spidops (Final B) — qualquer ship
+# futuro é decisão de portfólio explícita.
+ACTIVE_REFS: Final[tuple[str, ...]] = ("54667957", "54791820", "54841794")
 
 # arquétipos que a dupla A+B cobre (medidos no gauntlet honesto) — o
 # buraco conhecido (Starmie) tem alerta próprio via ignore-effects.
@@ -355,7 +359,7 @@ def render_watch(snapshots: list[DaySnapshot], series: EloSeries,
                  alerts: list[str]) -> str:
     lines = [f"# Portfolio watch — {date.today().isoformat()}", ""]
 
-    lines.append("## Finais no ladder")
+    lines.append("## Ativas no ladder")
     top_txt = _fmt_trend(series.top)
     for ref, label in FINALS.items():
         points = series.by_ref.get(ref, [])
