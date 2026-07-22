@@ -207,6 +207,101 @@ def _atomic_write(path: Path, payload: dict) -> None:
 # Pause / stop protocol (same contract as the replay collector)
 # ---------------------------------------------------------------------- #
 
+class LoopLock:
+    """Single-writer lock on the checkpoint directory.
+
+    Two loops writing one `evolve_state.json` silently corrupt each
+    other: generation counters interleave and the Hall of Fame gets
+    champions from a run that no longer exists. That happened — a loop
+    outlived the shell that launched it (a `nohup` child survives its
+    wrapper being killed), a second was started, and both kept saving.
+    Deleting the state files did not help, because the live process
+    simply rewrote them from memory on its next save.
+
+    So: acquire or refuse. The lock stores the PID and is stale-checked,
+    which matters precisely because the failure mode here is a process
+    that outlives its parent."""
+
+    __slots__ = ("path", "_held")
+
+    def __init__(self, control_dir: Path) -> None:
+        self.path = control_dir / "evolve.lock"
+        self._held = False
+
+    @staticmethod
+    def _alive(pid: int) -> bool:
+        """Is this PID still running?
+
+        NOT `os.kill(pid, 0)`. That is the POSIX idiom, but on Windows
+        Python maps any signal other than CTRL_C_EVENT/CTRL_BREAK_EVENT
+        onto TerminateProcess — so the "harmless existence check" would
+        KILL the process it is asking about. Query the handle instead."""
+        if pid <= 0:
+            return False
+        if os.name == "nt":
+            import ctypes
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            STILL_ACTIVE = 259
+            kernel32 = ctypes.windll.kernel32
+            handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,
+                                          False, pid)
+            if not handle:
+                return False          # gone, or not ours to inspect
+            try:
+                code = ctypes.c_ulong()
+                if kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                    return code.value == STILL_ACTIVE
+                return True           # cannot tell: assume held
+            finally:
+                kernel32.CloseHandle(handle)
+        try:
+            os.kill(pid, 0)           # POSIX: genuinely just a probe
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True               # exists, owned by someone else
+        except OSError:
+            return False
+        return True
+
+    def acquire(self) -> bool:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            raw = json.loads(self.path.read_text(encoding="utf-8"))
+            owner = int(raw.get("pid", -1))
+        except (OSError, ValueError, TypeError):
+            owner = -1
+        if owner > 0 and owner != os.getpid() and self._alive(owner):
+            print(f"[evolve] REFUSING to start: another loop (pid {owner}) "
+                  f"already owns {self.path.parent}. Stop it first, or "
+                  f"delete {self.path.name} if you know it is stale.",
+                  flush=True)
+            return False
+        _atomic_write(self.path, {"pid": os.getpid(),
+                                  "started": datetime.datetime.now(
+                                      datetime.timezone.utc).isoformat(
+                                          timespec="seconds")})
+        self._held = True
+        return True
+
+    def release(self) -> None:
+        if not self._held:
+            return
+        try:
+            raw = json.loads(self.path.read_text(encoding="utf-8"))
+            if int(raw.get("pid", -1)) == os.getpid():
+                self.path.unlink()
+        except (OSError, ValueError, TypeError):
+            pass
+        self._held = False
+
+    def __enter__(self) -> "LoopLock":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.release()
+
+
 def wait_if_paused(control_dir: Path, quiet: bool = False) -> bool:
     """True = a STOP was requested. Blocks on PAUSE and in the job window."""
     announced = False
@@ -642,7 +737,13 @@ def main() -> None:
         return
 
     args.control_dir.mkdir(parents=True, exist_ok=True)
-    loop.run(args.generations, args.control_dir)
+    lock = LoopLock(args.control_dir)
+    if not lock.acquire():
+        raise SystemExit(2)
+    try:
+        loop.run(args.generations, args.control_dir)
+    finally:
+        lock.release()
     print("\n" + loop.report())
     print("\n" + loop.hof.report())
     print("\nNOTE: these champions are CANDIDATES. Offline fitness is not "

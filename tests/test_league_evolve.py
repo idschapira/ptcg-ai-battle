@@ -24,7 +24,8 @@ from pathlib import Path
 from unittest import mock
 
 from src.league.evolve import (PAUSE_WINDOW, CoEvolution, DeckState,
-                               Individual, crossover, mutate, wait_if_paused)
+                               Individual, LoopLock, crossover, mutate,
+                               wait_if_paused)
 from src.league.hall_of_fame import Champion, HallOfFame
 from src.league.modules import module_for_deck
 
@@ -203,6 +204,78 @@ class TestPauseProtocol(unittest.TestCase):
     def test_the_job_window_is_the_collector_window(self) -> None:
         self.assertEqual(PAUSE_WINDOW[0], datetime.time(20, 58))
         self.assertEqual(PAUSE_WINDOW[1], datetime.time(21, 32))
+
+
+class TestLoopLock(unittest.TestCase):
+    """REGRESSION: two loops wrote one checkpoint and corrupted it.
+
+    The trigger was a process outliving the shell that launched it (a
+    `nohup` child survives its wrapper), so a second loop was started
+    while the first was still saving. Deleting the state files did not
+    help — the live process rewrote them from memory."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self.tmp.name)
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_a_second_loop_is_refused(self) -> None:
+        """A lock held by a DIFFERENT live process must block us. The
+        parent process is a convenient live PID that is not us."""
+        import json as _json
+        import os as _os
+        (self.dir / "evolve.lock").write_text(
+            _json.dumps({"pid": _os.getppid()}), encoding="utf-8")
+        self.assertFalse(LoopLock(self.dir).acquire(),
+                         "a second loop must not share the checkpoint")
+
+    def test_reacquiring_our_own_lock_is_allowed(self) -> None:
+        first = LoopLock(self.dir)
+        self.assertTrue(first.acquire())
+        self.assertTrue(LoopLock(self.dir).acquire(),
+                        "same process re-entry is not a conflict")
+
+    def test_liveness_check_does_not_kill_the_process_it_probes(self) -> None:
+        """On Windows os.kill(pid, 0) TERMINATES the target — the naive
+        POSIX idiom would have killed a live process here."""
+        import os as _os
+        import subprocess
+        import sys
+        victim = subprocess.Popen([sys.executable, "-c",
+                                   "import time; time.sleep(30)"])
+        try:
+            self.assertTrue(LoopLock._alive(victim.pid))
+            self.assertIsNone(victim.poll(), "the probe killed the process")
+            self.assertTrue(LoopLock._alive(_os.getpid()))
+        finally:
+            victim.kill()
+            victim.wait(timeout=10)
+        self.assertFalse(LoopLock._alive(victim.pid))
+
+    def test_release_frees_it(self) -> None:
+        first = LoopLock(self.dir)
+        first.acquire()
+        first.release()
+        self.assertTrue(LoopLock(self.dir).acquire())
+
+    def test_a_stale_lock_from_a_dead_pid_is_reclaimed(self) -> None:
+        """Otherwise a crash would wedge the loop forever."""
+        import json as _json
+        # a PID that cannot be running
+        (self.dir / "evolve.lock").write_text(
+            _json.dumps({"pid": 999_999_999}), encoding="utf-8")
+        self.assertTrue(LoopLock(self.dir).acquire())
+
+    def test_a_corrupt_lock_is_reclaimed(self) -> None:
+        (self.dir / "evolve.lock").write_text("{garbage", encoding="utf-8")
+        self.assertTrue(LoopLock(self.dir).acquire())
+
+    def test_context_manager_releases(self) -> None:
+        with LoopLock(self.dir) as lock:
+            self.assertTrue(lock.acquire())
+        self.assertTrue(LoopLock(self.dir).acquire())
 
 
 class TestCheckpointResume(unittest.TestCase):
