@@ -44,6 +44,12 @@
 # viewer/sample_game.json stays versioned as a small working example
 /viewer/recordings/
 
+# League (co-evolution) dev artifacts: fitness reports and the Hall of
+# Fame archive are measurements, reproducible by re-running
+# `python -m src.league.fitness`. The MODULES and their theta defaults
+# are code and stay versioned.
+/data/league/
+
 # Python
 __pycache__/
 *.py[cod]
