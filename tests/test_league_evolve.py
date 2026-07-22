@@ -315,6 +315,54 @@ class TestOneRealGeneration(unittest.TestCase):
             self.assertTrue(any(o in ("mutant", "crossover") for o in origins),
                             origins)
 
+    def test_the_incumbent_is_never_its_own_challenger(self) -> None:
+        """REGRESSION (Phase 3, caught in the field): a population can
+        degenerate into clones of the incumbent — crossover(x, x) == x —
+        and then the gate is handed the SAME genome on both arms. That is
+        the null case, so it promotes at the alpha rate: a champion
+        bit-identical to the default theta was promoted this way."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            loop = CoEvolution(
+                decks=["abomasnow"], field_decks=["starmie"],
+                population=4, elite=1, games=2, screen_games=2,
+                gate_games=2, min_gate_games=0,
+                state_path=root / "state.json", hof_path=root / "hof.json")
+            loop.prepare()
+            state = loop.states["abomasnow"]
+            incumbent = module_for_deck("abomasnow").default_theta()
+            state.incumbent = incumbent
+            # the degenerate case: every member IS the incumbent
+            state.population = [Individual(theta=incumbent, origin="clone")
+                                for _ in range(4)]
+            record = loop.step("abomasnow", root)
+
+            self.assertIsNotNone(record)
+            gate = record["gate"]
+            self.assertNotEqual(gate["challenger_rate"], None)
+            # whatever the gate decided, it was NOT handed a clone
+            for champion in loop.hof:
+                if "gate-promoted" in champion.note:
+                    self.assertNotEqual(
+                        champion.theta, incumbent,
+                        "promoted a genome identical to the incumbent")
+
+    def test_refill_never_seeds_a_clone_of_the_incumbent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            loop = CoEvolution(
+                decks=["abomasnow"], field_decks=["starmie"],
+                population=6, elite=1, games=2, screen_games=2,
+                gate_games=2, min_gate_games=0,
+                state_path=root / "state.json", hof_path=root / "hof.json")
+            loop.prepare()
+            loop.step("abomasnow", root)
+            state = loop.states["abomasnow"]
+            for individual in state.population:
+                self.assertNotEqual(individual.theta, state.incumbent,
+                                    "a clone of the incumbent re-entered "
+                                    "the population")
+
     def test_a_stop_mid_run_checkpoints_and_exits(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

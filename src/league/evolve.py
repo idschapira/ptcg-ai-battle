@@ -369,10 +369,25 @@ class CoEvolution:
         if state.incumbent is None:
             state.incumbent = default_theta
 
-        finalists = self.successive_halving(deck, state.population, pool)
+        # A CHALLENGER MUST DIFFER FROM THE INCUMBENT. Otherwise the gate
+        # is handed the same genome twice — the exact null case, which by
+        # construction fires at the alpha rate (observed: a "promotion"
+        # of a genome bit-identical to the default). The population can
+        # degenerate this way because crossover(x, x) == x.
+        challengers = [i for i in state.population
+                       if i.theta != state.incumbent]
+        if not challengers:
+            challengers = [
+                Individual(theta=mutate(state.incumbent, self.rng,
+                                        self.sigma_frac, rate=1.0),
+                           origin="reseed")
+                for _ in range(self.population_size)]
+        finalists = self.successive_halving(deck, challengers, pool)
         if not finalists:
             return None
         challenger = finalists[0]
+        if challenger.theta == state.incumbent:  # belt and braces
+            return None
         if wait_if_paused(control_dir):
             return None
 
@@ -402,7 +417,7 @@ class CoEvolution:
         if not self.hof.for_deck(deck):
             self.hof.add(Champion.from_fitness(
                 incumbent_fitness, state.incumbent, generation=0,
-                note="incumbent baseline (not gate-promoted)"))
+                note="incumbent baseline (reference arm, never tested)"))
         if result.promoted:
             state.incumbent = challenger.theta
             self.hof.add(Champion.from_fitness(
@@ -443,8 +458,10 @@ class CoEvolution:
 
         # refill: the incumbent seeds the next population, so evolution
         # always explores around the thing that actually survived a test
-        next_population = [Individual(theta=state.incumbent,
-                                      origin="incumbent")]
+        # The population holds CHALLENGERS only; the incumbent is the
+        # reference arm, not a competitor. It still breeds, so evolution
+        # explores around the genome that actually survived a test.
+        next_population: list[Individual] = []
         parents = [challenger.theta, state.incumbent]
         while len(next_population) < self.population_size:
             if self.rng.random() < 0.3:
@@ -454,6 +471,15 @@ class CoEvolution:
                 child = mutate(self.rng.choice(parents), self.rng,
                                self.sigma_frac)
                 origin = "mutant"
+            # crossover(x, x) == x, and a mutation can land back on the
+            # incumbent: never seed a clone of it into the population
+            guard = 0
+            while child == state.incumbent and guard < 8:
+                child = mutate(child, self.rng, self.sigma_frac, rate=1.0)
+                origin = "mutant"
+                guard += 1
+            if child == state.incumbent:
+                continue
             next_population.append(Individual(theta=child, origin=origin))
         state.population = next_population
         state.generation += 1
