@@ -173,6 +173,39 @@ class BoardView:
     def my_hand_ids(self) -> list[int]:
         return [c.id for c in self.my_hand() if getattr(c, "id", None) is not None]
 
+    def my_discard_ids(self) -> list[int]:
+        """Card ids in OUR discard pile (empty when unreadable).
+
+        Visible information: decks that recur or scale off the discard
+        (Riptide, Hammer-lanche's self-mill) read their whole plan here."""
+        player = self._player(self.me)
+        if player is None:
+            return []
+        try:
+            return [c.id for c in (player.discard or [])
+                    if c is not None and getattr(c, "id", None) is not None]
+        except TypeError:
+            return []
+
+    def count_attached(self, energy_code: int) -> int:
+        """How many energies of one type are attached across MY field."""
+        total = 0
+        for pokemon in self.my_field():
+            try:
+                total += sum(1 for e in (pokemon.energies or [])
+                             if int(e) == energy_code)
+            except (TypeError, ValueError):
+                continue
+        return total
+
+    def energies_on(self, pokemon: Pokemon | None) -> list[int]:
+        if pokemon is None:
+            return []
+        try:
+            return [int(e) for e in (pokemon.energies or [])]
+        except (TypeError, ValueError):
+            return []
+
     def prizes_left(self, mine: bool) -> int | None:
         player = self._player(self.me if mine else self.them)
         try:

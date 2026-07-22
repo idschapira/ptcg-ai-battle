@@ -13,6 +13,7 @@ from typing import Final
 
 from ..module import DeckModule
 from ..theta import Theta
+from .abomasnow import AbomasnowModule
 from .crustle import CrustleModule
 from .grimmsnarl import GrimmsnarlModule
 
@@ -21,6 +22,7 @@ from .grimmsnarl import GrimmsnarlModule
 _REGISTRY: Final[tuple[DeckModule, ...]] = (
     CrustleModule(),
     GrimmsnarlModule(),
+    AbomasnowModule(),
 )
 
 MODULES: Final[dict[str, DeckModule]] = {m.name: m for m in _REGISTRY}
@@ -43,5 +45,5 @@ def default_theta_for_deck(deck: str) -> Theta:
     return module_for_deck(deck).default_theta()
 
 
-__all__ = ["MODULES", "DECK_MODULE", "CrustleModule", "GrimmsnarlModule",
-           "module_for_deck", "default_theta_for_deck"]
+__all__ = ["MODULES", "DECK_MODULE", "AbomasnowModule", "CrustleModule",
+           "GrimmsnarlModule", "module_for_deck", "default_theta_for_deck"]
