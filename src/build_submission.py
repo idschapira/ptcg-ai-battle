@@ -14,6 +14,13 @@ Targets (--target):
                         data/decks/meta_grimmsnarl.csv AS deck.csv
                         (NetworkAgent with the MATED pair
                         bc_grimmsnarl.npz + feature_stats.npz).
+    grimmsnarl_heur     submission_grimmsnarl_heur.tar.gz  The PILOT half of
+                        the ladder A/B: main_grimmsnarl_heur.py AS main.py +
+                        the SAME data/decks/meta_grimmsnarl.csv AS deck.csv,
+                        flown by ParametricHeuristicAgent + GrimmsnarlModule
+                        (53-knob theta, no .npz, no mated pair). Shipped
+                        alongside the `grimmsnarl` probe so the ladder
+                        compares PILOTS on a fixed deck.
 
 The target NEVER touches the tracked Final-A files: per-target sources
 are renamed via tar arcname at build time, so shipping one final cannot
@@ -146,6 +153,53 @@ TARGETS: Final[dict[str, TargetConfig]] = {
         ),
         pilot_assert_exec=(
             'assert env["_agent"]._fallback is None, "bc_grimmsnarl weights not in bundle"\n'
+        ),
+    ),
+    "grimmsnarl_heur": TargetConfig(
+        name="grimmsnarl_heur",
+        output_name="submission_grimmsnarl_heur.tar.gz",
+        main_source="main_grimmsnarl_heur.py",
+        deck_source="data/decks/meta_grimmsnarl.csv",
+        # The RUNTIME subset of the league only. fitness/evolve/gate/
+        # hall_of_fame/portfolio/null_control MUST stay out: they import
+        # deckbuilding.gauntlet and environment_wrapper.arena, which are
+        # not bundled, so packaging them would break the import. crustle
+        # and abomasnow ride along because modules/__init__ imports all
+        # three; both are pure-python over cg.api + card_index.
+        extra_entries=("src/league/__init__.py",
+                       "src/league/theta.py",
+                       "src/league/board.py",
+                       "src/league/module.py",
+                       "src/league/parametric_agent.py",
+                       "src/league/modules/__init__.py",
+                       "src/league/modules/grimmsnarl.py",
+                       "src/league/modules/crustle.py",
+                       "src/league/modules/abomasnow.py",
+                       "data/theta/grimmsnarl_heur_v1.json"),
+        deck_sentinel=648,  # Marnie's Grimmsnarl ex
+        # Proof by hash that the genome in the live agent is the one we
+        # meant to ship — this is what lets main_grimmsnarl_heur.py fall
+        # back to defaults silently without risking a wrong-theta ship.
+        pilot_assert_module=(
+            'assert type(main._agent).__name__ == "ParametricHeuristicAgent", '
+            'type(main._agent)\n'
+            'assert main._agent.module.name == "grimmsnarl", '
+            'main._agent.module.name\n'
+            'assert len(main._agent.theta) == 53, len(main._agent.theta)\n'
+            'import hashlib\n'
+            'assert hashlib.sha256(main._agent.theta.to_json().encode()).hexdigest() == '
+            '"86b2e0006da7498f3a960c3f8d333f013d8505e7e72876ad338a4b89e7dcb112", '
+            '"shipped theta is not grimmsnarl_heur_v1"\n'
+        ),
+        pilot_assert_exec=(
+            'assert type(env["_agent"]).__name__ == "ParametricHeuristicAgent", '
+            'type(env["_agent"])\n'
+            'assert env["_agent"].module.name == "grimmsnarl", '
+            'env["_agent"].module.name\n'
+            'import hashlib\n'
+            'assert hashlib.sha256(env["_agent"].theta.to_json().encode()).hexdigest() == '
+            '"86b2e0006da7498f3a960c3f8d333f013d8505e7e72876ad338a4b89e7dcb112", '
+            '"shipped theta is not grimmsnarl_heur_v1"\n'
         ),
     ),
 }
