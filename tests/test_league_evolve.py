@@ -289,14 +289,23 @@ class TestOneRealGeneration(unittest.TestCase):
             self.assertEqual(record["generation"], 0)
             self.assertIsNotNone(record["best_score"])
             self.assertIn("starmie", record["opponents"])
-            # the fair curve reference: default theta on the SAME pool
+            # both gate arms measured on the SAME pool, same generation
             self.assertIsNotNone(record["reference_score"])
             self.assertIsNotNone(record["delta_vs_default"])
             self.assertAlmostEqual(
                 record["delta_vs_default"],
                 record["best_score"] - record["reference_score"])
-            self.assertEqual(loop.states["abomasnow"].reference.origin,
-                             "default")
+            # the incumbent is what only the gate may replace
+            self.assertIsNotNone(loop.states["abomasnow"].incumbent)
+            self.assertIn("promoted", record)
+            self.assertIn("gate", record)
+            promoted = record["promoted"]
+            incumbent = loop.states["abomasnow"].incumbent
+            default = module_for_deck("abomasnow").default_theta()
+            if not promoted:
+                self.assertEqual(incumbent, default,
+                                 "a held generation must not move the "
+                                 "incumbent")
             self.assertEqual(loop.states["abomasnow"].generation, 1)
             self.assertEqual(len(loop.states["abomasnow"].population), 3)
             self.assertGreaterEqual(len(loop.hof), 1,

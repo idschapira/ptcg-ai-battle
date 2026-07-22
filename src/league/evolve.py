@@ -66,9 +66,11 @@ from ..ingestion.build_effect_model import EffectIndex
 from ..ingestion.card_index import CardIndex
 from .fitness import (BENCHMARK_CELL, DEFAULT_FIELD, Entry, Fitness,
                       evaluate, load_decks)
+from .gate import (format_power_table, games_for_effect,
+                   minimum_detectable_effect, pooled, promotion_gate)
 from .hall_of_fame import Champion, HallOfFame
 from .modules import module_for_deck
-from .theta import ParamSpec, Theta
+from .theta import Theta
 
 LEAGUE_DIR: Final[Path] = REPO_ROOT / "data" / "league"
 DEFAULT_STATE: Final[Path] = LEAGUE_DIR / "evolve_state.json"
@@ -146,6 +148,9 @@ class DeckState:
     generation: int = 0
     population: list[Individual] = field(default_factory=list)
     history: list[dict] = field(default_factory=list)
+    #: The reigning genome. Only the significance gate replaces it, so
+    #: it is the one thing in the loop that noise cannot move.
+    incumbent: Theta | None = None
     #: The default theta, re-measured against EVERY generation's pool.
     #: The pool changes between generations (the Hall of Fame slice is
     #: sampled), so raw scores are NOT comparable across generations —
@@ -159,6 +164,7 @@ class DeckState:
                             "mean": i.mean, "worst_cell": i.worst_cell,
                             "worst": i.worst, "benchmark": i.benchmark,
                             "origin": i.origin} for i in self.population],
+            "incumbent": self.incumbent.to_dict() if self.incumbent else None,
             "history": self.history,
         }
 
@@ -168,6 +174,8 @@ class DeckState:
         schema = module_for_deck(deck).schema
         state = cls(deck=deck, generation=int(data.get("generation", 0)),
                     history=list(data.get("history") or []))
+        if data.get("incumbent"):
+            state.incumbent = schema.from_dict(data["incumbent"])
         for row in data.get("population") or []:
             if not isinstance(row, dict):
                 continue
@@ -226,8 +234,9 @@ class CoEvolution:
 
     def __init__(self, decks: Sequence[str], field_decks: Sequence[str],
                  population: int = 8, elite: int = 3, games: int = 24,
-                 screen_games: int = 8, seed: int = 0,
+                 screen_games: int = 6, seed: int = 0,
                  hof_samples: int = 2, sigma_frac: float = 0.12,
+                 gate_games: int = 100, min_gate_games: int = 600,
                  state_path: Path = DEFAULT_STATE,
                  hof_path: Path | None = None) -> None:
         self.decks = list(decks)
@@ -236,6 +245,10 @@ class CoEvolution:
         self.elite_size = max(1, min(elite, population))
         self.games = games
         self.screen_games = screen_games
+        #: games/cell for the DECISION measurement (both arms)
+        self.gate_games = gate_games
+        #: floor on decided games per arm before the gate may pass at all
+        self.min_gate_games = min_gate_games
         self.hof_samples = hof_samples
         self.sigma_frac = sigma_frac
         self.state_path = state_path
@@ -298,130 +311,173 @@ class CoEvolution:
         return evaluate(candidate, list(pool) + [candidate], self.decks_cache,
                         self.index, self.effects, games, self.seed)
 
-    def _screen(self, deck: str, individuals: Sequence[Individual],
-                pool: Sequence[Entry]) -> list[Individual]:
-        """Cheap first pass on SCREEN_CELLS; keep the better half.
+    # ---- screening: successive halving ---- #
 
-        Racing, not a result: these numbers never leave this method."""
-        keep = max(self.elite_size, len(individuals) // 2)
-        if len(individuals) <= keep or self.screen_games <= 0:
-            return list(individuals)
-        # the versioned default is the incumbent: it is never raced out,
-        # so a generation can always report "evolution did not beat it"
-        protected = [i for i in individuals if i.origin == "default"]
-        contenders = [i for i in individuals if i.origin != "default"]
-        subset = [e for e in pool if e.name in SCREEN_CELLS] or list(pool[:2])
-        scored: list[tuple[float, Individual]] = []
-        for individual in contenders:
-            fitness = self._evaluate(deck, individual.theta, subset,
-                                     self.screen_games)
-            scored.append((fitness.score(), individual))
-        scored.sort(key=lambda pair: -pair[0])
-        room = max(1, keep - len(protected))
-        return protected + [individual for _, individual in scored[:room]]
+    def successive_halving(self, deck: str, individuals: Sequence[Individual],
+                           pool: Sequence[Entry]) -> list[Individual]:
+        """Find the finalist cheaply, then let the gate decide promotion.
+
+        Screening and testing are different problems. Here we only need
+        a RANKING good enough to pick who faces the incumbent, so games
+        are spent in rounds: everyone plays a few, the clearly worse
+        half is dropped, survivors get double the budget, repeat. The
+        expensive, properly-powered measurement happens once, in the
+        gate — not P times here.
+
+        Ranking uses POOLED WINRATE, not `Fitness.score`: the score's
+        worst-cell term is a min over ~11 noisy cells and is far too
+        jumpy to rank on at screening sample sizes."""
+        survivors = list(individuals)
+        if self.screen_games <= 0 or len(survivors) <= 1:
+            return survivors[:1]
+        games = self.screen_games
+        rounds = 0
+        while len(survivors) > 1:
+            scored: list[tuple[float, Individual]] = []
+            for individual in survivors:
+                fitness = self._evaluate(deck, individual.theta, pool, games)
+                rate = pooled(fitness.cells).rate
+                individual.score = fitness.score()
+                individual.mean = fitness.mean
+                worst = fitness.worst
+                individual.worst_cell = worst.opponent if worst else None
+                individual.worst = worst.winrate if worst else None
+                scored.append((rate, individual))
+            scored.sort(key=lambda pair: -pair[0])
+            keep = max(1, len(scored) // 2)
+            survivors = [individual for _, individual in scored[:keep]]
+            games *= 2
+            rounds += 1
+            if rounds > 8:  # guard against a pathological population size
+                break
+        return survivors
 
     # ---- one generation ---- #
 
     def step(self, deck: str, control_dir: Path) -> dict | None:
-        """One generation for one deck. None when a STOP was requested."""
+        """One generation for one deck. None when a STOP was requested.
+
+        Structure: screen (cheap) -> gate (properly powered) -> refill.
+        The incumbent only ever changes through the gate, which is what
+        makes a promoted champion mean something."""
         state = self.states[deck]
         pool = self.opponent_pool(deck)
         if wait_if_paused(control_dir):
             return None
 
-        # The REFERENCE run: the versioned default theta, measured
-        # against THIS generation's pool. Because the pool changes
-        # between generations, only the same-pool delta is a fair read
-        # of whether co-evolution actually moved the needle.
-        reference = self._evaluate(deck, module_for_deck(deck).default_theta(),
-                                   pool, self.games)
-        reference_worst = reference.worst
-        state.reference = Individual(
-            theta=module_for_deck(deck).default_theta(),
-            score=reference.score(), mean=reference.mean,
-            worst_cell=reference_worst.opponent if reference_worst else None,
-            worst=reference_worst.winrate if reference_worst else None,
-            origin="default")
+        default_theta = module_for_deck(deck).default_theta()
+        if state.incumbent is None:
+            state.incumbent = default_theta
 
-        survivors = self._screen(deck, state.population, pool)
-        evaluated: list[Individual] = []
-        best_fitness: Fitness | None = None
-        for individual in survivors:
-            if wait_if_paused(control_dir):
-                return None
-            fitness = self._evaluate(deck, individual.theta, pool, self.games)
-            worst = fitness.worst
-            bench = fitness.cell(BENCHMARK_CELL)
-            individual.score = fitness.score()
-            individual.mean = fitness.mean
-            individual.worst_cell = worst.opponent if worst else None
-            individual.worst = worst.winrate if worst else None
-            individual.benchmark = bench.winrate if bench else None
-            evaluated.append(individual)
-            if best_fitness is None or fitness.score() > best_fitness.score():
-                best_fitness = fitness
-            if fitness.exceptions:
-                print(f"  !! {fitness.exceptions} exceptions on {deck}",
-                      flush=True)
+        finalists = self.successive_halving(deck, state.population, pool)
+        if not finalists:
+            return None
+        challenger = finalists[0]
+        if wait_if_paused(control_dir):
+            return None
 
-        evaluated.sort(key=lambda i: -(i.score or 0.0))
-        elite = evaluated[:self.elite_size]
+        # The decision measurement: both arms at the gate's sample size,
+        # against the SAME pool, in the same generation.
+        challenger_fitness = self._evaluate(deck, challenger.theta, pool,
+                                            self.gate_games)
+        if wait_if_paused(control_dir):
+            return None
+        incumbent_fitness = self._evaluate(deck, state.incumbent, pool,
+                                           self.gate_games)
 
-        # promote the generation's champion into the archive
-        if best_fitness is not None and elite:
-            champion = Champion.from_fitness(
-                best_fitness, elite[0].theta, generation=state.generation,
-                note=f"co-evolution gen {state.generation}")
-            self.hof.add(champion)
-            self.hof.save()
+        result = promotion_gate(pooled(challenger_fitness.cells),
+                                pooled(incumbent_fitness.cells),
+                                min_games=self.min_gate_games)
+
+        worst = challenger_fitness.worst
+        bench = challenger_fitness.cell(BENCHMARK_CELL)
+        challenger.score = challenger_fitness.score()
+        challenger.mean = challenger_fitness.mean
+        challenger.worst_cell = worst.opponent if worst else None
+        challenger.worst = worst.winrate if worst else None
+        challenger.benchmark = bench.winrate if bench else None
+
+        # The reigning genome is always in the archive, so the anti-
+        # overfit pool is never empty; a promotion adds the new one.
+        if not self.hof.for_deck(deck):
+            self.hof.add(Champion.from_fitness(
+                incumbent_fitness, state.incumbent, generation=0,
+                note="incumbent baseline (not gate-promoted)"))
+        if result.promoted:
+            state.incumbent = challenger.theta
+            self.hof.add(Champion.from_fitness(
+                challenger_fitness, challenger.theta,
+                generation=state.generation,
+                note=f"gate-promoted gen {state.generation}: "
+                     f"{result.delta:+.1%} "
+                     f"CI [{result.diff_low:+.1%},{result.diff_high:+.1%}]"))
+        self.hof.save()
+
+        exceptions = challenger_fitness.exceptions + incumbent_fitness.exceptions
+        if exceptions:
+            print(f"  !! {exceptions} exceptions on {deck}", flush=True)
 
         record = {
             "generation": state.generation,
-            "reference_score": state.reference.score if state.reference else None,
-            "reference_mean": state.reference.mean if state.reference else None,
-            "delta_vs_default": (
-                elite[0].score - state.reference.score
-                if elite and elite[0].score is not None
-                and state.reference is not None
-                and state.reference.score is not None else None),
-            "best_score": elite[0].score if elite else None,
-            "best_mean": elite[0].mean if elite else None,
-            "best_worst_cell": elite[0].worst_cell if elite else None,
-            "best_worst": elite[0].worst if elite else None,
-            "best_benchmark": elite[0].benchmark if elite else None,
-            "elite_origins": [i.origin for i in elite],
-            "evaluated": len(evaluated),
+            "promoted": result.promoted,
+            "gate": result.to_dict(),
+            "challenger_rate": result.challenger.rate,
+            "incumbent_rate": result.incumbent.rate,
+            "delta": result.delta,
+            "reference_score": incumbent_fitness.score(),
+            "reference_mean": incumbent_fitness.mean,
+            "delta_vs_default": challenger_fitness.score()
+            - incumbent_fitness.score(),
+            "best_score": challenger_fitness.score(),
+            "best_mean": challenger_fitness.mean,
+            "best_worst_cell": challenger.worst_cell,
+            "best_worst": challenger.worst,
+            "best_benchmark": challenger.benchmark,
+            "elite_origins": [challenger.origin],
+            "evaluated": len(state.population),
             "opponents": [e.name for e in pool],
-            "games_per_cell": self.games,
+            "games_per_cell": self.gate_games,
+            "exceptions": exceptions,
         }
         state.history.append(record)
 
-        # refill: elites survive, the rest are mutants/crossovers of them
-        next_population = list(elite)
+        # refill: the incumbent seeds the next population, so evolution
+        # always explores around the thing that actually survived a test
+        next_population = [Individual(theta=state.incumbent,
+                                      origin="incumbent")]
+        parents = [challenger.theta, state.incumbent]
         while len(next_population) < self.population_size:
-            if len(elite) >= 2 and self.rng.random() < 0.3:
-                parent_a, parent_b = self.rng.sample(elite, 2)
-                child = crossover(parent_a.theta, parent_b.theta, self.rng)
+            if self.rng.random() < 0.3:
+                child = crossover(parents[0], parents[1], self.rng)
                 origin = "crossover"
             else:
-                parent = self.rng.choice(elite)
-                child = mutate(parent.theta, self.rng, self.sigma_frac)
+                child = mutate(self.rng.choice(parents), self.rng,
+                               self.sigma_frac)
                 origin = "mutant"
             next_population.append(Individual(theta=child, origin=origin))
         state.population = next_population
         state.generation += 1
         return record
 
+
     # ---- driver ---- #
 
     def run(self, generations: int, control_dir: Path) -> None:
         self.prepare()
+        cells = len(self.field) + self.hof_samples
+        print(format_power_table(max(1, cells)), flush=True)
+        print(f"gate: {self.gate_games} games/cell x ~{cells} cells = "
+              f"~{self.gate_games * cells} decided games per arm; "
+              f"minimum detectable gain "
+              f"{minimum_detectable_effect(self.gate_games * cells):.1%}",
+              flush=True)
         for _ in range(generations):
             for deck in self.decks:
                 state = self.states[deck]
                 print(f"\n[gen {state.generation}] {deck} "
-                      f"(pop {len(state.population)}, {self.games} games/cell)",
-                      flush=True)
+                      f"(pop {len(state.population)}, screen "
+                      f"{self.screen_games} -> gate {self.gate_games} "
+                      f"games/cell)", flush=True)
                 t0 = time.perf_counter()
                 record = self.step(deck, control_dir)
                 if record is None:
@@ -429,19 +485,19 @@ class CoEvolution:
                           flush=True)
                     self.save()
                     return
-                if record["best_score"] is None:
-                    print("  (no result)", flush=True)
-                else:
-                    delta = record.get("delta_vs_default")
-                    print(f"  best {record['best_score']:.3f} vs default "
-                          f"{record['reference_score']:.3f} on the SAME pool"
-                          f"  -> {delta:+.3f}" if delta is not None else "",
-                          flush=True)
-                    print(f"  mean {record['best_mean']:.1%} | worst "
-                          f"{record['best_worst_cell']} "
-                          f"{record['best_worst']:.1%} | vs-{BENCHMARK_CELL} "
-                          f"{record['best_benchmark']:.1%}", flush=True)
-                print(f"  elite origins: {record['elite_origins']} "
+                gate = record.get("gate") or {}
+                verdict = "PROMOTED" if record.get("promoted") else "held"
+                print(f"  {verdict}: challenger "
+                      f"{record['challenger_rate']:.1%} vs incumbent "
+                      f"{record['incumbent_rate']:.1%} "
+                      f"(delta {record['delta']:+.1%}, CI "
+                      f"[{gate.get('diff_low', 0):+.1%}, "
+                      f"{gate.get('diff_high', 0):+.1%}]) — "
+                      f"{gate.get('reason', '')}", flush=True)
+                print(f"  challenger mean {record['best_mean']:.1%} | worst "
+                      f"{record['best_worst_cell']} "
+                      f"{record['best_worst']:.1%} | vs-{BENCHMARK_CELL} "
+                      f"{record['best_benchmark']:.1%} "
                       f"({time.perf_counter() - t0:.0f}s)", flush=True)
                 self.save()
 
@@ -497,18 +553,17 @@ class CoEvolution:
                 score = record.get("best_score")
                 if score is None:
                     continue
-                reference = record.get("reference_score")
-                delta = record.get("delta_vs_default")
-                delta_text = "" if delta is None else f" delta {delta:+.3f}"
-                ref_text = "" if reference is None else f" (default {reference:.3f})"
+                gate = record.get("gate") or {}
+                verdict = "PROMOTED" if record.get("promoted") else "held    "
                 lines.append(
-                    f"    gen {record['generation']:>2}: best {score:.3f}"
-                    f"{ref_text}{delta_text} | mean "
-                    f"{record.get('best_mean', 0):.1%} | worst "
-                    f"{record.get('best_worst_cell')} "
-                    f"{record.get('best_worst', 0):.1%} | "
-                    f"vs-{BENCHMARK_CELL} {record.get('best_benchmark', 0):.1%}"
-                    f" | elite {record.get('elite_origins')}")
+                    f"    gen {record['generation']:>2}: {verdict} "
+                    f"challenger {record.get('challenger_rate', 0):.1%} vs "
+                    f"incumbent {record.get('incumbent_rate', 0):.1%} "
+                    f"(delta {record.get('delta', 0):+.1%}, CI "
+                    f"[{gate.get('diff_low', 0):+.1%}, "
+                    f"{gate.get('diff_high', 0):+.1%}]) | score {score:.3f} | "
+                    f"worst {record.get('best_worst_cell')} "
+                    f"{record.get('best_worst', 0):.1%}")
         return "\n".join(lines)
 
 
@@ -520,9 +575,16 @@ def main() -> None:
     parser.add_argument("--population", type=int, default=8)
     parser.add_argument("--elite", type=int, default=3)
     parser.add_argument("--games", type=int, default=24,
-                        help="games per cell in the FULL evaluation")
-    parser.add_argument("--screen-games", type=int, default=8,
-                        help="games per cell in the racing screen (0 = off)")
+                        help="(legacy) games per cell for ad-hoc evaluation")
+    parser.add_argument("--screen-games", type=int, default=6,
+                        help="games/cell in the FIRST successive-halving "
+                             "round; doubles each round (0 = no screening)")
+    parser.add_argument("--gate-games", type=int, default=100,
+                        help="games/cell for the DECISION measurement; "
+                             "sets the minimum detectable effect")
+    parser.add_argument("--min-gate-games", type=int, default=600,
+                        help="decided games per arm below which the gate "
+                             "refuses to promote at all (anti-underpower)")
     parser.add_argument("--hof-samples", type=int, default=2,
                         help="past champions sampled into the pool "
                              "(anti-overfit; 0 disables and is NOT advised)")
@@ -540,7 +602,9 @@ def main() -> None:
                        population=args.population, elite=args.elite,
                        games=args.games, screen_games=args.screen_games,
                        seed=args.seed, hof_samples=args.hof_samples,
-                       sigma_frac=args.sigma_frac, state_path=args.state)
+                       sigma_frac=args.sigma_frac, gate_games=args.gate_games,
+                       min_gate_games=args.min_gate_games,
+                       state_path=args.state)
     if args.resume or args.report:
         if loop.load():
             print(f"resumed {args.state}")
