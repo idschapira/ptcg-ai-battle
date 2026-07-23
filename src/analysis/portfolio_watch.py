@@ -65,14 +65,18 @@ _DAY_RE: Final[re.Pattern[str]] = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 # refs das submissões que compõem o portfólio (elo_log usa ref do CLI)
 FINALS: Final[dict[str, str]] = {
-    "54667957": "Final A (Crustle e10, V4)",
-    "54791820": "Final B (Spidops BC v2)",
-    "54841794": "Grimmsnarl BC (probe)",
+    "54917180": "Final A (Crustle e10, V4 re-sub 23/Jul)",
+    "54917174": "Grimmsnarl heurístico (A/B — piloto)",
+    "54841794": "Grimmsnarl BC (A/B — controle)",
 }
-# cap Kaggle = 3 ativas; a probe Grimmsnarl (20/Jul) evictou a V3
-# (54619473). PRÓXIMO ship evictaria a Spidops (Final B) — qualquer ship
-# futuro é decisão de portfólio explícita.
-ACTIVE_REFS: Final[tuple[str, ...]] = ("54667957", "54791820", "54841794")
+# cap Kaggle = 3 ativas; auto-aposenta a MAIS ANTIGA POR DATA (não a de
+# pior score). Em 23/Jul dois submits manuais entraram: o heurístico-
+# Grimmsnarl (54917174, A/B) e uma RE-SUB da Crustle V4 (54917180) — o
+# re-submit renova a data e mantém o Final A ativo. Os dois bumps
+# evictaram a Spidops (54791820) E a Crustle V4 antiga (54667957, cujo
+# ELO 831.9 foi perdido — o re-sub re-entra em placement). Ativas agora =
+# o A/B Grimmsnarl limpo (heur vs BC, MESMO deck) + Crustle.
+ACTIVE_REFS: Final[tuple[str, ...]] = ("54917180", "54917174", "54841794")
 
 # arquétipos que a dupla A+B cobre (medidos no gauntlet honesto) — o
 # buraco conhecido (Starmie) tem alerta próprio via ignore-effects.
