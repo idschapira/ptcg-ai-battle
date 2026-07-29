@@ -61,6 +61,21 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_ROLLOUT_CAP: Final[int] = 600
 
+# How the opponent is played inside a rollout.
+#   generic  always HeuristicAgent — we model their DECK, not their pilot
+#   match    pick the pilot from the ESTIMATED archetype where we have a
+#            specialised one (only Crustle today). Modelling a mill/stall
+#            opponent as a generic pilot misprices exactly the races that
+#            decide those matchups.
+OPPONENT_PILOT_GENERIC: Final[str] = "generic"
+OPPONENT_PILOT_MATCH: Final[str] = "match"
+
+# estimated archetype -> the specialised pilot that flies it
+_CRUSTLE_ARCHETYPES: Final[frozenset[str]] = frozenset({
+    "Crustle mill (ours)", "Crustle stall (other)",
+    "Crustle + Mega Kangaskhan stall",
+})
+
 
 @dataclass
 class RuntimeSearchStats:
@@ -109,6 +124,7 @@ class RuntimeSearchAgent:
         opponent_deck_override: Sequence[int] | None = None,
         own_deck_ids: Sequence[int] | None = None,
         enable_search: bool = True,
+        opponent_pilot: str = OPPONENT_PILOT_GENERIC,
     ) -> None:
         self._index = index if index is not None else CardIndex()
         self._effects = effects if effects is not None else EffectIndex()
@@ -120,6 +136,7 @@ class RuntimeSearchAgent:
         self._own_deck = ([int(c) for c in own_deck_ids] if own_deck_ids
                           else self._read_own_deck())
         self._enable_search = enable_search
+        self._opponent_pilot = opponent_pilot
         self.estimator = (estimator if estimator is not None
                           else OpponentDeckEstimator(index=self._index))
         self.guard = guard if guard is not None else BudgetGuard()
@@ -187,7 +204,8 @@ class RuntimeSearchAgent:
         t0 = time.perf_counter()
         try:
             best, rollouts_done = self._search(obs_dict, list(scores),
-                                               answer[0], opp_deck, tier)
+                                               answer[0], opp_deck, tier,
+                                               estimate.archetype)
         except Exception:  # noqa: BLE001 — counted, prior answer still legal
             self.stats.exceptions += 1
             logger.debug("search failed; falling back to prior", exc_info=True)
@@ -215,7 +233,8 @@ class RuntimeSearchAgent:
     # ------------------------------------------------------------------ #
 
     def _search(self, obs_dict: dict, scores: list[float], prior_choice: int,
-                opp_deck: list[int], tier: SearchTier) -> tuple[int | None, int]:
+                opp_deck: list[int], tier: SearchTier,
+                archetype: str) -> tuple[int | None, int]:
         """Returns (chosen option or None, rollouts actually run)."""
         seat = obs_dict["current"]["yourIndex"]
         candidates = rank_candidates(scores, prior_choice,
@@ -240,7 +259,7 @@ class RuntimeSearchAgent:
                     branch = api.search_step(root.searchId, [i])
                     value, hit_cap = rollout_to_terminal(
                         branch, seat, self._rollout_agent(),
-                        self._opponent_rollout_agent(), self._cap)
+                        self._opponent_rollout_agent(archetype), self._cap)
                     values[i] += value
                     rollouts += 1
                     self.stats.rollouts += 1
@@ -269,15 +288,28 @@ class RuntimeSearchAgent:
                             deck_path=self._deck_path, index=self._index,
                             effects=self._effects, variant=self._variant)
 
-    def _opponent_rollout_agent(self) -> HeuristicAgent:
-        """Their side: the generic pilot.
+    def _opponent_rollout_agent(self, archetype: str):
+        """Their side of a rollout.
 
-        We model the opponent's DECK (estimated) but not their PILOT —
-        we have no read on that, and assuming they play like us would be
-        a stronger claim than the evidence supports.
+        Default models the DECK but not the PILOT: a generic heuristic,
+        because we have no read on how they play. That default turned
+        out to be the expensive assumption — see STRATEGY_JOURNAL
+        [29/Jul]. In the mirror it prices a stall/mill race as if the
+        opponent were a generic pilot, which is exactly the judgement
+        the matchup turns on, and the search lost 44.8% [40.9, 48.8] at
+        N=600 with an otherwise perfect deck read.
+
+        ``opponent_pilot="match"`` uses the specialised pilot when the
+        estimated archetype has one.
         """
-        return HeuristicAgent(seed=self._rng.randrange(1 << 30),
-                              index=self._index, effects=self._effects)
+        seed = self._rng.randrange(1 << 30)
+        if (self._opponent_pilot == OPPONENT_PILOT_MATCH
+                and archetype in _CRUSTLE_ARCHETYPES):
+            return CrustleAgent(seed=seed, deck_path=self._deck_path,
+                                index=self._index, effects=self._effects,
+                                variant=self._variant)
+        return HeuristicAgent(seed=seed, index=self._index,
+                              effects=self._effects)
 
 
 __all__ = ["DEFAULT_ROLLOUT_CAP", "RuntimeSearchAgent", "RuntimeSearchStats"]

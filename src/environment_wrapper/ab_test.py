@@ -70,11 +70,13 @@ ARM_KINDS: Final[tuple[str, ...]] = (
     # off so the arm degrades to its prior — that is the FLOOR arm, and
     # comparing it against plain crustle-v3 is how the floor gets proven
     # empirically rather than asserted.
-    "search-crustle", "search-crustle-blind")
+    # "-match" models the opponent in rollouts with the pilot that fits
+    # the ESTIMATED archetype instead of a generic heuristic.
+    "search-crustle", "search-crustle-blind", "search-crustle-match")
 
 # Arms that carry their own search/estimator/budget instrumentation.
 SEARCH_ARMS: Final[frozenset[str]] = frozenset(
-    {"search-crustle", "search-crustle-blind"})
+    {"search-crustle", "search-crustle-blind", "search-crustle-match"})
 
 
 # --------------------------------------------------------------------------- #
@@ -223,13 +225,19 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
         metrics.search = search_stats
         metrics.budget = budget_stats
         metrics.estimator = estimator_stats
+        from ..rl_models.runtime_search_agent import (OPPONENT_PILOT_GENERIC,
+                                                      OPPONENT_PILOT_MATCH)
         blind = spec.kind == "search-crustle-blind"
+        opponent_pilot = (OPPONENT_PILOT_MATCH
+                          if spec.kind == "search-crustle-match"
+                          else OPPONENT_PILOT_GENERIC)
 
         def base(s: int) -> Agent:
             return RuntimeSearchAgent(
                 index=index, effects=effects, seed=s,
                 own_deck_ids=deck or [],
                 enable_search=not blind,
+                opponent_pilot=opponent_pilot,
                 estimator=OpponentDeckEstimator(index=index,
                                                 stats=estimator_stats),
                 guard=BudgetGuard(stats=budget_stats),

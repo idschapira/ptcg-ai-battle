@@ -57,6 +57,14 @@ PRESETS: Final[dict[str, tuple[tuple[str, str, str], ...]]] = {
         ("search vs prior (mirror)",
          "deck.csv@search-crustle", "deck.csv@crustle-v3"),
     ),
+    # (a2) the DIAGNOSTIC for (a)'s negative result: same comparison,
+    # but the rollouts model the opponent with the pilot that matches
+    # the estimated archetype instead of a generic heuristic. If the
+    # sign flips here, the opponent MODEL was the defect, not the search.
+    "effect-match": (
+        ("search(match) vs prior (mirror)",
+         "deck.csv@search-crustle-match", "deck.csv@crustle-v3"),
+    ),
     # (b) no regression against the real field, each opponent flown by
     # the pilot the calibration work settled on.
     "field": (
