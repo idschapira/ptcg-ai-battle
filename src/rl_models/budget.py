@@ -77,14 +77,26 @@ class SearchTier:
         return self.n_candidates * self.n_determinizations
 
 
-# Ordered richest -> cheapest. The bank thresholds are coarse on
-# purpose: the measured projection below does the fine-grained work, and
-# a ladder that pretends to be precise about an unmeasured machine would
-# just be a guess wearing a number.
+# Ordered richest -> cheapest.
+#
+# RECALIBRATED after the first field measurement. The original first
+# rung sat at 400s and the worst Grimmsnarl episode drove the bank to
+# 413.3s — it cleared the step by 13 seconds, which is not a margin, it
+# is a coincidence. The whole ladder therefore never engaged in the one
+# matchup that was over budget, so the guard contributed nothing exactly
+# where it was needed.
+#
+# Now the richest tier gives up at 500s: past 100s of spend on a single
+# episode we are already outside the profile of every agent in the
+# corpus except the one that got itself disqualified, and that is the
+# point at which "search less" should start rather than finish. The
+# thresholds stay coarse on purpose — the measured projection below does
+# the fine-grained work, and a ladder pretending to be precise about an
+# unmeasured machine is a guess wearing a number.
 DEFAULT_LADDER: Final[tuple[SearchTier, ...]] = (
-    SearchTier("4x4", 4, 4, 400.0),
-    SearchTier("3x2", 3, 2, 250.0),
-    SearchTier("2x1", 2, 1, 175.0),
+    SearchTier("4x4", 4, 4, 500.0),
+    SearchTier("3x2", 3, 2, 380.0),
+    SearchTier("2x1", 2, 1, 250.0),
 )
 
 

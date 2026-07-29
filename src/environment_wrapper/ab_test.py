@@ -74,13 +74,19 @@ ARM_KINDS: Final[tuple[str, ...]] = (
     # the ESTIMATED archetype instead of a generic heuristic.
     # "-margin" makes the search prove its case before overriding the
     # prior; "-both" applies the matched opponent model AND the margin.
+    # "-adaptive" spends the bank only on CONTESTED decisions.
     "search-crustle", "search-crustle-blind", "search-crustle-match",
-    "search-crustle-margin", "search-crustle-both")
+    "search-crustle-margin", "search-crustle-both", "search-crustle-adaptive",
+    # parametric league pilot: "grimmsnarl-module" flies meta_grimmsnarl
+    # with GrimmsnarlModule + its shipped theta. Needed as an opponent
+    # that is NOT the rollout model.
+    "grimmsnarl-module")
 
 # Arms that carry their own search/estimator/budget instrumentation.
 SEARCH_ARMS: Final[frozenset[str]] = frozenset(
     {"search-crustle", "search-crustle-blind", "search-crustle-match",
-     "search-crustle-margin", "search-crustle-both"})
+     "search-crustle-margin", "search-crustle-both",
+     "search-crustle-adaptive"})
 
 # One extra win in four determinizations — the smallest gain a 4x4
 # search can express that is not a single lucky rollout.
@@ -244,6 +250,9 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
                   if spec.kind in ("search-crustle-margin",
                                    "search-crustle-both")
                   else 0.0)
+        from ..rl_models.runtime_search_agent import DEFAULT_CONTESTED_MARGIN
+        contested = (DEFAULT_CONTESTED_MARGIN
+                     if spec.kind == "search-crustle-adaptive" else None)
 
         def base(s: int) -> Agent:
             return RuntimeSearchAgent(
@@ -252,10 +261,27 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
                 enable_search=not blind,
                 opponent_pilot=opponent_pilot,
                 override_margin=margin,
+                contested_margin=contested,
                 estimator=OpponentDeckEstimator(index=index,
                                                 stats=estimator_stats),
                 guard=BudgetGuard(stats=budget_stats),
                 stats=search_stats)
+    elif spec.kind == "grimmsnarl-module":
+        from ..league.modules import MODULES
+        from ..league.parametric_agent import ParametricHeuristicAgent
+        module = MODULES["grimmsnarl"]
+        theta = None
+        theta_path = (spec.weights if spec.weights is not None
+                      else Path("data/theta/grimmsnarl_heur_v1.json"))
+        if theta_path.exists():
+            # from_dict is keyed by NAME and clips into the legal bands,
+            # so a stale genome lands on the right knobs or not at all
+            with open(theta_path, encoding="utf-8") as fh:
+                theta = module.schema.from_dict(json.load(fh))
+        else:
+            raise SystemExit(f"theta not found: {theta_path}")
+        base = lambda s: ParametricHeuristicAgent(  # noqa: E731
+            module=module, theta=theta, seed=s, index=index, effects=effects)
     elif spec.kind == "heuristic":
         from ..agent_heuristics.heuristic_agent import HeuristicAgent
         base = lambda s: HeuristicAgent(seed=s, index=index, effects=effects)

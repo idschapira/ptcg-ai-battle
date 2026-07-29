@@ -252,6 +252,72 @@ class TestRuntimeSearchAgent(unittest.TestCase):
                            "the reserve guard never engaged")
 
     # ------------------------------------------------------------------ #
+    # Adaptive allocation
+    # ------------------------------------------------------------------ #
+
+    def test_contested_filter_classification(self) -> None:
+        """The filter is a fraction of the score RANGE, not a raw gap.
+
+        Scores live on different scales per decision (the heuristic
+        bands run roughly 20-80 depending on what is legal), so an
+        absolute gap would mean different things at different moments.
+        """
+        from src.rl_models.runtime_search_agent import _is_contested
+
+        # a runaway best option: dominated
+        self.assertFalse(_is_contested([80.0, 40.0, 35.0, 20.0], 0.10))
+        # near-tie at the top: contested
+        self.assertTrue(_is_contested([80.0, 79.0, 35.0, 20.0], 0.10))
+        # identical scores: nothing to distinguish, treat as open
+        self.assertTrue(_is_contested([50.0, 50.0, 50.0], 0.10))
+        # same shape, different scale -> same verdict
+        self.assertFalse(_is_contested([8.0, 4.0, 3.5, 2.0], 0.10))
+        # disabled
+        self.assertTrue(_is_contested([80.0, 40.0, 20.0], None))
+        self.assertFalse(_is_contested([1.0], 0.10))
+
+    def test_adaptive_allocation_skips_before_spending_bank(self) -> None:
+        """A dominated decision must cost NO bank, or nothing is freed."""
+        from src.rl_models.runtime_search_agent import DEFAULT_CONTESTED_MARGIN
+
+        agent = self._agent(seed=20,
+                            opponent_deck_override=list(self.opp_deck),
+                            contested_margin=DEFAULT_CONTESTED_MARGIN)
+        opponent = RandomAgent(seed=21)
+        for game in range(3):
+            play_one_game((agent, opponent), list(self.our_deck),
+                          list(self.opp_deck))
+            if agent.stats.fallback_reasons.get("dominated", 0) > 0:
+                break
+            opponent = RandomAgent(seed=22 + game)
+        dominated = agent.stats.fallback_reasons.get("dominated", 0)
+        self.assertGreater(dominated, 0, "filter never classified anything")
+        # every dominated decision skipped the guard entirely
+        self.assertEqual(agent.guard.stats.decisions, agent.stats.searched
+                         + agent.stats.fallback_reasons.get("budget", 0)
+                         + agent.stats.fallback_reasons.get("determinize", 0)
+                         + agent.stats.fallback_reasons.get(
+                             "single-candidate", 0),
+                         "the guard was consulted on decisions it should "
+                         "never have seen")
+        self.assertEqual(agent.stats.exceptions, 0)
+
+    def test_adaptive_allocation_searches_strictly_less(self) -> None:
+        """Same seed, filter on vs off: the filter can only remove work."""
+        from src.rl_models.runtime_search_agent import DEFAULT_CONTESTED_MARGIN
+
+        counts = []
+        for margin in (None, DEFAULT_CONTESTED_MARGIN):
+            agent = self._agent(seed=30,
+                                opponent_deck_override=list(self.opp_deck),
+                                contested_margin=margin)
+            play_one_game((agent, RandomAgent(seed=31)),
+                          list(self.our_deck), list(self.opp_deck))
+            counts.append(agent.stats.searched / max(agent.stats.decisions, 1))
+        self.assertLessEqual(counts[1], counts[0],
+                             f"filter raised the search rate: {counts}")
+
+    # ------------------------------------------------------------------ #
     # Contract edges
     # ------------------------------------------------------------------ #
 

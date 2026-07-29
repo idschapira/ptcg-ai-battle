@@ -107,6 +107,25 @@ class TestBudgetGuard(unittest.TestCase):
         self.assertEqual(banks, sorted(banks, reverse=True),
                          "a cheaper tier must not need a bigger bank")
 
+    def test_the_ladder_engages_before_the_measured_worst_episode(self) -> None:
+        """Regression: the first rung used to clear the worst case by 13s.
+
+        The worst Grimmsnarl episode measured drove the bank to 413.3s
+        while the richest tier gave up at 400s — so the ladder never
+        engaged in the one matchup that was over budget. Whatever the
+        thresholds become, the richest tier must stop well before an
+        episode that spends this much, or the guard is decorative.
+        """
+        worst_measured_spend_s = BANK_START_S - 413.3   # 186.7s
+        richest = max(DEFAULT_LADDER, key=lambda t: t.rollouts)
+        # spend at which the richest tier stops being offered
+        gives_up_after_s = BANK_START_S - richest.min_bank_s
+        self.assertLess(
+            gives_up_after_s, worst_measured_spend_s,
+            f"richest tier still granted after {gives_up_after_s:.0f}s of "
+            f"spend, but a real episode spent {worst_measured_spend_s:.0f}s "
+            f"— the ladder would never engage in the matchup that needs it")
+
     # ------------------------------------------------------------------ #
     # Hostile / missing inputs
     # ------------------------------------------------------------------ #

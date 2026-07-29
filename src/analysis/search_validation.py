@@ -78,6 +78,52 @@ PRESETS: Final[dict[str, tuple[tuple[str, str, str], ...]]] = {
         ("search(match+margin) vs prior (mirror)",
          "deck.csv@search-crustle-both", "deck.csv@crustle-v3"),
     ),
+    # THE DECISIVE TEST. The +14.7pp the search showed against
+    # Grimmsnarl was measured against a HeuristicAgent — which is
+    # EXACTLY the model its own rollouts use. That hands the search a
+    # perfect opponent model for free, and the real ladder never will.
+    # These cells replay the same matchup against pilots the rollouts do
+    # NOT model, so the question "does the gain survive a wrong opponent
+    # model" gets a number instead of an argument.
+    #
+    # Both arms of each pair face the SAME opponent, so prior-vs-search
+    # stays the comparison; only the opponent's pilot changes.
+    "wrongmodel-bc": (
+        ("prior vs BC-Grimmsnarl",
+         "deck.csv@crustle-v3",
+         "data/decks/meta_grimmsnarl.csv@network,models/bc_grimmsnarl.npz,"
+         "models/feature_stats.npz"),
+        ("search vs BC-Grimmsnarl",
+         "deck.csv@search-crustle",
+         "data/decks/meta_grimmsnarl.csv@network,models/bc_grimmsnarl.npz,"
+         "models/feature_stats.npz"),
+    ),
+    "wrongmodel-module": (
+        ("prior vs Grimmsnarl module",
+         "deck.csv@crustle-v3",
+         "data/decks/meta_grimmsnarl.csv@grimmsnarl-module"),
+        ("search vs Grimmsnarl module",
+         "deck.csv@search-crustle",
+         "data/decks/meta_grimmsnarl.csv@grimmsnarl-module"),
+    ),
+    # (3)+(4) adaptive allocation: does it fit the bank, and does the
+    # gain survive (or grow) when the budget is concentrated?
+    "adaptive-grimmsnarl": (
+        ("search(adaptive) vs Grimmsnarl heuristic",
+         "deck.csv@search-crustle-adaptive",
+         "data/decks/meta_grimmsnarl.csv@heuristic"),
+        ("search(adaptive) vs BC-Grimmsnarl",
+         "deck.csv@search-crustle-adaptive",
+         "data/decks/meta_grimmsnarl.csv@network,models/bc_grimmsnarl.npz,"
+         "models/feature_stats.npz"),
+        ("search(adaptive) vs Grimmsnarl module",
+         "deck.csv@search-crustle-adaptive",
+         "data/decks/meta_grimmsnarl.csv@grimmsnarl-module"),
+    ),
+    "adaptive-mirror": (
+        ("search(adaptive) vs prior (mirror)",
+         "deck.csv@search-crustle-adaptive", "deck.csv@crustle-v3"),
+    ),
     # (b) no regression against the real field, each opponent flown by
     # the pilot the calibration work settled on.
     "field": (
