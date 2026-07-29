@@ -103,6 +103,12 @@ class TargetConfig:
     # python asserts pinning WHICH pilot shipped (module / exec namespaces)
     pilot_assert_module: str
     pilot_assert_exec: str
+    # Agents that may think for seconds per move are constrained by the
+    # per-episode BANK (remainingOverageTime, 600s), not by per-move
+    # latency, so their smoke has to measure and assert on episode wall
+    # time instead of microseconds. Fraction of the bank the smoke's
+    # x3-projected episode must stay under; None disables the check.
+    max_bank_fraction: float | None = None
 
 
 TARGETS: Final[dict[str, TargetConfig]] = {
@@ -202,6 +208,80 @@ TARGETS: Final[dict[str, TargetConfig]] = {
             '"shipped theta is not grimmsnarl_heur_v1"\n'
         ),
     ),
+    "search_crustle": TargetConfig(
+        name="search_crustle",
+        output_name="submission_search_crustle.tar.gz",
+        main_source="main_search_crustle.py",
+        # the SAME deck as Final A — this final changes the PILOT only
+        deck_source="deck.csv",
+        extra_entries=(
+            "src/agent_heuristics/crustle_agent.py",
+            "src/rl_models/determinize.py",
+            "src/rl_models/search_core.py",
+            "src/rl_models/budget.py",
+            "src/rl_models/opponent_estimator.py",
+            "src/rl_models/runtime_search_agent.py",
+            # archetype rules + every decklist the estimator may propose.
+            # deckbuilding/__init__.py rides along because the rules
+            # module lives in that package; legality/gauntlet MUST stay
+            # out — they pull in the arena and the analysis stack.
+            "src/deckbuilding/__init__.py",
+            "src/deckbuilding/archetype_rules.py",
+            "data/decks/meta_alakazam.csv",
+            "data/decks/meta_spidops.csv",
+            "data/decks/meta_grimmsnarl.csv",
+            "data/decks/meta_starmie.csv",
+            "data/decks/meta_crustle_kangaskhan.csv",
+            "data/decks/candidate_crustle_e10.csv",
+            # rollback pilot, kept bundled exactly as in Final A
+            "models/policy_value.npz",
+        ),
+        deck_sentinel=345,  # Crustle
+        # Proof by hash of the two things that decide what this agent
+        # does: the 60 we play, and the set of decklists the estimator
+        # may presume for the opponent. A silent edit to either would
+        # change every search this agent runs.
+        pilot_assert_module=(
+            'assert type(main._agent).__name__ == "RuntimeSearchAgent", '
+            'type(main._agent)\n'
+            'assert type(main._agent._prior).__name__ == "CrustleAgent", '
+            'type(main._agent._prior)\n'
+            'assert main._agent._prior._v3 is True, "prior must be the v3 variant"\n'
+            'assert main._agent._enable_search is True, "search is off"\n'
+            'assert len(main._agent._own_deck) == 60, len(main._agent._own_deck)\n'
+            'import hashlib, pathlib\n'
+            'assert hashlib.sha256(pathlib.Path("deck.csv").read_bytes()).hexdigest() '
+            '== "8a49bdda15124d349c60d06be03dfa23dd36062a8bddc51c1d6a58c7df2b3ac5", '
+            '"shipped deck.csv is not Crustle e10"\n'
+            'from src.deckbuilding.archetype_rules import ARCHETYPE_DECKS\n'
+            'h = hashlib.sha256()\n'
+            'for label in sorted(ARCHETYPE_DECKS):\n'
+            '    rel = ARCHETYPE_DECKS[label]\n'
+            '    h.update(label.encode("utf-8")); h.update(b"|")\n'
+            '    h.update(rel.encode("utf-8")); h.update(b"|")\n'
+            '    h.update(pathlib.Path(rel).read_bytes())\n'
+            'assert h.hexdigest() == '
+            '"3290e197da732ec35a9aa7ec6479d4b928639dd940e39e7091f95f748eeeb14e", '
+            '"presumed decklist set is not the validated one"\n'
+            'for label in ARCHETYPE_DECKS:\n'
+            '    assert len(main._agent.estimator.presumed_deck(label)) == 60, label\n'
+            'from src.rl_models.network_agent import NetworkAgent\n'
+            'rollback = NetworkAgent(deck_path="deck.csv")\n'
+            'assert rollback._fallback is None, "rollback network weights not in bundle"\n'
+        ),
+        pilot_assert_exec=(
+            'assert type(env["_agent"]).__name__ == "RuntimeSearchAgent", '
+            'type(env["_agent"])\n'
+            'assert env["_agent"]._prior._v3 is True, "prior must be the v3 variant"\n'
+            'assert env["_agent"]._enable_search is True, "search is off"\n'
+        ),
+        # The smoke plays BOTH seats with this agent, so its measured
+        # wall is a two-agent total charged against a one-agent bank —
+        # conservative on purpose. The guard degrades on slower cores,
+        # so this only has to prove we are not already over before it
+        # would engage.
+        max_bank_fraction=0.60,
+    ),
 }
 
 
@@ -255,10 +335,20 @@ _SMOKE_SCRIPT_TEMPLATE: Final[str] = textwrap.dedent(
         game.battle_finish()
     times.sort()
     n = len(times)
+    episode_s = sum(times) / 1e6
+    projected_s = episode_s * __SLOWDOWN__
     print(f"smoke OK: selection={answer} deck head={deck[:5]} "
           f"full game result={result} turn={turn} | latency "
           f"mean={sum(times)/n:.0f}us p99={times[min(n-1, int(n*0.99))]:.0f}us "
           f"({n} selections)")
+    # The runtime budget is a per-episode BANK, not a per-move deadline:
+    # actTimeout=0 and remainingOverageTime starts at 600s per agent per
+    # episode. Report against that, and against the assumed Kaggle
+    # slowdown, because microseconds per move say nothing about it.
+    print(f"  episode wall={episode_s:.1f}s (both seats) | "
+          f"x{__SLOWDOWN__:.0f} projection={projected_s:.0f}s = "
+          f"{projected_s / __BANK__:.0%} of the {__BANK__:.0f}s bank")
+    __BANK_ASSERT__
     """
 )
 
@@ -314,11 +404,31 @@ _EXEC_LOADER_TEMPLATE: Final[str] = textwrap.dedent(
 )
 
 
+# Runtime budget facts, read off the environment specification carried
+# in every replay (specification.observation.remainingOverageTime and
+# configuration.actTimeout), verified identical in 1012/1012 replays.
+BANK_S: Final[float] = 600.0
+KAGGLE_SLOWDOWN: Final[float] = 3.0
+
+
 def _render(template: str, target: TargetConfig, exec_mode: bool) -> str:
     pilot = (target.pilot_assert_exec if exec_mode
              else target.pilot_assert_module)
+    if target.max_bank_fraction is None:
+        bank_assert = ("# no bank assertion: this pilot answers in "
+                       "microseconds")
+    else:
+        limit = target.max_bank_fraction
+        bank_assert = (
+            f'assert projected_s < {BANK_S} * {limit}, (\n'
+            f'    f"projected episode {{projected_s:.0f}}s exceeds "\n'
+            f'    f"{limit:.0%} of the {BANK_S:.0f}s bank — the guard must '
+            f'degrade sooner")')
     return (template
             .replace("__PILOT_ASSERT__", pilot.rstrip())
+            .replace("__BANK_ASSERT__", bank_assert)
+            .replace("__SLOWDOWN__", str(KAGGLE_SLOWDOWN))
+            .replace("__BANK__", str(BANK_S))
             .replace("__SENTINEL__", str(target.deck_sentinel)))
 
 
@@ -382,12 +492,17 @@ def smoke_test(archive: Path, target: TargetConfig) -> None:
         for template, exec_mode in ((_SMOKE_SCRIPT_TEMPLATE, False),
                                     (_EXEC_LOADER_TEMPLATE, True)):
             script = _render(template, target, exec_mode)
+            # A searching pilot plays a full mirror game twice over (both
+            # seats), which is minutes, not the seconds a lookup-table
+            # pilot takes. The subprocess timeout has to fit the pilot,
+            # not the other way round.
+            timeout_s = 1200 if target.max_bank_fraction is not None else 120
             result = subprocess.run(
                 [sys.executable, "-c", script],
                 cwd=tmp,
                 capture_output=True,
                 text=True,
-                timeout=120,
+                timeout=timeout_s,
             )
             if result.returncode != 0:
                 raise AssertionError(
