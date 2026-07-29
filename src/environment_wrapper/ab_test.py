@@ -50,7 +50,7 @@ import argparse
 import json
 import math
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Final
 
@@ -65,7 +65,16 @@ Z_95: Final[float] = 1.959963984540054
 REGRESSION_MARGIN: Final[float] = 0.05
 
 ARM_KINDS: Final[tuple[str, ...]] = (
-    "random", "heuristic", "crustle", "crustle-v2", "crustle-v3", "network")
+    "random", "heuristic", "crustle", "crustle-v2", "crustle-v3", "network",
+    # runtime search (submission candidate). "-blind" pins the estimator
+    # off so the arm degrades to its prior — that is the FLOOR arm, and
+    # comparing it against plain crustle-v3 is how the floor gets proven
+    # empirically rather than asserted.
+    "search-crustle", "search-crustle-blind")
+
+# Arms that carry their own search/estimator/budget instrumentation.
+SEARCH_ARMS: Final[frozenset[str]] = frozenset(
+    {"search-crustle", "search-crustle-blind"})
 
 
 # --------------------------------------------------------------------------- #
@@ -133,37 +142,99 @@ class ArmSpec:
 
 @dataclass
 class ArmMetrics:
-    """Per-arm instrumentation aggregated across games."""
+    """Per-arm instrumentation aggregated across games.
+
+    ``episode_wall_s`` is the list of per-GAME wall times for this arm.
+    For search arms that is the number the 600s bank is spent against —
+    mean latency per selection says nothing useful once an agent is
+    allowed to think for seconds at a time.
+    """
 
     calls: int = 0
     time_us: float = 0.0
+    episode_wall_s: list[float] = field(default_factory=list)
+    search: object | None = None       # RuntimeSearchStats, if a search arm
+    budget: object | None = None       # BudgetStats, if a search arm
+    estimator: object | None = None    # EstimatorStats, if a search arm
 
     @property
     def mean_latency_us(self) -> float:
         return self.time_us / self.calls if self.calls else 0.0
 
+    def episode_percentiles(self) -> tuple[float, float, float]:
+        """(median, p95, max) episode wall seconds; zeros when empty."""
+        if not self.episode_wall_s:
+            return 0.0, 0.0, 0.0
+        ordered = sorted(self.episode_wall_s)
+        n = len(ordered)
+        return (ordered[n // 2],
+                ordered[min(n - 1, int(n * 0.95))],
+                ordered[-1])
+
 
 class _Instrumented:
-    """Wraps one agent instance, feeding the arm's shared metrics."""
+    """Wraps one agent instance, feeding the arm's shared metrics.
 
-    __slots__ = ("_agent", "_metrics")
+    One instance per GAME (run_pair builds agents per game), so this is
+    also where per-episode wall time is accumulated: the first call
+    opens a new episode bucket and every call adds to it.
+    """
+
+    __slots__ = ("_agent", "_metrics", "_episode")
 
     def __init__(self, agent: Agent, metrics: ArmMetrics) -> None:
         self._agent = agent
         self._metrics = metrics
+        self._episode: int | None = None
 
     def __call__(self, obs_dict: dict) -> list[int]:
+        if self._episode is None:
+            self._metrics.episode_wall_s.append(0.0)
+            self._episode = len(self._metrics.episode_wall_s) - 1
         t0 = time.perf_counter()
         answer = self._agent(obs_dict)
-        self._metrics.time_us += (time.perf_counter() - t0) * 1e6
+        elapsed = time.perf_counter() - t0
+        self._metrics.time_us += elapsed * 1e6
         self._metrics.calls += 1
+        self._metrics.episode_wall_s[self._episode] += elapsed
         return answer
 
 
 def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
-                metrics: ArmMetrics) -> Callable[[int], Agent]:
-    """Per-game factory for an arm (index/effects shared; network shared)."""
-    if spec.kind == "heuristic":
+                metrics: ArmMetrics,
+                deck: list[int] | None = None) -> Callable[[int], Agent]:
+    """Per-game factory for an arm (index/effects shared; network shared).
+
+    ``deck`` is the arm's OWN 60. Search arms need it to determinize
+    their own hidden zones; the other kinds ignore it.
+    """
+    if spec.kind in SEARCH_ARMS:
+        from ..rl_models.budget import BudgetGuard, BudgetStats
+        from ..rl_models.opponent_estimator import (EstimatorStats,
+                                                    OpponentDeckEstimator)
+        from ..rl_models.runtime_search_agent import (RuntimeSearchAgent,
+                                                      RuntimeSearchStats)
+        # stats are SHARED across the pair's games so the report can say
+        # what the search actually did over the whole run; the estimator
+        # and the guard are per-game, because their state is per-episode.
+        search_stats = RuntimeSearchStats()
+        budget_stats = BudgetStats()
+        estimator_stats = EstimatorStats()
+        metrics.search = search_stats
+        metrics.budget = budget_stats
+        metrics.estimator = estimator_stats
+        blind = spec.kind == "search-crustle-blind"
+
+        def base(s: int) -> Agent:
+            return RuntimeSearchAgent(
+                index=index, effects=effects, seed=s,
+                own_deck_ids=deck or [],
+                enable_search=not blind,
+                estimator=OpponentDeckEstimator(index=index,
+                                                stats=estimator_stats),
+                guard=BudgetGuard(stats=budget_stats),
+                stats=search_stats)
+    elif spec.kind == "heuristic":
         from ..agent_heuristics.heuristic_agent import HeuristicAgent
         base = lambda s: HeuristicAgent(seed=s, index=index, effects=effects)
     elif spec.kind == "crustle":
@@ -223,8 +294,8 @@ def compare(label: str, spec_a: ArmSpec, spec_b: ArmSpec,
             deck_a: list[int], deck_b: list[int], n_games: int, seed: int,
             bar: float, index: CardIndex, effects: EffectIndex) -> Comparison:
     metrics_a, metrics_b = ArmMetrics(), ArmMetrics()
-    pair = run_pair(arm_factory(spec_a, index, effects, metrics_a),
-                    arm_factory(spec_b, index, effects, metrics_b),
+    pair = run_pair(arm_factory(spec_a, index, effects, metrics_a, deck_a),
+                    arm_factory(spec_b, index, effects, metrics_b, deck_b),
                     deck_a, deck_b, n_games, seed)
     return Comparison(label, pair, metrics_a, metrics_b, bar)
 
@@ -246,7 +317,38 @@ def print_comparison(c: Comparison) -> None:
     print(f"  exceptions {len(pair.errors)} (must be 0)")
     for error in pair.errors[:5]:
         print(f"    {error}")
+    for tag, metrics in (("A", c.a_metrics), ("B", c.b_metrics)):
+        _print_budget_block(tag, metrics)
     print(f"  VERDICT vs bar {c.bar:.0%}: {c.verdict}")
+
+
+# The real runtime constraint is a per-episode BANK, not a per-move
+# deadline: actTimeout=0 and remainingOverageTime starts at 600s per
+# agent per episode (environment specification, verified in 1012/1012
+# corpus replays). Kaggle runs on 2 vCPU; we assume it is up to 3x
+# slower than the dev box, so every measured episode time is reported
+# with that projection next to it.
+BANK_S: Final[float] = 600.0
+KAGGLE_SLOWDOWN: Final[float] = 3.0
+
+
+def _print_budget_block(tag: str, metrics: ArmMetrics) -> None:
+    """Episode wall time vs the 600s bank — only for instrumented arms."""
+    if not metrics.episode_wall_s:
+        return
+    median, p95, worst = metrics.episode_percentiles()
+    print(f"  [{tag}] episode wall  median {median:.1f}s  p95 {p95:.1f}s  "
+          f"max {worst:.1f}s   "
+          f"| x{KAGGLE_SLOWDOWN:.0f} projection: median "
+          f"{median * KAGGLE_SLOWDOWN:.0f}s  max "
+          f"{worst * KAGGLE_SLOWDOWN:.0f}s  "
+          f"({worst * KAGGLE_SLOWDOWN / BANK_S:.0%} of the {BANK_S:.0f}s bank)")
+    if metrics.search is not None:
+        print(f"  [{tag}] search    {metrics.search.summary()}")
+    if metrics.budget is not None:
+        print(f"  [{tag}] budget    {metrics.budget.summary()}")
+    if metrics.estimator is not None:
+        print(f"  [{tag}] estimator {metrics.estimator.summary()}")
 
 
 def _load_deck(path: Path, index: CardIndex) -> list[int]:

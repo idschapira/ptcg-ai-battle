@@ -223,3 +223,57 @@ explícita: o PRÓXIMO ship evictaria a Spidops (Final B)** — qualquer ship fu
 portfólio, não de conveniência. Leitura da probe: ELO no watch diário (entra na coleta de 20/Jul);
 a hipótese testada é a do radar — cobrir o meta que os líderes jogam AGORA vale mais que o zoo
 interno sugere.
+
+## [29/Jul] A premissa mais cara do projeto era um comentário no CLAUDE.md
+O `CLAUDE.md` dizia "latência: milissegundos por jogada" desde a Sprint 1. Era falso, e custou meses
+de espaço de projeto. A `specification` que vem dentro de todo replay diz outra coisa, e diz igual em
+**1012/1012** episódios do corpus: `actTimeout=0` (não existe deadline por jogada) e
+`observation.remainingOverageTime` começa em **600 s por agente por episódio** — um BANCO. O agente lê
+esse campo na própria observação. Medindo o que o campo gasta de fato: **Yushin Ito (top-10) gasta
+123,8 s de mediana por episódio; nós gastávamos 2,7 s** (máx. 6,5 s). Estávamos usando **0,45%** de um
+recurso que o líder usa a 21% — e otimizando microssegundos.
+
+A régua do risco também estava no corpus: `statuses` registra 4 `TIMEOUT`, todos do Yushin, todos
+derrota por forfeit (`rewards: [1, None]`). Estourar o banco não é lentidão, é desqualificação. Isso
+define a assimetria que governa todo o desenho: **gastar de menos custa fração de uma decisão; gastar
+de mais custa o jogo inteiro.**
+
+**O bloqueador real não era tempo, era informação.** `cg.search_begin` exige as zonas ocultas do
+oponente, o que exige a decklist dele — que offline nós conhecemos e em runtime não. A saída foi um
+estimador que rotula o arquétipo pelas cartas que o oponente revela (mesmas regras do radar de meta,
+agora com fonte única em `deckbuilding/archetype_rules.py`) e entrega a decklist de consenso daquele
+arquétipo como **hipótese**. Duas medidas de confiança, e a segunda é a que importa: `containment` =
+que fração das cartas JÁ VISTAS a lista presumida consegue explicar. É ela que percebe um rótulo certo
+sobre uma lista errada. Medido nos replays reais: **271.054 decisões, precisão 100% quando confiante**,
+cobertura subindo de 9,8% (t1–2) para 99,6% (t15+). Mantém 100% mesmo incluindo os decks cujo rótulo
+final é "unknown" (276.255 decisões) — o gate de containment se cala sozinho quando não reconhece.
+Limite honesto: o ground truth vem das mesmas regras sobre a observação completa, então isso mede
+convergência, não leitura de mente; e um rótulo certo não garante que os 60 presumidos sejam os 60
+reais — daí a determinização de runtime reconciliar a diferença em vez de fingir que ela não existe.
+
+**Perfil de risco por construção, não por flag.** Todo caminho que não seja "estimativa confiante E
+banco disponível E decisão elegível E determinização fechou" termina no prior, que é o CrustleAgent v3
+— o ship atual. O piso do agente novo é a coisa que ele substitui. Isso é testado das duas pontas:
+identidade exata decisão-a-decisão contra um CrustleAgent v3 puro num jogo real do motor, e
+empiricamente a 396 jogos (51,3%, IC95 [46,4%, 56,1%] — cara-ou-coroa, como tem que ser).
+
+**A guarda de banco não tem constante calibrada nesta máquina.** Ela mede o próprio custo de rollout
+(EWMA) e recusa qualquer configuração cuja projeção invada a reserva de 150 s. Numa máquina 3× mais
+lenta os rollouts medem 3× mais caro e ela degrada sozinha — que é a única forma honesta de escrever
+isso sem poder rodar no Kaggle antes de submeter.
+
+**Higiene de premissas (o resto do que estava errado ou faltando).** O engine EXPÕE o texto de regras
+de Trainers e energias especiais — `all_card_data()[].skills[].text`, **203 cartas** não-Pokémon;
+nunca precisou de destilação por LLM. `all_attack()` é 0-based por posição mas os `attackId` são
+1-based (`atk[i].attackId == i+1`): indexar pela id dá a carta errada por um. E os fatos do nosso
+próprio deck: **Crustle (345) é {G}**, então **Rock Fighting Energy não o protege** — o texto diz
+"done to the **{F} Pokémon**", que são Great Tusk e Terrakion; **Land Collapse custa {C}{C}**, e é por
+isso que **Mist Energy paga o mill**.
+
+**Onde o banco deveria ir depois.** Censo de 40 jogos: das ~55 seleções nossas por jogo, 17,6% são
+inelegíveis, 16,7% triviais, 42,1% dominadas (o prior já decidiu) e **23,6% contestadas** — ~13 por
+jogo. Concentrar o mesmo banco só nas contestadas compraria **~2,8×** os rollouts em cada uma, sem
+nenhuma superfície de falha nova. Paralelismo tem transporte barato (observação = 3,4 KiB, round-trip
+de pool de 2 processos = 1,0 ms contra ~86 ms/rollout) mas teto de 2× num box de 2 vCPU e adiciona
+ciclo de vida de worker ao caminho crítico de um agente que é desqualificado se travar. Ordem
+recomendada: alocação adaptativa primeiro, paralelismo só se ela não bastar.
