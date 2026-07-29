@@ -40,7 +40,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Final, Iterable
 
-from ..deckbuilding.reconcile_archetypes import _norm
+from ..deckbuilding.archetype_rules import (ARCHETYPE_RULES, UNKNOWN,
+                                            label_archetype)
 from ..ingestion.build_card_model import PROCESSED_DIR, REPO_ROOT
 from ..ingestion.card_index import Card, CardIndex
 from ..ingestion.replays_download import REPLAYS_DIR
@@ -52,43 +53,10 @@ OWN_EPISODES_DIR: Final[Path] = REPO_ROOT / "viewer" / "episodes"
 OUR_TEAM_NAMES: Final[frozenset[str]] = frozenset({"Ilan Schapira"})
 _DAY_DIR: Final[re.Pattern[str]] = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
-# Ordered core-card rules (first full match wins). Empirical ladder cores
-# first (mined 2026-07-14 from the top-100 corpus), then the archetypes
-# the initial meta report predicted, so their (non-)appearance is counted.
-# Names are engine card names, apostrophe-insensitive via _norm.
-ARCHETYPE_RULES: Final[tuple[tuple[str, frozenset[str]], ...]] = (
-    ("Alakazam box (non-ex)", frozenset({"Alakazam", "Kadabra"})),
-    ("Team Rocket Spidops (non-ex)", frozenset({"Team Rocket's Spidops"})),
-    ("Crustle mill (ours)", frozenset({"Crustle", "Great Tusk"})),
-    ("Crustle + Mega Kangaskhan stall",
-     frozenset({"Crustle", "Mega Kangaskhan ex"})),
-    ("Dragapult ex", frozenset({"Dragapult ex"})),
-    ("Mega Lucario ex", frozenset({"Mega Lucario ex"})),
-    ("Lillie's Clefairy", frozenset({"Lillie's Clefairy"})),
-    ("Gardevoir ex / Jellicent ex", frozenset({"Gardevoir ex"})),
-    ("Slowking / Kyurem", frozenset({"Slowking", "Kyurem"})),
-    ("Iono's Bellibolt ex", frozenset({"Iono's Bellibolt ex"})),
-    # ladder archetype promoted from the 2026-07-12 "unknown" cluster
-    # (team taksai): Mega Starmie ex / Mega Froslass ex + Cinderace.
-    ("Mega Starmie / Mega Froslass", frozenset({"Mega Starmie ex"})),
-    ("Mega Starmie / Mega Froslass", frozenset({"Mega Froslass ex"})),
-    # mid-ladder archetypes promoted from OUR episodes' "unknown"
-    # opponents (A/B e10 reading, 2026-07-16):
-    ("Archaludon ex box", frozenset({"Archaludon ex"})),
-    ("Archaludon ex box", frozenset({"Duraludon"})),
-    ("Marnie's Grimmsnarl ex", frozenset({"Marnie's Grimmsnarl ex"})),
-    ("Marnie's Grimmsnarl ex", frozenset({"Marnie's Impidimp"})),
-    ("Crustle stall (other)", frozenset({"Crustle"})),
-    # weak fallbacks for partially observed decks: pieces unique to the
-    # archetype's evolution line still identify it when the top of the
-    # line was never drawn/seen.
-    ("Alakazam box (non-ex)", frozenset({"Kadabra"})),
-    ("Alakazam box (non-ex)", frozenset({"Alakazam"})),
-    ("Alakazam box (non-ex)", frozenset({"Abra"})),
-    ("Team Rocket Spidops (non-ex)",
-     frozenset({"Team Rocket's Tarountula"})),
-)
-UNKNOWN: Final[str] = "unknown"
+# ARCHETYPE_RULES / UNKNOWN / label_archetype now live in
+# src/deckbuilding/archetype_rules.py — the RUNTIME opponent estimator
+# labels with the same rules, so they must have one home. Re-exported
+# here so `meta_radar.ARCHETYPE_RULES` keeps working.
 
 _POKEMON_STAGES: Final[frozenset[int]] = frozenset({7, 8, 9})
 
@@ -138,14 +106,6 @@ def observed_serials(replay: dict) -> dict[tuple[int, int], int]:
             if current:
                 _walk_cards(current, seen)
     return seen
-
-
-def label_archetype(names: Iterable[str]) -> str:
-    present = {_norm(name) for name in names}
-    for label, core in ARCHETYPE_RULES:
-        if all(_norm(name) in present for name in core):
-            return label
-    return UNKNOWN
 
 
 def extract_decks(replay: dict, day: str, index: CardIndex) -> list[ObservedDeck]:
