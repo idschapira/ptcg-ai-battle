@@ -277,3 +277,50 @@ nenhuma superfície de falha nova. Paralelismo tem transporte barato (observaç�
 de pool de 2 processos = 1,0 ms contra ~86 ms/rollout) mas teto de 2× num box de 2 vCPU e adiciona
 ciclo de vida de worker ao caminho crítico de um agente que é desqualificado se travar. Ordem
 recomendada: alocação adaptativa primeiro, paralelismo só se ela não bastar.
+
+## [29/Jul] A busca perde para o proprio prior — e o metodo funcionou
+Resultado decisivo, e negativo. `search:crustle` contra `CrustleAgent v3` puro, MESMO deck,
+N=600, assentos alternados: **44,8%, IC95 [40,9%, 48,8%], p=0,0114 — FAIL.** O IC exclui 50%: nao
+e a banda de ~10pp de ruido que este motor produz a N baixo. Rodou limpo — 1726 buscas, 22.076
+rollouts, **0 excecoes**, 0 rollouts capados — e com a estimativa de deck essencialmente perfeita
+(no espelho o rotulo e o nosso proprio deck). Ela trocou a resposta do prior em **387 de 1726**
+decisoes, e essas trocas foram liquidamente ruins.
+
+**Ninguem tinha medido isso.** A busca era "Camada 2 opcional" desde a decisao de arquitetura, e a
+intuicao de que buscar > nao buscar nunca passou por um A/B a N alto contra o proprio prior. Passou
+agora, e reprovou. Este e o mesmo padrao do resto do projeto — intuicao encontra medicao, medicao
+ganha — so que desta vez a vitima foi uma premissa nossa de arquitetura, nao um deck.
+
+**Duas causas candidatas, ambas instrumentadas.**
+
+*A — modelo de oponente.* Os rollouts jogam o lado do oponente com um HeuristicAgent generico, mas
+o oponente real daquele A/B e o CrustleAgent v3. Num espelho de stall/mill isso precifica errado
+exatamente a corrida de que o matchup depende. Testado (`opponent_pilot="match"`, N=600):
+**48,3%, IC95 [44,4%, 52,3%], p=0,41 — HOLD**. Ou seja: com o oponente modelado direito a busca
+deixa de ser significativamente pior. Mas **a melhora de +3,5pp NAO e estatisticamente
+estabelecida** (z=1,22, p=0,22, ICs se sobrepondo) e o estimador pontual segue abaixo de 50%. O
+honesto e: A era provavelmente PARTE do problema, e corrigi-la compra empate, nao vantagem.
+
+*B — maldicao do vencedor (optimizer's curse).* A 4x4 cada candidato vale a media de QUATRO
+rollouts Bernoulli. Tomar o argmax sobre quatro estimativas dessas seleciona em boa medida quem
+teve sorte, e a estimativa do vencedor e enviesada pra cima pela propria selecao. Sobrepor um prior
+bem afinado com base em quatro amostras e uma boa receita para transformar uma politica forte numa
+ruidosa. Sintoma consistente: com o modelo de oponente corrigido as trocas SUBIRAM (387 -> 548) e
+ainda assim nao venceu. Teste pronto: `override_margin` exige que a busca ganhe por margem antes de
+ser obedecida (presets `effect-margin`, `effect-both`).
+
+**Nao se compra HOLD a esse preco.** Mesmo no melhor caso medido, o custo e de 126,4 s de episodio
+no pior jogo -> 379 s na projecao 3x = **63% do banco de 600 s**. Gastar 63% do orcamento cuja
+exaustao e DESQUALIFICACAO para comprar um empate estatistico e um trade ruim em qualquer leitura.
+
+**O que sobrevive, e vale independente do ship.** A correcao da premissa de 600 s/episodio; o
+estimador de arquetipo (100% de precisao quando confiante em 271k decisoes reais); a guarda de
+banco com projecao auto-calibrante; e o piso provado nas duas pontas (identidade exata decisao-a-
+decisao com o ship, e 51,3% [46,4%, 56,1%] a N=396). O piso e o ponto: um candidato que reprova
+pode ser desligado sem custo, porque o que ele degrada para e exatamente o que ja esta no ar.
+
+**Nota de metodo, cara de novo.** Tres dos testes novos eram flaky (falhavam ~1 em 4) por afirmarem
+sobre propriedades emergentes de UM jogo — o motor nao e semeavel, entao comprimento de partida e
+aleatorio. Pior: o da guarda de banco chaveava no passo do LOOP, entao um jogo curto terminava
+antes de drenar o banco e o teste passava **sem testar nada**. Vacuo, nao so ruidoso. Corrigidos
+para acumular sobre jogos e para verificar que a condicao que eles dependem de fato ocorreu.
