@@ -324,3 +324,50 @@ sobre propriedades emergentes de UM jogo — o motor nao e semeavel, entao compr
 aleatorio. Pior: o da guarda de banco chaveava no passo do LOOP, entao um jogo curto terminava
 antes de drenar o banco e o teste passava **sem testar nada**. Vacuo, nao so ruidoso. Corrigidos
 para acumular sobre jogos e para verificar que a condicao que eles dependem de fato ocorreu.
+
+## [29/Jul] O ganho da busca era o nosso próprio modelo de oponente se olhando no espelho
+A rodada decisiva. A busca tinha mostrado **+14,7pp vs Grimmsnarl (p=0,0003)** — a célula que vale,
+41–47% do topo. Só que o oponente daquele teste era o `HeuristicAgent`, que é **exatamente** a
+política que os rollouts usam para modelar o adversário. Modelo perfeito de graça. Repetimos a
+mesma célula (N≈396/braço, prior e busca contra o MESMO oponente) trocando só o piloto do
+adversário:
+
+| oponente | relação com o modelo dos rollouts | prior → busca | efeito | p |
+|---|---|---|---|---|
+| HeuristicAgent | **é** o modelo, exato | 46,2% → 60,9% | **+14,7pp** | 0,0003 |
+| Módulo paramétrico | `ParametricHeuristicAgent(HeuristicAgent)` = modelo + regras | 51,5% → 57,8% | +6,3pp | 0,074 |
+| BC-Grimmsnarl | rede treinada por BC, nada em comum | 51,6% → 49,1% | **−2,5pp** | 0,48 |
+
+**O efeito é monótono na fidelidade do modelo, e some quando ela some.** Não é "a busca funciona";
+é "a busca funciona contra quem ela já sabe simular". O caso intermediário não é coincidência: o
+módulo paramétrico literalmente herda de `HeuristicAgent`, então é o modelo dos rollouts com uma
+camada de regras por cima. Três pontos, uma variável, ordem certa.
+
+Na ladder o adversário é agente de política desconhecida — muito mais perto do BC do que da nossa
+heurística. **A expectativa honesta é a faixa do BC: entre nulo e ligeiramente negativo.**
+
+**O horizonte não explica nada** (a outra hipótese). Profundidade mediana de rollout medida:
+espelho Crustle **58** seleções, Grimmsnarl **106**, Alakazam **53**. O espelho é o mais RASO e é
+onde a busca falha; o Grimmsnarl é quase 2× mais fundo e é onde ela funcionou. Profundidade não
+correlaciona com efeito; fidelidade correlaciona. Uma explicação única cobre espelho e campo.
+
+**Alocação adaptativa resolve o custo — e só o custo.** Pular as decisões dominadas (a busca cai de
+57% para 19–20% das decisões) leva o pior episódio de 78–80% para **46–49% do banco** na projeção
+3×. Bate a meta. Mas o ganho cai junto: −8,8pp vs Heuristic (p=0,019), −5,8pp vs módulo. Contra o
+BC não muda nada (−2,5 → −2,2). **Confissão de escopo:** implementei a metade "pular o dominado",
+não a metade "reinvestir no contestado". E reinvestir não cabe: a 4×4-no-contestado já custa 46%,
+então 4×8 volta para ~92% e 3×8 para ~69% — ambos furam a meta de ≤50%. Dentro do orçamento não
+existe profundidade extra para comprar. E não compraria nada mesmo: contra o BC o problema é
+fidelidade de modelo, não número de amostras.
+
+**Recomendação: NÃO shipar.** O único ganho grande não sobreviveu ao teste de robustez; o que
+sobrevive é indistinguível de zero e custa metade de um banco cujo estouro é desqualificação. O que
+mudaria a resposta não é mais compute — é **modelo de oponente por arquétipo** nos rollouts (temos
+o estimador que diz qual arquétipo é; falta o piloto especializado para cada um). Enquanto o
+rollout modelar todo mundo como heurística genérica, a busca só vai render contra quem joga como
+heurística genérica.
+
+**O que fica, independente do veredito.** A guarda de banco recalibrada (o degrau mais rico saiu de
+400s para 500s — antes ela nunca engatava, agora engata: `tiers {4x4: 1193, 3x2: 508}`); o
+estimador de arquétipo; a alocação adaptativa; e o piso provado nas duas pontas. Um candidato que
+reprova sai sem custo porque degrada exatamente para o que já está no ar.
