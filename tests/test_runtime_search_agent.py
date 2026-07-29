@@ -120,57 +120,82 @@ class TestRuntimeSearchAgent(unittest.TestCase):
     # ------------------------------------------------------------------ #
 
     def test_full_game_search_exercised_zero_exceptions(self) -> None:
-        agent = self._agent(seed=8)
-        opponent = RandomAgent(seed=9)
-        result, turns = play_one_game((agent, opponent),
-                                      list(self.our_deck),
-                                      list(self.opp_deck))
-        self.assertIn(result, (0, 1, 2))
-        self.assertGreater(turns, 0)
-        self.assertEqual(agent.stats.exceptions, 0,
-                         f"exceptions during search: {agent.stats.summary()}")
+        """Accumulated over several games, because ONE game proves nothing.
+
+        The engine is not seedable — battle_start takes no seed and the
+        shuffles call std::random_device directly — so a single game's
+        length is genuinely random and an assertion on it is flaky by
+        construction. The opponent deck is pinned via the override so
+        that whether the search fires does not also depend on the
+        estimator happening to see enough cards.
+        """
+        agent = self._agent(seed=8,
+                            opponent_deck_override=list(self.opp_deck))
+        for game in range(3):
+            opponent = RandomAgent(seed=9 + game)
+            result, turns = play_one_game((agent, opponent),
+                                          list(self.our_deck),
+                                          list(self.opp_deck))
+            self.assertIn(result, (0, 1, 2))
+            self.assertGreater(turns, 0)
+            self.assertEqual(
+                agent.stats.exceptions, 0,
+                f"exceptions during search: {agent.stats.summary()}")
+            if agent.stats.searched > 0:
+                break
         self.assertGreater(agent.stats.searched, 0,
-                           f"search never exercised: {agent.stats.summary()}")
+                           f"search never exercised in 3 games: "
+                           f"{agent.stats.summary()}")
         self.assertGreater(agent.stats.rollouts, 0)
 
     def test_every_answer_is_a_legal_option_index(self) -> None:
-        """Walk a real game and validate the contract on every answer."""
-        agent = self._agent(seed=10)
-        opponent = RandomAgent(seed=11)
+        """Walk real games and validate the contract on every answer.
+
+        Accumulated across games for the same reason as above: the
+        engine is not seedable, so one game's decision count is random.
+        """
+        agent = self._agent(seed=10,
+                            opponent_deck_override=list(self.opp_deck))
         from cg import game as cg_game
 
-        obs_dict, start = cg_game.battle_start(list(self.our_deck),
-                                               list(self.opp_deck))
         checked = 0
-        try:
-            self.assertIsNotNone(obs_dict, getattr(start, "errorType", None))
-            for _ in range(400):
-                current = obs_dict["current"]
-                if current["result"] != -1:
-                    break
-                if current["yourIndex"] == 0:
-                    answer = agent(copy.deepcopy(obs_dict))
-                    select = obs_dict.get("select") or {}
-                    options = select.get("option") or []
-                    self.assertTrue(answer, "empty answer")
-                    self.assertEqual(len(answer), len(set(answer)),
-                                     f"duplicate indices: {answer}")
-                    for i in answer:
-                        self.assertTrue(0 <= i < len(options),
-                                        f"illegal index {i} of {len(options)}")
-                    min_count = select.get("minCount")
-                    max_count = select.get("maxCount")
-                    if isinstance(min_count, int):
-                        self.assertGreaterEqual(len(answer), min_count)
-                    if isinstance(max_count, int):
-                        self.assertLessEqual(len(answer), max_count)
-                    checked += 1
-                else:
-                    answer = opponent(obs_dict)
-                obs_dict = cg_game.battle_select(answer)
-        finally:
-            cg_game.battle_finish()
-        self.assertGreater(checked, 10)
+        for game in range(3):
+            opponent = RandomAgent(seed=11 + game)
+            obs_dict, start = cg_game.battle_start(list(self.our_deck),
+                                                   list(self.opp_deck))
+            try:
+                self.assertIsNotNone(obs_dict,
+                                     getattr(start, "errorType", None))
+                for _ in range(400):
+                    current = obs_dict["current"]
+                    if current["result"] != -1:
+                        break
+                    if current["yourIndex"] == 0:
+                        answer = agent(copy.deepcopy(obs_dict))
+                        select = obs_dict.get("select") or {}
+                        options = select.get("option") or []
+                        self.assertTrue(answer, "empty answer")
+                        self.assertEqual(len(answer), len(set(answer)),
+                                         f"duplicate indices: {answer}")
+                        for i in answer:
+                            self.assertTrue(
+                                0 <= i < len(options),
+                                f"illegal index {i} of {len(options)}")
+                        min_count = select.get("minCount")
+                        max_count = select.get("maxCount")
+                        if isinstance(min_count, int):
+                            self.assertGreaterEqual(len(answer), min_count)
+                        if isinstance(max_count, int):
+                            self.assertLessEqual(len(answer), max_count)
+                        checked += 1
+                    else:
+                        answer = opponent(obs_dict)
+                    obs_dict = cg_game.battle_select(answer)
+            finally:
+                cg_game.battle_finish()
+            if checked > 30:
+                break
+        self.assertGreater(checked, 30, f"only {checked} answers validated")
         self.assertEqual(agent.stats.exceptions, 0)
 
     # ------------------------------------------------------------------ #
@@ -178,36 +203,50 @@ class TestRuntimeSearchAgent(unittest.TestCase):
     # ------------------------------------------------------------------ #
 
     def test_an_exhausted_bank_stops_the_search_mid_game(self) -> None:
-        """Report a drained bank and the agent must go quiet immediately."""
+        """Report a drained bank and the agent must go quiet immediately.
+
+        The switch is keyed on OUR decision count, not on loop steps: a
+        game can end in fewer steps than a fixed cutoff, which would let
+        this pass without ever draining the bank.
+        """
         agent = self._agent(seed=12)
         agent.guard = BudgetGuard(reserve_s=150.0)
         opponent = RandomAgent(seed=13)
         from cg import game as cg_game
 
+        full_bank_decisions = 5
+        ours = drained = 0
+        searched_before_drain = 0
         obs_dict, start = cg_game.battle_start(list(self.our_deck),
                                                list(self.opp_deck))
         try:
             self.assertIsNotNone(obs_dict, getattr(start, "errorType", None))
-            for step in range(400):
+            for _ in range(400):
                 current = obs_dict["current"]
                 if current["result"] != -1:
                     break
                 if current["yourIndex"] == 0:
                     poisoned = copy.deepcopy(obs_dict)
-                    # halfway through, claim the bank is nearly gone
-                    poisoned["remainingOverageTime"] = (
-                        600.0 if step < 40 else 5.0)
+                    if ours < full_bank_decisions:
+                        poisoned["remainingOverageTime"] = 600.0
+                    else:
+                        poisoned["remainingOverageTime"] = 5.0
+                        if not drained:
+                            searched_before_drain = agent.stats.searched
+                        drained += 1
+                    ours += 1
                     answer = agent(poisoned)
-                    if step >= 40:
+                    if drained:
                         self.assertEqual(
-                            agent.stats.fallback_reasons.get("budget", 0) > 0
-                            or agent.stats.searched == 0, True,
-                            "kept searching on an empty bank")
+                            agent.stats.searched, searched_before_drain,
+                            "searched after the bank was reported drained")
                 else:
                     answer = opponent(obs_dict)
                 obs_dict = cg_game.battle_select(answer)
         finally:
             cg_game.battle_finish()
+        self.assertGreater(drained, 0,
+                           "game ended before the bank was ever drained")
         self.assertEqual(agent.stats.exceptions, 0)
         self.assertGreater(agent.guard.stats.skipped_reserve, 0,
                            "the reserve guard never engaged")

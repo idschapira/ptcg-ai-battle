@@ -72,11 +72,19 @@ ARM_KINDS: Final[tuple[str, ...]] = (
     # empirically rather than asserted.
     # "-match" models the opponent in rollouts with the pilot that fits
     # the ESTIMATED archetype instead of a generic heuristic.
-    "search-crustle", "search-crustle-blind", "search-crustle-match")
+    # "-margin" makes the search prove its case before overriding the
+    # prior; "-both" applies the matched opponent model AND the margin.
+    "search-crustle", "search-crustle-blind", "search-crustle-match",
+    "search-crustle-margin", "search-crustle-both")
 
 # Arms that carry their own search/estimator/budget instrumentation.
 SEARCH_ARMS: Final[frozenset[str]] = frozenset(
-    {"search-crustle", "search-crustle-blind", "search-crustle-match"})
+    {"search-crustle", "search-crustle-blind", "search-crustle-match",
+     "search-crustle-margin", "search-crustle-both"})
+
+# One extra win in four determinizations — the smallest gain a 4x4
+# search can express that is not a single lucky rollout.
+OVERRIDE_MARGIN: Final[float] = 0.25
 
 
 # --------------------------------------------------------------------------- #
@@ -228,9 +236,14 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
         from ..rl_models.runtime_search_agent import (OPPONENT_PILOT_GENERIC,
                                                       OPPONENT_PILOT_MATCH)
         blind = spec.kind == "search-crustle-blind"
-        opponent_pilot = (OPPONENT_PILOT_MATCH
-                          if spec.kind == "search-crustle-match"
-                          else OPPONENT_PILOT_GENERIC)
+        opponent_pilot = (
+            OPPONENT_PILOT_MATCH
+            if spec.kind in ("search-crustle-match", "search-crustle-both")
+            else OPPONENT_PILOT_GENERIC)
+        margin = (OVERRIDE_MARGIN
+                  if spec.kind in ("search-crustle-margin",
+                                   "search-crustle-both")
+                  else 0.0)
 
         def base(s: int) -> Agent:
             return RuntimeSearchAgent(
@@ -238,6 +251,7 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
                 own_deck_ids=deck or [],
                 enable_search=not blind,
                 opponent_pilot=opponent_pilot,
+                override_margin=margin,
                 estimator=OpponentDeckEstimator(index=index,
                                                 stats=estimator_stats),
                 guard=BudgetGuard(stats=budget_stats),

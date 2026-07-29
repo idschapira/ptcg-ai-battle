@@ -65,6 +65,19 @@ PRESETS: Final[dict[str, tuple[tuple[str, str, str], ...]]] = {
         ("search(match) vs prior (mirror)",
          "deck.csv@search-crustle-match", "deck.csv@crustle-v3"),
     ),
+    # (a3) the OTHER candidate cause: the optimizer's curse. At 4x4 each
+    # candidate is scored on four Bernoulli rollouts, so the argmax over
+    # four such estimates largely selects whichever got lucky. Requiring
+    # a margin over the PRIOR'S choice before overriding it tests that
+    # directly, and "-both" tests the two fixes together.
+    "effect-margin": (
+        ("search(margin) vs prior (mirror)",
+         "deck.csv@search-crustle-margin", "deck.csv@crustle-v3"),
+    ),
+    "effect-both": (
+        ("search(match+margin) vs prior (mirror)",
+         "deck.csv@search-crustle-both", "deck.csv@crustle-v3"),
+    ),
     # (b) no regression against the real field, each opponent flown by
     # the pilot the calibration work settled on.
     "field": (

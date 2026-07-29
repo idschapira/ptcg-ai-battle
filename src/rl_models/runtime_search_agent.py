@@ -76,6 +76,24 @@ _CRUSTLE_ARCHETYPES: Final[frozenset[str]] = frozenset({
     "Crustle + Mega Kangaskhan stall",
 })
 
+# How much better than the PRIOR'S OWN CHOICE a candidate's measured win
+# rate must be before the search is allowed to override it, as a fraction
+# of a win (0.25 == one extra win in four determinizations).
+#
+# 0.0 reproduces the configuration that lost the N=600 mirror A/B, and
+# the reason to suspect this knob is the optimizer's curse: at 4x4 each
+# candidate's value is the mean of FOUR Bernoulli rollouts, so taking an
+# argmax over four such estimates mostly selects whichever candidate got
+# lucky, and the winner's estimate is biased upward by the selection
+# itself. Overriding a well-tuned prior on four samples is a good way to
+# convert a strong policy into a noisy one -- the search changed the
+# prior's answer on 387 of 1726 decisions and finished 5pp WORSE.
+#
+# A margin makes the search prove its case before it is believed, which
+# is the right default when the thing it is arguing against is the
+# current ship.
+DEFAULT_OVERRIDE_MARGIN: Final[float] = 0.0
+
 
 @dataclass
 class RuntimeSearchStats:
@@ -125,6 +143,7 @@ class RuntimeSearchAgent:
         own_deck_ids: Sequence[int] | None = None,
         enable_search: bool = True,
         opponent_pilot: str = OPPONENT_PILOT_GENERIC,
+        override_margin: float = DEFAULT_OVERRIDE_MARGIN,
     ) -> None:
         self._index = index if index is not None else CardIndex()
         self._effects = effects if effects is not None else EffectIndex()
@@ -137,6 +156,7 @@ class RuntimeSearchAgent:
                           else self._read_own_deck())
         self._enable_search = enable_search
         self._opponent_pilot = opponent_pilot
+        self._override_margin = max(0.0, override_margin)
         self.estimator = (estimator if estimator is not None
                           else OpponentDeckEstimator(index=self._index))
         self.guard = guard if guard is not None else BudgetGuard()
@@ -273,9 +293,18 @@ class RuntimeSearchAgent:
             return None, rollouts
         self.last_candidate_values = {i: values[i] / samples
                                       for i in candidates}
-        # ties resolve to the prior's ranking: search only overrides on
-        # evidence, never on a coin flip
+        # Ties resolve to the prior's ranking: the search only overrides
+        # on evidence, never on a coin flip.
         best = max(candidates, key=lambda i: (values[i], scores[i]))
+        if best == prior_choice or self._override_margin <= 0.0:
+            return best, rollouts
+        # And with a margin, "evidence" means MORE than one lucky
+        # rollout: the burden of proof is on the search, because what it
+        # is arguing against is the current ship.
+        gain = (values[best] - values.get(prior_choice, 0.0)) / samples
+        if gain < self._override_margin:
+            self.stats.fallback_reasons["below-margin"] += 1
+            return prior_choice, rollouts
         return best, rollouts
 
     # ------------------------------------------------------------------ #
