@@ -52,9 +52,21 @@ from ..ingestion.card_index import CardIndex
 
 logger = logging.getLogger(__name__)
 
-# Defaults chosen from the per-turn accuracy sweep over the real replay
-# corpus (see src/analysis/estimator_accuracy.py): the knee where the
-# label stops being a coin flip without giving up most of the game.
+# These defaults are CONSERVATIVE BEYOND WHAT THE MEASUREMENT PROVES,
+# deliberately. The threshold sweep over the real corpus
+# (src/analysis/estimator_accuracy.py --sweep, 120k decisions) returns
+# 100% precision at every setting from (4, 0.60) to (16, 0.95); only
+# coverage moves (83.5% -> 55.9%). So the sweep does NOT justify picking
+# 8/0.75 over 4/0.60 — it cannot, because its ground truth is the label
+# the same rules give the fully observed deck, and that says nothing
+# about whether the presumed 60 resembles the opponent's real 60.
+#
+# Containment is our only proxy for that second question, and the cost
+# of being wrong is asymmetric: a wrong list feeds a wrong world to
+# search_begin, while abstaining merely plays the prior. Hence a
+# threshold tighter than the evidence demands. Loosening it is a real
+# option (it would buy ~7pp of coverage) but needs evidence this
+# measurement cannot supply — an opponent whose true list we know.
 DEFAULT_MIN_OBSERVED: Final[int] = 8
 DEFAULT_MIN_CONTAINMENT: Final[float] = 0.75
 
