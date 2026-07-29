@@ -63,3 +63,5 @@ venv/
 .DS_Store
 Thumbs.db
 pokemon-tcg-ai-battle/
+/data/processed/bc_majkel/
+/data/processed/bc_yushin/

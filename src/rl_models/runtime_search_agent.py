@@ -49,6 +49,7 @@ from cg import api
 from ..agent_heuristics.crustle_agent import CrustleAgent
 from ..agent_heuristics.heuristic_agent import HeuristicAgent
 from ..agent_heuristics.random_agent import read_deck_csv
+from ..ingestion.build_card_model import REPO_ROOT
 from ..ingestion.build_effect_model import EffectIndex
 from ..ingestion.card_index import CardIndex
 from .budget import BudgetGuard, SearchTier
@@ -67,8 +68,23 @@ DEFAULT_ROLLOUT_CAP: Final[int] = 600
 #            specialised one (only Crustle today). Modelling a mill/stall
 #            opponent as a generic pilot misprices exactly the races that
 #            decide those matchups.
+#   network  model the opponent with the BEHAVIOUR-CLONED net for the
+#            estimated archetype. This is the lever the measurements
+#            pointed at: the search's benefit tracks how well the
+#            rollout policy matches the true opponent, and a clone of a
+#            real ladder player is the closest model we can build.
 OPPONENT_PILOT_GENERIC: Final[str] = "generic"
 OPPONENT_PILOT_MATCH: Final[str] = "match"
+OPPONENT_PILOT_NETWORK: Final[str] = "network"
+
+# estimated archetype -> behaviour-cloned weights for that archetype.
+# Missing entry (or missing file) falls back to the generic heuristic:
+# a wrong net is worse than an honest heuristic.
+ARCHETYPE_NETWORKS: Final[dict[str, str]] = {
+    "Marnie's Grimmsnarl ex": "models/bc_grimmsnarl.npz",
+    "Alakazam box (non-ex)": "models/bc_alakazam.npz",
+    "Team Rocket Spidops (non-ex)": "models/bc_spidops_v2.npz",
+}
 
 # estimated archetype -> the specialised pilot that flies it
 _CRUSTLE_ARCHETYPES: Final[frozenset[str]] = frozenset({
@@ -156,6 +172,7 @@ class RuntimeSearchAgent:
         opponent_pilot: str = OPPONENT_PILOT_GENERIC,
         override_margin: float = DEFAULT_OVERRIDE_MARGIN,
         contested_margin: float | None = None,
+        archetype_networks: dict[str, str] | None = None,
     ) -> None:
         self._index = index if index is not None else CardIndex()
         self._effects = effects if effects is not None else EffectIndex()
@@ -170,6 +187,12 @@ class RuntimeSearchAgent:
         self._opponent_pilot = opponent_pilot
         self._override_margin = max(0.0, override_margin)
         self._contested_margin = contested_margin
+        self._network_cache: dict[str, object | None] = {}
+        # per-instance override so an experiment can pin WHICH clone
+        # models the opponent without editing the module default
+        self._archetype_networks = (dict(archetype_networks)
+                                    if archetype_networks is not None
+                                    else ARCHETYPE_NETWORKS)
         self.estimator = (estimator if estimator is not None
                           else OpponentDeckEstimator(index=self._index))
         self.guard = guard if guard is not None else BudgetGuard()
@@ -352,13 +375,50 @@ class RuntimeSearchAgent:
         estimated archetype has one.
         """
         seed = self._rng.randrange(1 << 30)
-        if (self._opponent_pilot == OPPONENT_PILOT_MATCH
+        if self._opponent_pilot == OPPONENT_PILOT_NETWORK:
+            net = self._archetype_network(archetype)
+            if net is not None:
+                return net
+        if (self._opponent_pilot in (OPPONENT_PILOT_MATCH,
+                                     OPPONENT_PILOT_NETWORK)
                 and archetype in _CRUSTLE_ARCHETYPES):
             return CrustleAgent(seed=seed, deck_path=self._deck_path,
                                 index=self._index, effects=self._effects,
                                 variant=self._variant)
         return HeuristicAgent(seed=seed, index=self._index,
                               effects=self._effects)
+
+    def _archetype_network(self, archetype: str):
+        """Cached NetworkAgent for an archetype, or None if unavailable.
+
+        Cached because loading an .npz per rollout would dominate the
+        cost of the rollout itself; NetworkAgent holds no per-game state
+        (it ranks the current observation's options), so one instance is
+        safe to reuse across rollouts and games.
+        """
+        if archetype in self._network_cache:
+            return self._network_cache[archetype]
+        agent = None
+        relative = self._archetype_networks.get(archetype)
+        if relative:
+            path = REPO_ROOT / relative
+            if path.exists():
+                from .network_agent import NetworkAgent
+                candidate = NetworkAgent(index=self._index,
+                                         effects=self._effects,
+                                         weights_path=path)
+                # _fallback set means the weights did not load — that is
+                # a heuristic wearing a net's name, so refuse it and let
+                # the caller use an honest heuristic instead
+                agent = candidate if candidate._fallback is None else None
+                if agent is None:
+                    logger.warning("weights %s did not load for %s",
+                                   relative, archetype)
+            else:
+                logger.warning("weights %s missing for %s", relative,
+                               archetype)
+        self._network_cache[archetype] = agent
+        return agent
 
 
 def _is_contested(scores: list[float], margin: float | None) -> bool:

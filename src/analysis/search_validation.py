@@ -106,6 +106,51 @@ PRESETS: Final[dict[str, tuple[tuple[str, str, str], ...]]] = {
          "deck.csv@search-crustle",
          "data/decks/meta_grimmsnarl.csv@grimmsnarl-module"),
     ),
+    # THE HONEST NUMBER — "faithful but not exact".
+    #
+    # Everything so far compared the search against opponents that were
+    # either its own rollout model (upper bound, +14.7pp) or nothing like
+    # it (lower bound, -2.5pp). The ladder is the analogue of neither: a
+    # real opponent is a competent human playing a known archetype, and
+    # the best model we can build of them is a clone of a DIFFERENT
+    # competent human playing the SAME archetype.
+    #
+    # Majkel1337 and Yushin Ito both play Alakazam box exclusively (567
+    # and 440 games in the corpus), so cloning each gives exactly that
+    # pair. All four cells face the SAME opponent (BC-Majkel) and differ
+    # only in what models it inside the rollouts — so this is one
+    # fidelity ladder, not four experiments:
+    #
+    #   prior         no search at all                  (baseline)
+    #   BC-Majkel     the opponent's OWN clone          (exact, ceiling)
+    #   BC-Yushin     another human, same archetype     (THE HONEST ONE)
+    #   heuristic     nothing in common                 (divergent, floor)
+    "fidelity-ladder": (
+        ("prior vs BC-Majkel (baseline)",
+         "deck.csv@crustle-v3",
+         "data/decks/meta_alakazam.csv@network,models/bc_majkel.npz,"
+         "models/feature_stats.npz"),
+        ("search[rollout=BC-Majkel, EXACT] vs BC-Majkel",
+         "deck.csv@search-net,models/bc_majkel.npz",
+         "data/decks/meta_alakazam.csv@network,models/bc_majkel.npz,"
+         "models/feature_stats.npz"),
+        ("search[rollout=BC-Yushin, FAITHFUL-NOT-EXACT] vs BC-Majkel",
+         "deck.csv@search-net,models/bc_yushin.npz",
+         "data/decks/meta_alakazam.csv@network,models/bc_majkel.npz,"
+         "models/feature_stats.npz"),
+        ("search[rollout=heuristic, DIVERGENT] vs BC-Majkel",
+         "deck.csv@search-crustle",
+         "data/decks/meta_alakazam.csv@network,models/bc_majkel.npz,"
+         "models/feature_stats.npz"),
+    ),
+    # the honest cell again, this time with adaptive allocation on, so
+    # the effect is read at the cost that actually fits the bank
+    "fidelity-adaptive": (
+        ("search[BC-Yushin, adaptive] vs BC-Majkel",
+         "deck.csv@search-net-adaptive,models/bc_yushin.npz",
+         "data/decks/meta_alakazam.csv@network,models/bc_majkel.npz,"
+         "models/feature_stats.npz"),
+    ),
     # (3)+(4) adaptive allocation: does it fit the bank, and does the
     # gain survive (or grow) when the budget is concentrated?
     "adaptive-grimmsnarl": (

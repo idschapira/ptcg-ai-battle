@@ -77,6 +77,11 @@ ARM_KINDS: Final[tuple[str, ...]] = (
     # "-adaptive" spends the bank only on CONTESTED decisions.
     "search-crustle", "search-crustle-blind", "search-crustle-match",
     "search-crustle-margin", "search-crustle-both", "search-crustle-adaptive",
+    # "search-net,<npz>" models the ALAKAZAM opponent in rollouts with
+    # that behaviour-cloned net. Pinning the clone is what lets the
+    # fidelity ladder be built on one opponent: exact clone, a DIFFERENT
+    # human's clone of the same archetype, or none at all.
+    "search-net", "search-net-adaptive",
     # parametric league pilot: "grimmsnarl-module" flies meta_grimmsnarl
     # with GrimmsnarlModule + its shipped theta. Needed as an opponent
     # that is NOT the rollout model.
@@ -86,7 +91,7 @@ ARM_KINDS: Final[tuple[str, ...]] = (
 SEARCH_ARMS: Final[frozenset[str]] = frozenset(
     {"search-crustle", "search-crustle-blind", "search-crustle-match",
      "search-crustle-margin", "search-crustle-both",
-     "search-crustle-adaptive"})
+     "search-crustle-adaptive", "search-net", "search-net-adaptive"})
 
 # One extra win in four determinizations — the smallest gain a 4x4
 # search can express that is not a single lucky rollout.
@@ -250,9 +255,21 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
                   if spec.kind in ("search-crustle-margin",
                                    "search-crustle-both")
                   else 0.0)
-        from ..rl_models.runtime_search_agent import DEFAULT_CONTESTED_MARGIN
+        from ..rl_models.runtime_search_agent import (
+            DEFAULT_CONTESTED_MARGIN, OPPONENT_PILOT_NETWORK)
         contested = (DEFAULT_CONTESTED_MARGIN
-                     if spec.kind == "search-crustle-adaptive" else None)
+                     if spec.kind in ("search-crustle-adaptive",
+                                      "search-net-adaptive") else None)
+        # search-net pins WHICH clone models the Alakazam opponent; the
+        # weights field of the arm spec carries the npz path.
+        nets = None
+        if spec.kind in ("search-net", "search-net-adaptive"):
+            if spec.weights is None:
+                raise SystemExit(f"{spec.kind} needs ,<npz> (rollout model)")
+            if not spec.weights.exists():
+                raise SystemExit(f"rollout model missing: {spec.weights}")
+            opponent_pilot = OPPONENT_PILOT_NETWORK
+            nets = {"Alakazam box (non-ex)": str(spec.weights)}
 
         def base(s: int) -> Agent:
             return RuntimeSearchAgent(
@@ -262,6 +279,7 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
                 opponent_pilot=opponent_pilot,
                 override_margin=margin,
                 contested_margin=contested,
+                archetype_networks=nets,
                 estimator=OpponentDeckEstimator(index=index,
                                                 stats=estimator_stats),
                 guard=BudgetGuard(stats=budget_stats),
