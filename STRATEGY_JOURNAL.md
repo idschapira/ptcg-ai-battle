@@ -371,3 +371,9 @@ heurística genérica.
 400s para 500s — antes ela nunca engatava, agora engata: `tiers {4x4: 1193, 3x2: 508}`); o
 estimador de arquétipo; a alocação adaptativa; e o piso provado nas duas pontas. Um candidato que
 reprova sai sem custo porque degrada exatamente para o que já está no ar.
+
+**Fechamento (célula final).** Espelho com alocação adaptativa: **50,3%, IC95 [45,3%, 55,2%]**,
+N=396 — exatamente o nível do prior, contra 44,8% da busca cheia. Coerente e sem mistério: a
+adaptativa busca em só 16% das decisões no espelho, então joga quase o prior. Confirma o desenho —
+quando a busca não tem o que agregar, o filtro a apaga em vez de deixá-la sangrar. Custo do
+espelho cai para 47,9s de pior episódio = **24% do banco**. Todas as células: 0 exceptions.
