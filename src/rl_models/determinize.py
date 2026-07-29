@@ -181,10 +181,13 @@ def runtime_determinize(obs_dict: dict, our_seat: int, our_deck: list[int],
         # we over-predicted: drop the surplus (pool is already shuffled,
         # so this is a uniform sample of the presumed hidden cards).
         pool = pool[:needed]
-    while len(pool) < needed:
+    elif len(pool) < needed:
         # we under-predicted: pad from the presumed list itself, so the
-        # invented cards are at least archetype-plausible.
-        pool.append(presumed_opp_deck[rng.randrange(len(presumed_opp_deck))])
+        # invented cards are at least archetype-plausible, then reshuffle
+        # once so the padding does not all land in the same zone.
+        missing = needed - len(pool)
+        pool.extend(presumed_opp_deck[rng.randrange(len(presumed_opp_deck))]
+                    for _ in range(missing))
         rng.shuffle(pool)
     opp_deck, opp_prize, opp_hand = _split_opponent(pool, ps_them,
                                                     hidden_prize)
