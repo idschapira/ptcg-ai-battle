@@ -65,7 +65,8 @@ Z_95: Final[float] = 1.959963984540054
 REGRESSION_MARGIN: Final[float] = 0.05
 
 ARM_KINDS: Final[tuple[str, ...]] = (
-    "random", "heuristic", "crustle", "crustle-v2", "crustle-v3", "network",
+    "random", "heuristic", "heuristic-tempo",
+    "crustle", "crustle-v2", "crustle-v3", "network",
     # runtime search (submission candidate). "-blind" pins the estimator
     # off so the arm degrades to its prior — that is the FLOOR arm, and
     # comparing it against plain crustle-v3 is how the floor gets proven
@@ -330,9 +331,16 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
             raise SystemExit(f"theta not found: {theta_path}")
         base = lambda s: ParametricHeuristicAgent(  # noqa: E731
             module=module, theta=theta, seed=s, index=index, effects=effects)
-    elif spec.kind == "heuristic":
+    elif spec.kind in ("heuristic", "heuristic-tempo"):
         from ..agent_heuristics.heuristic_agent import HeuristicAgent
-        base = lambda s: HeuristicAgent(seed=s, index=index, effects=effects)
+        # "-tempo" promotes evolution accelerators (Rare Candy) out of
+        # the trainer band. The generic pilot flies every internal
+        # opponent, and it was measured playing Rare Candy 0.63x/game
+        # against 1.10x for real ladder opponents, so the whole internal
+        # field is slow and every close-race cell reads inflated.
+        tempo = spec.kind.endswith("-tempo")
+        base = lambda s: HeuristicAgent(seed=s, index=index,  # noqa: E731
+                                        effects=effects, tempo=tempo)
     elif spec.kind == "crustle":
         from ..agent_heuristics.crustle_agent import CrustleAgent
         base = lambda s: CrustleAgent(seed=s, index=index, effects=effects)

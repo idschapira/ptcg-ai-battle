@@ -622,3 +622,86 @@ inteira) **e** o 245 (Strange Hacking/Psychic). Re-minerar o Alakazam produzia u
 sabe executar o proprio plano. Agora tudo e chaveado por card id; a lista do Archaludon commitada
 ontem foi conferida e **nao** foi afetada. Guarda hermetica em `tests/test_mine_opponent_deck.py`,
 que primeiro verifica que a colisao ainda existe (senao o teste seria vacuo).
+
+## [31/Jul] O fix de tempo acertou o alvo e NAO calibrou -- o gargalo e o scorer de ataque
+Offline, nada shipado. `deck.csv` intocado e verificado identico ao HEAD; 296/298 testes (as 2
+falhas de `test_portfolio_watch` seguem pre-existentes no HEAD).
+
+### 1. Auditoria de decks: nenhuma lista aleijada
+Varri os 22 decks contra o padrao do bug de homonimo. 19 deles contem alguma carta cujo nome tem
+mais de uma impressao no pool (sao 154 nomes colidentes). **Todas as escolhas estao corretas**, em
+particular a que importava: `meta_alakazam.csv` usa o **id 743 (Powerful Hand)**, nao o 245. O
+Duraludon 169 do Archaludon tem `Raging Hammer`, que e exatamente o ataque que observei nos jogos
+reais -- confirmacao independente. **O deficit de Powerful Hands nao e o deck.**
+
+### 2. O deficit de tempo: corrigido, atras de flag, e o motor validou a premissa
+Rare Candy chega como PLAY de Trainer, cai em `_TRAINER_BAND` (35) e perde para qualquer EVOLVE
+(80+), empatando com todo outro Trainer. Antes de mexer, probe no motor: em 40 jogos da lista
+Alakazam, Rare Candy foi oferecida em **0 de 1504** decisoes sem Stage 2 na mao e em 289 das 2093
+com Stage 2 -- **o motor ja filtra**, entao toda oferta legal e uma aceleracao real e o scorer nao
+precisa re-derivar a condicao. Promovida para `_EVOLVE_BAND + 5` atras de `tempo=False` (novo arm
+`heuristic-tempo`).
+
+**Equivalencia do ship.** Nao da para "rodar o mesmo jogo duas vezes" -- o motor nao e semeavel.
+A comparacao disponivel e lockstep no MESMO fluxo: um CrustleAgent dirige e um shadow com
+`tempo=True` recebe cada observacao e tem de responder igual. Zero divergencias. Mais duas camadas:
+`CrustleAgent._tempo` e False por construcao, e `deck.csv` nao contem nenhum acelerador, entao a
+regra nao pode disparar nem se ligada. Tudo em `tests/test_tempo_equivalence.py`, sobre opcoes
+REAIS do motor.
+
+### 3. O fix acertou o alvo -- e nao moveu a calibracao
+| metrica | real | antes | depois |
+|---|---|---|---|
+| **Rare Candy/jogo** | **1,10** | 0,58 | **1,09** |
+| turno em que o Alakazam entra | 5,25 | 6,73 | 6,08 |
+| Powerful Hands acertados/jogo | **6,08** | 3,61 | 3,88 |
+| eles deckam (chegam a 0) | 28,8% | 71,0% | 67,3% |
+
+Calibracao, mesmos alvos reais, N=600/celula, 0 exceptions:
+
+| celula | real | antes | depois | erro antes | erro depois | melhora |
+|---|---|---|---|---|---|---|
+| Alakazam | 35,6% | 82,7% | 80,3% | +47,1pp | +44,7pp | **+2,3pp** |
+| Mega Lucario | 50,0% | 96,2% | 96,0% | +46,2pp | +46,0pp | +0,2pp |
+| Archaludon | 90,6% | 98,5% | 96,0% | +7,9pp | +5,4pp | +2,5pp |
+| Kangaskhan | 75,0% | 98,3% | 99,0% | +23,3pp | +24,0pp | -0,7pp |
+| Spidops | 12,5% | 80,0% | 78,3% | +67,5pp | +65,8pp | +1,7pp |
+| Starmie | 62,5% | 25,2% | 23,8% | -37,3pp | -38,7pp | -1,3pp |
+
+**A metrica-alvo foi de 0,58 para 1,09 contra 1,10 do real -- alvo cravado -- e o winrate andou
+2,3pp de 47,1.** O Rare Candy era um deficit real e agora esta corrigido, mas **nao era a restricao
+ativa**. Antecipar o Stage 2 em 0,65 turno comprou apenas +0,27 ataque.
+
+### 4. O gargalo real, medido: o scorer nao enxerga o Powerful Hand
+`_effect_adjustment` avalia ataques pelo `damage_base` mais um bonus por linha de efeito. O
+Powerful Hand tem base **0** (o dano dele vem de COUNTERS escalado pelo tamanho da mao):
+
+| ataque | base | **scorer** | dano real |
+|---|---|---|---|
+| **Powerful Hand** (Alakazam) | 0 | **13,0** | **~266** |
+| Super Psy Bolt (Kadabra) | 30 | 30,0 | 30 |
+| Superb Scissors (nossa Crustle) | 120 | 120,0 | 120 |
+
+**O piloto acha que o ataque de 266 vale 13, e portanto prefere o Kadabra de 30.** Subvalorizacao de
+~20x. Isso explica o que o Rare Candy nao explicava: adiantar o Alakazam nao adianta se o piloto
+nao quer atacar com ele. Bate com o resto da telemetria -- ataques/jogo 4,84 interno vs 6,81 real, e
+share de Powerful Hand 74,7% vs 89,3%.
+
+**Nao implementei a correcao nesta rodada, de proposito.** `_effect_adjustment` e compartilhado: o
+CrustleAgent chama `super()._main_score`, entao mexer nele MUDA O SHIP e exige a sua propria rodada
+com gate de equivalencia -- diferente do fix do Rare Candy, que era inerte para nos por construcao.
+E a regra generica certa (`DAMAGE_SCALE` por unidade deveria escalar pela contagem real de
+unidades, nao por um chute de 1,5) precisa ser verificada carta a carta antes de virar banda.
+
+### 5. Conclusoes medidas no regime errado, por dependencia da celula inflada
+Nenhuma re-rodada agora -- so a lista, ordenada por quanto o resultado dependia da celula:
+1. **Busca em runtime (`search_crustle`)** -- a decisao de nao shipar veio de celulas de campo cujo
+   oponente e o piloto generico; a escada de fidelidade (Grimmsnarl) usava BC casado e e a menos
+   afetada, mas o "vs campo" nao. Maior dependencia.
+2. **Variantes de deck (V1-V4)** -- toda a matriz de 8 celulas rodou contra o piloto generico. O
+   veredito "nenhuma merece ship" pode sobreviver (as diferencas eram nulas ou negativas), mas o
+   ponto de operacao estava deslocado ~46pp em duas celulas grandes.
+3. **v4 do piloto (Xerosic + attach protetora)** -- mediu nulo a 0,6% das decisoes; o regime
+   inflado torna qualquer efeito defensivo menos visivel, porque o oponente pressiona menos.
+4. **Gate B/C e o gauntlet historico** -- mesma ressalva, menor dependencia: comparam pilotos NOSSOS
+   sob o mesmo oponente, e o vies e comum aos dois bracos.

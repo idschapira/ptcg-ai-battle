@@ -42,6 +42,26 @@ _END_SCORE: Final[float] = 0.5
 
 _STATUS_VALUE: Final[dict[int, float]] = {0: 20.0, 1: 20.0, 2: 30.0, 3: 30.0, 4: 25.0}
 
+# Cards that ARE an evolution, but arrive as a Trainer PLAY option and so
+# land in _TRAINER_BAND (35) where they lose to every real EVOLVE (80+)
+# and tie with every other Trainer. Measured consequence on the ladder
+# corpus (31/Jul): the generic pilot plays Rare Candy 0.63x/game against
+# 1.10x for real opponents and brings its Stage 2 online ~1.3 turns late,
+# which is most of the +46/+48pp inflation in every close-race cell.
+#
+# Promoting them is SAFE because the engine itself gates the option:
+# probed over 40 games of the Alakazam list, Rare Candy was offered as a
+# PLAY in 0 of 1504 decisions with no Stage 2 in hand, and in 289 of the
+# 2093 decisions where one was held (it also needs a matching Basic in
+# play). So every legal Rare Candy PLAY is a genuine two-stage jump, and
+# the scorer does not need to re-derive the condition.
+EVOLUTION_ACCELERATORS: Final[frozenset[int]] = frozenset({
+    1079,   # Rare Candy — Basic -> Stage 2, skipping Stage 1
+})
+# above a normal EVOLVE (80 + hp/40, so ~83.5 for a 140 HP Stage 2):
+# skipping a whole stage is strictly more tempo than taking one step.
+_ACCELERATOR_BONUS: Final[float] = 5.0
+
 
 class HeuristicAgent:
     """Greedy one-ply evaluator satisfying the competition contract.
@@ -51,7 +71,8 @@ class HeuristicAgent:
     consumed by the dev game recorder.
     """
 
-    __slots__ = ("_index", "_effects", "_wrapper", "_deck_path", "_rng", "last_scores")
+    __slots__ = ("_index", "_effects", "_wrapper", "_deck_path", "_rng",
+                 "_tempo", "last_scores")
 
     def __init__(
         self,
@@ -59,12 +80,20 @@ class HeuristicAgent:
         deck_path: str | None = None,
         index: CardIndex | None = None,
         effects: EffectIndex | None = None,
+        tempo: bool = False,
     ) -> None:
+        """``tempo=True`` promotes EVOLUTION_ACCELERATORS out of the
+        trainer band (see the constant). It is OFF by default so every
+        existing caller — the ship's CrustleAgent above all — keeps
+        byte-identical behaviour; tests/test_tempo_equivalence.py holds
+        that line decision-by-decision.
+        """
         self._index = index if index is not None else CardIndex()
         self._effects = effects if effects is not None else EffectIndex()
         self._wrapper = EnvironmentWrapper(self._index)
         self._deck_path = deck_path
         self._rng = random.Random(seed)
+        self._tempo = tempo
         self.last_scores: list[float] | None = None
 
     # ------------------------------------------------------------------ #
@@ -262,6 +291,9 @@ class HeuristicAgent:
             return _EVOLVE_BAND + ((card.hp or 0) / 40.0 if card else 0.0)
         if kind == OptionType.PLAY:
             card_id = self._wrapper.resolve_card_id(obs, option)
+            if self._tempo and card_id in EVOLUTION_ACCELERATORS:
+                # the engine only offers this when it really evolves
+                return _EVOLVE_BAND + _ACCELERATOR_BONUS
             card = self._index.get_card(card_id) if card_id is not None else None
             if card is None:
                 return _TRAINER_BAND
