@@ -8,6 +8,8 @@ path falls back to a legal answer even when data is missing.
 from __future__ import annotations
 
 import random
+import re
+from dataclasses import dataclass
 from typing import Final
 
 from cg.api import (
@@ -42,6 +44,101 @@ _END_SCORE: Final[float] = 0.5
 
 _STATUS_VALUE: Final[dict[int, float]] = {0: 20.0, 1: 20.0, 2: 30.0, 3: 30.0, 4: 25.0}
 
+_ENERGY_SYMBOL: Final[dict[str, int]] = {
+    "C": 0, "G": 1, "R": 2, "W": 3, "L": 4, "P": 5,
+    "F": 6, "D": 7, "M": 8, "N": 9,
+}
+
+
+@dataclass(frozen=True)
+class ScaledClause:
+    """An attack's damage-per-unit and which board quantity is the unit."""
+
+    per_unit: float          # damage (already converted from counters)
+    unit: str                # key understood by HeuristicAgent._unit_count
+    energy_code: int | None  # for the typed-energy units
+    # Units that are not on the board but ARE known in expectation —
+    # coin flips. "Flip 4 coins ... for each heads" is 2 heads in
+    # expectation, and "flip until tails" is 1. Carrying the number here
+    # keeps the estimate explicit instead of falling into the generic
+    # unresolved fallback, which would value a 2-coin attack at double.
+    fixed_units: float | None = None
+
+
+_ENGINE_ATTACK_TEXT: dict[int, str] | None = None
+
+
+def _engine_attack_text(attack_id: int) -> str | None:
+    """Attack rules text, straight from the engine (our star schema drops
+    it: dim_attack keeps the distilled effect rows, not the prose)."""
+    global _ENGINE_ATTACK_TEXT
+    if _ENGINE_ATTACK_TEXT is None:
+        try:
+            import cg.api as _api
+            _ENGINE_ATTACK_TEXT = {
+                a.attackId: (a.text or "") for a in _api.all_attack()
+            }
+        except Exception:
+            _ENGINE_ATTACK_TEXT = {}
+    return _ENGINE_ATTACK_TEXT.get(attack_id)
+
+
+def parse_scaled_clause(text: str | None) -> ScaledClause | None:
+    """Damage-scaling clause of an attack, or None if it has none.
+
+    Pure text -> structure; no engine or observation involved, so it is
+    cached per attack id by the caller and unit-testable on its own.
+    """
+    if not text:
+        return None
+    flat = text.replace("\n", " ")
+    for kind, pattern in _SCALE_SHAPES:
+        match = pattern.search(flat)
+        if match is None:
+            continue
+        try:
+            magnitude = float(match.group(1))
+        except (TypeError, ValueError):
+            return None
+        per_unit = (magnitude * _DAMAGE_PER_COUNTER if kind == "counters"
+                    else magnitude)
+        phrase = match.group(2)
+        if _HEADS_RE.search(phrase):
+            return ScaledClause(per_unit, "coin", None,
+                                fixed_units=_expected_heads(flat))
+        for unit_pattern, key in _UNIT_PATTERNS:
+            unit_match = unit_pattern.search(phrase)
+            if unit_match is None:
+                continue
+            code = None
+            if key == "my_active_energy_typed":
+                code = _ENERGY_SYMBOL.get(unit_match.group(1).upper())
+                if code is None:
+                    return None
+            return ScaledClause(per_unit, key, code)
+        return ScaledClause(per_unit, "unresolved", None)
+    return None
+
+
+_HEADS_RE: Final["re.Pattern[str]"] = re.compile(r"\bheads\b", re.I)
+_FLIP_N_RE: Final["re.Pattern[str]"] = re.compile(
+    r"flip\s+(\d+)\s+coins", re.I)
+_FLIP_UNTIL_RE: Final["re.Pattern[str]"] = re.compile(
+    r"flip a coin until you get tails", re.I)
+
+
+def _expected_heads(text: str) -> float:
+    """Heads in expectation: N/2 for N coins, 1 for flip-until-tails."""
+    match = _FLIP_N_RE.search(text)
+    if match:
+        try:
+            return float(match.group(1)) / 2.0
+        except (TypeError, ValueError):
+            return 1.0
+    if _FLIP_UNTIL_RE.search(text):
+        return 1.0     # sum of a geometric series with p=1/2
+    return 1.0
+
 # Cards that ARE an evolution, but arrive as a Trainer PLAY option and so
 # land in _TRAINER_BAND (35) where they lose to every real EVOLVE (80+)
 # and tie with every other Trainer. Measured consequence on the ladder
@@ -62,6 +159,75 @@ EVOLUTION_ACCELERATORS: Final[frozenset[int]] = frozenset({
 # skipping a whole stage is strictly more tempo than taking one step.
 _ACCELERATOR_BONUS: Final[float] = 5.0
 
+# --------------------------------------------------------------------------
+# Attacks whose damage SCALES with a board quantity
+# --------------------------------------------------------------------------
+# _effect_adjustment values an attack as damage_base + a fixed bonus per
+# effect row, which is blind to any attack whose damage is the scale.
+# Measured consequence (31/Jul): Alakazam's Powerful Hand — "Place 2
+# damage counters on your opponent's Active Pokémon FOR EACH CARD IN YOUR
+# HAND", base 0 — scored 13.0 while delivering ~266, so the generic pilot
+# preferred Kadabra's 30-damage Super Psy Bolt. 163 attacks in the pool
+# carry a scaling clause, so this is not one card's problem.
+#
+# The clause is parsed from the attack TEXT (the engine exposes it) into
+# (damage per unit, unit key) once per attack id, then the unit is counted
+# on the LIVE observation. Where the unit is not observable — "for each
+# heads", "for each card you discarded in this way" — no resolver exists
+# and the old fixed-bonus path stays, so nothing silently invents a
+# number. `unresolved_scaled_units()` reports which those are.
+_DAMAGE_PER_COUNTER: Final[float] = 10.0
+
+_SCALE_SHAPES: Final[tuple[tuple[str, "re.Pattern[str]"], ...]] = (
+    # "Place N damage counters on your opponent's ... for each X"
+    ("counters",
+     re.compile(r"place\s+(\d+)\s+damage\s+counters?\s+on\s+your\s+"
+                r"opponent[^.]{0,40}?for each ([^.,]{3,70})", re.I)),
+    # "This attack does N more damage for each X"
+    ("damage",
+     re.compile(r"does\s+(\d+)\s+more\s+damage\s+for each ([^.,]{3,70})",
+                re.I)),
+    # "This attack does N damage for each X" (base is normally 0)
+    ("damage",
+     re.compile(r"does\s+(\d+)\s+damage\s+for each ([^.,]{3,70})", re.I)),
+)
+
+# unit phrase -> resolver key, ordered SPECIFIC -> GENERIC (first match
+# wins), exactly like archetype_rules: "{W} energy attached to this
+# Pokémon" must not be eaten by the generic "energy attached to this".
+_UNIT_PATTERNS: Final[tuple[tuple["re.Pattern[str]", str], ...]] = (
+    (re.compile(r"card in your hand", re.I), "my_hand"),
+    (re.compile(r"card in your opponent.s hand", re.I), "opp_hand"),
+    (re.compile(r"damage counter on this pok", re.I), "my_active_damage"),
+    (re.compile(r"damage counter on your opponent.s active", re.I),
+     "opp_active_damage"),
+    (re.compile(r"\{(\w)\} energy attached to this pok", re.I),
+     "my_active_energy_typed"),
+    (re.compile(r"energy attached to this pok", re.I), "my_active_energy"),
+    (re.compile(r"energy attached to your opponent.s active", re.I),
+     "opp_active_energy"),
+    (re.compile(r"energy attached to all of your opponent.s pok", re.I),
+     "opp_board_energy"),
+    (re.compile(r"energy attached to all of your pok", re.I),
+     "my_board_energy"),
+    (re.compile(r"benched pok.mon \(both", re.I), "both_bench"),
+    (re.compile(r"of your benched pok", re.I), "my_bench"),
+    (re.compile(r"of your opponent.s benched pok", re.I), "opp_bench"),
+    (re.compile(r"prize card your opponent has taken", re.I),
+     "opp_prizes_taken"),
+    (re.compile(r"prize card you have taken", re.I), "my_prizes_taken"),
+    (re.compile(r"pok.mon tool attached to all of your pok", re.I),
+     "my_board_tools"),
+    (re.compile(r"pok.mon tool attached to all pok", re.I), "both_tools"),
+    (re.compile(r"of your basic pok.mon in play", re.I), "my_basics"),
+    (re.compile(r"of your pok.mon in play", re.I), "my_board"),
+)
+
+# units we cannot see on the board; the declared fallback below is used
+# instead of pretending to know. Kept explicit so the estimate is a
+# stated assumption rather than a magic constant buried in a branch.
+_UNRESOLVED_UNITS_ESTIMATE: Final[float] = 2.0
+
 
 class HeuristicAgent:
     """Greedy one-ply evaluator satisfying the competition contract.
@@ -72,7 +238,7 @@ class HeuristicAgent:
     """
 
     __slots__ = ("_index", "_effects", "_wrapper", "_deck_path", "_rng",
-                 "_tempo", "last_scores")
+                 "_tempo", "_scaled_damage", "_scale_cache", "last_scores")
 
     def __init__(
         self,
@@ -81,12 +247,17 @@ class HeuristicAgent:
         index: CardIndex | None = None,
         effects: EffectIndex | None = None,
         tempo: bool = False,
+        scaled_damage: bool = False,
     ) -> None:
         """``tempo=True`` promotes EVOLUTION_ACCELERATORS out of the
-        trainer band (see the constant). It is OFF by default so every
-        existing caller — the ship's CrustleAgent above all — keeps
-        byte-identical behaviour; tests/test_tempo_equivalence.py holds
-        that line decision-by-decision.
+        trainer band (see the constant). ``scaled_damage=True`` values
+        attacks whose damage scales with a board quantity by counting the
+        unit live instead of using a fixed per-row bonus.
+
+        Both default OFF so every existing caller — the ship's
+        CrustleAgent above all — keeps byte-identical behaviour;
+        tests/test_tempo_equivalence.py and tests/test_scaled_damage.py
+        hold that line decision-by-decision.
         """
         self._index = index if index is not None else CardIndex()
         self._effects = effects if effects is not None else EffectIndex()
@@ -94,6 +265,8 @@ class HeuristicAgent:
         self._deck_path = deck_path
         self._rng = random.Random(seed)
         self._tempo = tempo
+        self._scaled_damage = scaled_damage
+        self._scale_cache: dict[int, ScaledClause | None] = {}
         self.last_scores: list[float] | None = None
 
     # ------------------------------------------------------------------ #
@@ -161,11 +334,25 @@ class HeuristicAgent:
     def _affordable(attack: Attack, energies: list[int]) -> bool:
         return is_cost_payable(attack.cost, energies)
 
-    def _effect_adjustment(self, attack: Attack, base: float) -> float:
-        """Expected-value tweak from dim_effect rows; scale gates multiply."""
+    def _effect_adjustment(self, attack: Attack, base: float,
+                           skip_scaling: bool = False) -> float:
+        """Expected-value tweak from dim_effect rows; scale gates multiply.
+
+        ``skip_scaling`` drops the rows that stand in for damage-per-unit
+        (DAMAGE_BONUS/DAMAGE_SCALE/COUNTERS with a per-unit condition)
+        because the caller already counted the unit on the live board.
+        Without it the two paths would both charge for the same clause.
+        """
         bonus = 0.0
         multiplier = 1.0
+        scaling_types = (int(EffectType.DAMAGE_BONUS),
+                         int(EffectType.DAMAGE_SCALE),
+                         int(EffectType.COUNTERS))
         for row in self._effects.effects_of(attack.attack_id):
+            if (skip_scaling and row.effect_type in scaling_types
+                    and row.condition in ("per_unit", "per_unit_minus",
+                                          "each", None)):
+                continue
             discount = 0.5 if row.coin_flip else 0.8
             effect = row.effect_type
             if effect == int(EffectType.DAMAGE_BONUS) and row.magnitude:
@@ -201,6 +388,87 @@ class HeuristicAgent:
                 multiplier *= 0.7
         return (base + bonus) * multiplier
 
+    def _scaled_clause(self, attack_id: int) -> ScaledClause | None:
+        """Cached text parse of the attack's damage-scaling clause."""
+        if attack_id not in self._scale_cache:
+            self._scale_cache[attack_id] = parse_scaled_clause(
+                _engine_attack_text(attack_id))
+        return self._scale_cache[attack_id]
+
+    def _unit_count(self, unit: str, energy_code: int | None,
+                    obs: Observation) -> float | None:
+        """Live count of a scaling unit, or None when unobservable."""
+        state = obs.current
+        if state is None:
+            return None
+        try:
+            me = state.players[state.yourIndex]
+            them = state.players[1 - state.yourIndex]
+        except (IndexError, TypeError):
+            return None
+        mine = self._my_active(obs)
+        theirs = self._opp_active(obs)
+
+        def board(player) -> list:
+            active = [p for p in (player.active or []) if p]
+            return active + [p for p in (player.bench or []) if p]
+
+        def energies(pokemon, code: int | None = None) -> int:
+            if pokemon is None:
+                return 0
+            values = [int(e) for e in (pokemon.energies or [])]
+            return len(values) if code is None else values.count(code)
+
+        def damage_counters(pokemon) -> int:
+            if pokemon is None or not pokemon.maxHp:
+                return 0
+            return max(0, int(pokemon.maxHp) - int(pokemon.hp)) // 10
+
+        if unit == "my_hand":
+            return float(me.handCount or len(me.hand or []))
+        if unit == "opp_hand":
+            return float(them.handCount or len(them.hand or []))
+        if unit == "my_active_damage":
+            return float(damage_counters(mine))
+        if unit == "opp_active_damage":
+            return float(damage_counters(theirs))
+        if unit == "my_active_energy_typed":
+            return float(energies(mine, energy_code))
+        if unit == "my_active_energy":
+            return float(energies(mine))
+        if unit == "opp_active_energy":
+            return float(energies(theirs))
+        if unit == "my_board_energy":
+            return float(sum(energies(p) for p in board(me)))
+        if unit == "opp_board_energy":
+            return float(sum(energies(p) for p in board(them)))
+        if unit == "my_bench":
+            return float(len([p for p in (me.bench or []) if p]))
+        if unit == "opp_bench":
+            return float(len([p for p in (them.bench or []) if p]))
+        if unit == "both_bench":
+            return float(len([p for p in (me.bench or []) if p])
+                         + len([p for p in (them.bench or []) if p]))
+        if unit == "opp_prizes_taken":
+            return float(max(0, 6 - len(them.prize or [])))
+        if unit == "my_prizes_taken":
+            return float(max(0, 6 - len(me.prize or [])))
+        if unit == "my_board_tools":
+            return float(sum(len(p.tools or []) for p in board(me)))
+        if unit == "both_tools":
+            return float(sum(len(p.tools or []) for p in board(me))
+                         + sum(len(p.tools or []) for p in board(them)))
+        if unit == "my_board":
+            return float(len(board(me)))
+        if unit == "my_basics":
+            count = 0
+            for pokemon in board(me):
+                card = self._index.get_card(pokemon.id)
+                if card is not None and card.stage_code == 7:
+                    count += 1
+            return float(count)
+        return None
+
     def _attack_value(self, attack_id: int | None, obs: Observation) -> float:
         """Expected value of using an attack (damage-equivalent units)."""
         attack = self._index.get_attack(attack_id) if attack_id is not None else None
@@ -211,12 +479,29 @@ class HeuristicAgent:
         opp_card = self._card_of(opp)
 
         damage = float(attack.damage_base or 0)
+        # Damage that SCALES with the board is the attack's whole point
+        # when the printed base is 0; count the unit live instead of
+        # letting the fixed per-row bonus stand in for it.
+        scaled_applied = False
+        if self._scaled_damage and attack_id is not None:
+            clause = self._scaled_clause(attack_id)
+            if clause is not None:
+                if clause.fixed_units is not None:
+                    units = clause.fixed_units
+                else:
+                    units = self._unit_count(clause.unit, clause.energy_code,
+                                             obs)
+                    if units is None:
+                        units = _UNRESOLVED_UNITS_ESTIMATE
+                damage += clause.per_unit * units
+                scaled_applied = True
         if opp_card is not None and my_card is not None and my_card.type_code is not None:
             if opp_card.weakness_code == my_card.type_code:
                 damage *= 2
             if opp_card.resistance_code == my_card.type_code:
                 damage = max(0.0, damage - 30)
-        value = self._effect_adjustment(attack, damage)
+        value = self._effect_adjustment(attack, damage,
+                                        skip_scaling=scaled_applied)
         if opp is not None and value >= opp.hp:
             value += _KO_BONUS
         return value

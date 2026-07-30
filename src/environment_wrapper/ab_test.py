@@ -65,7 +65,8 @@ Z_95: Final[float] = 1.959963984540054
 REGRESSION_MARGIN: Final[float] = 0.05
 
 ARM_KINDS: Final[tuple[str, ...]] = (
-    "random", "heuristic", "heuristic-tempo",
+    "random", "heuristic", "heuristic-tempo", "heuristic-scaled",
+    "heuristic-tempo-scaled",
     "crustle", "crustle-v2", "crustle-v3", "network",
     # runtime search (submission candidate). "-blind" pins the estimator
     # off so the arm degrades to its prior — that is the FLOOR arm, and
@@ -113,7 +114,13 @@ def wilson_interval(wins: int, n: int, z: float = Z_95) -> tuple[float, float]:
     denom = 1.0 + z2 / n
     center = (p + z2 / (2 * n)) / denom
     half = z * math.sqrt(p * (1.0 - p) / n + z2 / (4 * n * n)) / denom
-    return max(0.0, center - half), min(1.0, center + half)
+    # Clamp against the point estimate, not just against [0, 1]: at p=0
+    # the algebra lands on ~2.8e-17 instead of 0, so a caller asserting
+    # the interval contains p fails on float noise alone (a real, if
+    # cosmetic, flake in the smoke test). An interval that excludes its
+    # own point estimate is wrong at any magnitude.
+    return (min(p, max(0.0, center - half)),
+            max(p, min(1.0, center + half)))
 
 
 def verdict(wins: int, n: int, bar: float) -> str:
@@ -331,16 +338,21 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
             raise SystemExit(f"theta not found: {theta_path}")
         base = lambda s: ParametricHeuristicAgent(  # noqa: E731
             module=module, theta=theta, seed=s, index=index, effects=effects)
-    elif spec.kind in ("heuristic", "heuristic-tempo"):
+    elif spec.kind.startswith("heuristic"):
         from ..agent_heuristics.heuristic_agent import HeuristicAgent
-        # "-tempo" promotes evolution accelerators (Rare Candy) out of
-        # the trainer band. The generic pilot flies every internal
-        # opponent, and it was measured playing Rare Candy 0.63x/game
-        # against 1.10x for real ladder opponents, so the whole internal
-        # field is slow and every close-race cell reads inflated.
-        tempo = spec.kind.endswith("-tempo")
+        # "-tempo"  promotes evolution accelerators (Rare Candy) out of
+        #           the trainer band: measured 0.63x/game against 1.10x
+        #           for real opponents.
+        # "-scaled" values attacks whose damage scales with a board
+        #           quantity by counting the unit live: Powerful Hand
+        #           scored 13.0 for ~266 of real damage, and was never
+        #           recognised as lethal (0 of 767 decisions).
+        # Both flags are opponent-side calibration, never the ship.
+        tempo = "tempo" in spec.kind
+        scaled = "scaled" in spec.kind
         base = lambda s: HeuristicAgent(seed=s, index=index,  # noqa: E731
-                                        effects=effects, tempo=tempo)
+                                        effects=effects, tempo=tempo,
+                                        scaled_damage=scaled)
     elif spec.kind == "crustle":
         from ..agent_heuristics.crustle_agent import CrustleAgent
         base = lambda s: CrustleAgent(seed=s, index=index, effects=effects)

@@ -705,3 +705,75 @@ Nenhuma re-rodada agora -- so a lista, ordenada por quanto o resultado dependia 
    inflado torna qualquer efeito defensivo menos visivel, porque o oponente pressiona menos.
 4. **Gate B/C e o gauntlet historico** -- mesma ressalva, menor dependencia: comparam pilotos NOSSOS
    sob o mesmo oponente, e o vies e comum aos dois bracos.
+
+## [31/Jul] Avaliacao de dano em escala: o fix esta certo, e a banda de ataque e o teto
+Offline, nada shipado. `deck.csv` intocado e identico ao HEAD. 306/308 testes estaveis em 5
+rodadas seguidas (as 2 falhas de `test_portfolio_watch` seguem pre-existentes). 0 exceptions em
+7.200 jogos.
+
+### 1. O fix: contar a unidade viva em vez de um bonus fixo
+`_effect_adjustment` avaliava ataque por `damage_base` + bonus fixo por linha de efeito, cego a
+qualquer ataque cujo dano E a escala. Agora a clausula e lida do TEXTO do motor (`(\d+) damage
+counters ... for each X` / `does N (more) damage for each X`), convertida em (dano por unidade,
+unidade) e cacheada por attackId; a unidade e contada na observacao viva.
+
+Cobertura sobre as **163 clausulas de escala do pool**:
+- **73 observaveis no estado** (mao, energias por tipo, contadores de dano, banco, premios tomados,
+  tools, corpos em jogo);
+- **43 de moeda**, resolvidas por esperanca (`flip 4 coins` -> 2 caras; `flip until tails` -> 1) em
+  vez de cair no fallback generico, que valeria o dobro num ataque de 2 moedas;
+- **47 nao resolvidas** (contagens de pilha de descarte, "cards you discarded in this way") -> a
+  estimativa declarada de 2 unidades, explicita e reportavel, em vez de fingir que sabe.
+
+**116 ataques mudaram de valor.** Maiores altas: Scarring Shout +245, Spicy Rage +238,
+**Powerful Hand +227 (13,0 -> 240)**, Resentful Refrain +175. E **5 ataques CAIRAM** (Gadget Show
+45 -> 30): o bonus fixo era generoso demais. Corrige nos dois sentidos, nao so infla.
+
+Em jogo real, com o motor oferecendo a opcao: valor medio do Powerful Hand **13,0 -> 313,3**, e
+reconhecido como LETAL em **0/767 -> 83%** das decisoes. Antes ele era uma constante 13,0
+independente da mao -- e essa e a forma exata do bug, afirmada assim no teste (nao "nunca letal":
+um Pokemon com 10 de HP morre para qualquer coisa, e a frase falharia por motivo errado).
+
+### 2. Impacto no ship: INERTE, e a hipotese de "cegueira a ameaca" nao se aplica
+**Lockstep sobre os jogos REAIS**: 215 episodios da submissao 54917180, **11.360 decisoes
+comparadas, 0 divergencias** com os DOIS flags ligados no shadow. Mais duas camadas estruturais:
+nenhum ataque do `deck.csv` tem clausula de escala, e `_scaled_damage` e False por construcao.
+Ha ainda um lockstep contra o Alakazam, para exercitar o caminho novo com o oponente escalando.
+
+**(b) A regra manual de Xerosic NAO vira redundante.** Verifiquei quem consome `_attack_value`:
+so o scorer das NOSSAS opcoes de ataque (`_main_score` e o contexto ATTACK) -- **nunca** para
+avaliar ameaca. A logica de ameaca do CrustleAgent e `_opp_active_is_ex`, uma checagem de tipo de
+carta. Entao avaliar ataque corretamente nao torna o piloto menos cego a ameaca: um gatilho manual
+"20 x mao >= hp" continua sendo o unico caminho ciente de ameaca. (O piloto v4 nao existe neste
+branch.)
+
+### 3. Calibracao: melhora real, pequena -- e o mecanismo diz por que
+| celula | real | antes | depois | erro antes | erro depois | melhora |
+|---|---|---|---|---|---|---|
+| Alakazam | 35,6% | 85,2% | 79,7% | +49,6pp | +44,1pp | **+5,5pp** |
+| Mega Lucario | 50,0% | 96,8% | 96,2% | +46,8pp | +46,2pp | +0,7pp |
+| Spidops | 12,5% | 80,8% | 77,0% | +68,3pp | +64,5pp | +3,8pp |
+| Starmie | 62,5% | 23,7% | 28,8% | -38,8pp | -33,7pp | **+5,2pp** |
+| Archaludon | 90,6% | 97,8% | 98,0% | +7,2pp | +7,4pp | -0,2pp |
+| Kangaskhan | 75,0% | 96,7% | 97,5% | +21,7pp | +22,5pp | -0,8pp |
+
+Erro absoluto medio **38,7pp -> 36,4pp**. Anda na direcao certa nas duas celulas que mais erravam
+em sentidos OPOSTOS (Alakazam otimista -5,5; Starmie pessimista +5,2), o que e o padrao esperado de
+uma correcao de avaliacao. Mas e **6% do erro**.
+
+**A telemetria mostra o teto:** share de Powerful Hand 73,7% -> 79,7% (real 89,3%), Powerful Hands
+por jogo 3,62 -> 3,87 (real 6,08) e **ataques por jogo 4,91 -> 4,86 (real 6,81) -- inalterado**.
+
+### 4. O gargalo agora e a ARQUITETURA DE BANDAS, nao o valor
+`_ATTACK_BAND` = 20, com o comentario explicito no codigo: *"capped so attacking never outranks
+development actions"*. O score maximo de um ataque fica em ~31, abaixo de ATTACH (55), PLAY (70) e
+EVOLVE (80). O piloto so ataca quando nao ha mais nada a fazer. Isso e **correto para o nosso deck
+de mill** e errado para um deck agressivo: o Alakazam real ataca todo turno. **Nenhuma correcao de
+VALOR de ataque pode mudar isso** -- e por isso que o valor certo comprou 5,5pp e nao 45.
+
+### 5. Lista do regime errado: criterio NAO atingido, nao reabro ainda
+A condicao era "se a calibracao melhorar materialmente". 2,4pp de ~39pp nao e material: o ponto de
+operacao das celulas grandes continua deslocado ~44pp. Entao **nada a re-rodar por enquanto**, e a
+ordem de dependencia segue a mesma (busca em runtime > variantes de deck > v4 do piloto). O que
+mudaria a resposta e a banda de ataque -- se ela for corrigida e o Alakazam cair para a faixa dos
+40-50%, ai sim vale re-rodar, comecando pela busca com N>=600/celula.
