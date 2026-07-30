@@ -143,6 +143,36 @@ PRESETS: Final[dict[str, tuple[tuple[str, str, str], ...]]] = {
          "data/decks/meta_alakazam.csv@network,models/bc_majkel.npz,"
          "models/feature_stats.npz"),
     ),
+    # THE HONEST NUMBER, ON A CELL WITH HEADROOM.
+    #
+    # The first fidelity ladder was run on Alakazam and was inconclusive
+    # for a reason that had nothing to do with the search: our prior
+    # already beats that matchup 91.4%, so there were 8.6pp of room and
+    # every cell landed inside the noise. Grimmsnarl is the cell that
+    # matters (41-47% of the top of the ladder) AND the cell with room
+    # (prior ~46-52%), and it has two clonable humans: Luca (158 games)
+    # and Dries @ Tufa Labs (43).
+    #
+    # All cells face the SAME opponent, BC-Luca, and differ only in what
+    # models it inside the rollouts.
+    "fidelity-grimmsnarl": (
+        ("prior vs BC-Luca (baseline)",
+         "deck.csv@crustle-v3",
+         "data/decks/meta_grimmsnarl.csv@network,models/bc_luca.npz,"
+         "models/feature_stats.npz"),
+        ("search[rollout=BC-Luca, EXACT] vs BC-Luca",
+         "deck.csv@search-net,models/bc_luca.npz",
+         "data/decks/meta_grimmsnarl.csv@network,models/bc_luca.npz,"
+         "models/feature_stats.npz"),
+        ("search[rollout=BC-Dries, FAITHFUL-NOT-EXACT] vs BC-Luca",
+         "deck.csv@search-net,models/bc_dries.npz",
+         "data/decks/meta_grimmsnarl.csv@network,models/bc_luca.npz,"
+         "models/feature_stats.npz"),
+        ("search[rollout=heuristic, DIVERGENT] vs BC-Luca",
+         "deck.csv@search-crustle",
+         "data/decks/meta_grimmsnarl.csv@network,models/bc_luca.npz,"
+         "models/feature_stats.npz"),
+    ),
     # the honest cell again, this time with adaptive allocation on, so
     # the effect is read at the cost that actually fits the bank
     "fidelity-adaptive": (

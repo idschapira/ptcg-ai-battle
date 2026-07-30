@@ -269,7 +269,12 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
             if not spec.weights.exists():
                 raise SystemExit(f"rollout model missing: {spec.weights}")
             opponent_pilot = OPPONENT_PILOT_NETWORK
-            nets = {"Alakazam box (non-ex)": str(spec.weights)}
+            # Point EVERY modellable archetype at this clone. Only the
+            # archetype the estimator actually reports is ever used, and
+            # each experiment faces one opponent, so this is unambiguous
+            # and keeps the arm usable for any cell.
+            from ..rl_models.runtime_search_agent import ARCHETYPE_NETWORKS
+            nets = {k: str(spec.weights) for k in ARCHETYPE_NETWORKS}
 
         def base(s: int) -> Agent:
             return RuntimeSearchAgent(
