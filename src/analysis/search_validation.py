@@ -173,6 +173,24 @@ PRESETS: Final[dict[str, tuple[tuple[str, str, str], ...]]] = {
          "data/decks/meta_grimmsnarl.csv@network,models/bc_luca.npz,"
          "models/feature_stats.npz"),
     ),
+    # THE SHIP DECISION. Adaptive allocation on the BC-Luca cell: the
+    # only configuration that both fits the bank and faces a real
+    # human's clone. Baseline is re-measured in the same run so the
+    # comparison is same-machine, same-day.
+    "adaptive-luca": (
+        ("prior vs BC-Luca (baseline)",
+         "deck.csv@crustle-v3",
+         "data/decks/meta_grimmsnarl.csv@network,models/bc_luca.npz,"
+         "models/feature_stats.npz"),
+        ("search[BC-Dries, ADAPTIVE] vs BC-Luca",
+         "deck.csv@search-net-adaptive,models/bc_dries.npz",
+         "data/decks/meta_grimmsnarl.csv@network,models/bc_luca.npz,"
+         "models/feature_stats.npz"),
+        ("search[heuristic, ADAPTIVE] vs BC-Luca",
+         "deck.csv@search-crustle-adaptive",
+         "data/decks/meta_grimmsnarl.csv@network,models/bc_luca.npz,"
+         "models/feature_stats.npz"),
+    ),
     # the honest cell again, this time with adaptive allocation on, so
     # the effect is read at the cost that actually fits the bank
     "fidelity-adaptive": (
@@ -257,6 +275,8 @@ class ShardResult:
     changed: int = 0
     decisions: int = 0
     search_exceptions: int = 0
+    a_wins_seat: list[int] = field(default_factory=lambda: [0, 0])
+    decided_seat: list[int] = field(default_factory=lambda: [0, 0])
 
 
 def _run_shard(payload: tuple[str, str, int, int]) -> dict:
@@ -283,6 +303,8 @@ def _run_shard(payload: tuple[str, str, int, int]) -> dict:
         errors=list(pair.errors),
         a_episode_s=list(metrics_a.episode_wall_s),
         b_episode_s=list(metrics_b.episode_wall_s),
+        a_wins_seat=list(pair.a_wins_by_seat),
+        decided_seat=list(pair.decided_by_seat),
     )
     if metrics_a.search is not None:
         result.a_search = metrics_a.search.summary()
@@ -310,6 +332,9 @@ def _pool(shards: list[dict]) -> ShardResult:
         total.changed += s["changed"]
         total.decisions += s["decisions"]
         total.search_exceptions += s["search_exceptions"]
+        for i in (0, 1):
+            total.a_wins_seat[i] += s["a_wins_seat"][i]
+            total.decided_seat[i] += s["decided_seat"][i]
         if s["a_search"] and not total.a_search:
             total.a_search = s["a_search"]
             total.a_budget = s["a_budget"]
@@ -356,6 +381,13 @@ def run_matchup(label: str, a_text: str, b_text: str, games: int,
               f"max {worst:.1f}s  |  x{KAGGLE_SLOWDOWN:.0f}: max "
               f"{worst * KAGGLE_SLOWDOWN:.0f}s = "
               f"{worst * KAGGLE_SLOWDOWN / BANK_S:.0%} of the bank")
+    for seat in (0, 1):
+        d = total.decided_seat[seat]
+        if d:
+            w = total.a_wins_seat[seat]
+            lo_s, hi_s = wilson_interval(w, d)
+            print(f"  A as player {seat}: {w}/{d} = {w / d:.1%}  "
+                  f"IC95 [{lo_s:.1%}, {hi_s:.1%}]")
     if total.a_search:
         print(f"  A search    {total.a_search}")
         print(f"  A budget    {total.a_budget}")

@@ -125,6 +125,31 @@ def verdict(wins: int, n: int, bar: float) -> str:
     return "HOLD"
 
 
+def newcombe_difference(w1: int, n1: int, w2: int,
+                        n2: int) -> tuple[float, float, float]:
+    """(diff, lo, hi) for p2 - p1: Newcombe's hybrid-score interval.
+
+    The right interval for a difference of two INDEPENDENT proportions.
+    Two separate Wilson intervals cannot be compared by eye -- their
+    overlapping is not the same question as the difference containing
+    zero -- and the normal approximation on the difference misbehaves
+    near 0 and 1, which is exactly where these winrates live. Newcombe
+    method 10 combines the two Wilson intervals instead:
+
+        lo = (p2-p1) - sqrt((p2-l2)^2 + (u1-p1)^2)
+        hi = (p2-p1) + sqrt((u2-p2)^2 + (p1-l1)^2)
+    """
+    if n1 <= 0 or n2 <= 0:
+        return 0.0, -1.0, 1.0
+    p1, p2 = w1 / n1, w2 / n2
+    l1, u1 = wilson_interval(w1, n1)
+    l2, u2 = wilson_interval(w2, n2)
+    diff = p2 - p1
+    lo = diff - math.sqrt((p2 - l2) ** 2 + (u1 - p1) ** 2)
+    hi = diff + math.sqrt((u2 - p2) ** 2 + (p1 - l1) ** 2)
+    return diff, max(-1.0, lo), min(1.0, hi)
+
+
 def binomial_p_value(wins: int, n: int, p0: float = 0.5) -> float:
     """Two-sided normal-approximation p-value for H0: p == p0."""
     if n <= 0 or not 0.0 < p0 < 1.0:

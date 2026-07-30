@@ -87,6 +87,12 @@ class PairResult:
     latency_mean_us: float
     latency_p99_us: float
     errors: tuple[str, ...]
+    # Per-seat breakdown. Seats alternate, so a lopsided split is a
+    # first-player-advantage artefact rather than a pilot difference --
+    # worth seeing rather than averaging away. Defaults keep older
+    # callers and stored results working.
+    a_wins_by_seat: tuple[int, int] = (0, 0)
+    decided_by_seat: tuple[int, int] = (0, 0)
 
     @property
     def games(self) -> int:
@@ -109,6 +115,8 @@ def run_pair(make_a: Callable[[int], Agent], make_b: Callable[[int], Agent],
     make_a/make_b).
     """
     a_wins = b_wins = draws = 0
+    a_wins_seat = [0, 0]
+    decided_seat = [0, 0]
     turns_seen: list[int] = []
     errors: list[str] = []
     for game_index in range(n_games):
@@ -127,8 +135,11 @@ def run_pair(make_a: Callable[[int], Agent], make_b: Callable[[int], Agent],
             draws += 1
         elif result == a_seat:
             a_wins += 1
+            a_wins_seat[a_seat] += 1
+            decided_seat[a_seat] += 1
         else:
             b_wins += 1
+            decided_seat[a_seat] += 1
 
     times = sorted(timed.times_us) if timed is not None else []
     return PairResult(
@@ -138,6 +149,8 @@ def run_pair(make_a: Callable[[int], Agent], make_b: Callable[[int], Agent],
         latency_p99_us=times[min(len(times) - 1, int(len(times) * 0.99))]
         if times else 0.0,
         errors=tuple(errors),
+        a_wins_by_seat=(a_wins_seat[0], a_wins_seat[1]),
+        decided_by_seat=(decided_seat[0], decided_seat[1]),
     )
 
 
