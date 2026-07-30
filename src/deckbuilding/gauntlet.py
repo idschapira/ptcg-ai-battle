@@ -47,12 +47,28 @@ from .legality import read_deck_ids, validate_deck
 DECKS_DIR: Final[Path] = REPO_ROOT / "data" / "decks"
 
 
-def discover_decks(decks_dir: Path = DECKS_DIR) -> dict[str, Path]:
+# Candidate decks under test are NOT field opponents. They are
+# near-clones of our own list, so letting auto-discovery sweep them into
+# the round-robin quietly replaces real meta cells with mirrors and
+# reweights every field average. Files with this prefix are addressed
+# explicitly (by path) or not at all.
+CANDIDATE_PREFIX: Final[str] = "variant_"
+
+
+def discover_decks(decks_dir: Path = DECKS_DIR,
+                   include_candidates: bool = False) -> dict[str, Path]:
     """Every csv under data/decks/, named by stem minus the seed_/
     placeholder_ prefix (e.g. seed_raging_bolt.csv -> raging_bolt).
-    The whole curated field enters the round-robin automatically."""
+    The whole curated field enters the round-robin automatically.
+
+    Candidate decks (``variant_*.csv``) are excluded unless asked for:
+    they are our own list with a couple of slots changed, and a field
+    that contains four copies of ourselves is not the field.
+    """
     decks: dict[str, Path] = {}
     for path in sorted(decks_dir.glob("*.csv")):
+        if not include_candidates and path.stem.startswith(CANDIDATE_PREFIX):
+            continue
         name = path.stem
         for prefix in ("seed_", "placeholder_"):
             name = name.removeprefix(prefix)

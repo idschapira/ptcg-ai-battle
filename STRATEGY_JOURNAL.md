@@ -461,3 +461,75 @@ custa 0 slots, e ataca 26,7% do campo pela porta certa.
 **Lacuna declarada.** Archaludon é 14,2% dos jogos reais (ganhamos 29/3) e **não tem decklist em
 `data/decks/`** — a célula ficou sem medir. Vale minerar a lista consenso dos 32 episódios reais
 antes do próximo teste de deck.
+
+## [31/Jul] Prevenção é ECONOMIA, e a economia está fechada por regra; Archaludon fechada
+Duas frentes, ambas offline, nenhuma shipa. `deck.csv` intocado.
+
+### (A) Política ou economia? — 73,3% ECONOMIA, e não há alavanca
+Dos 277 efeitos preveníveis que chegaram sem prevenção (215 jogos reais, filtro de submissão
+54917180 + sentinela de deck + perspectiva fixa no nosso assento):
+
+| classe | n | share |
+|---|---|---|
+| INEVITÁVEL — nenhuma protetora elegível na mão | 203 | **73,3%** |
+| EVITÁVEL — tinha na mão, anexou em outro corpo | 39 | 14,1% |
+| EVITÁVEL — anexou no alvo, mas energia SEM cobertura | 35 | 12,6% |
+
+Reposicionamento (cobertura estacionada noutro corpo **e** switch/retreat legal) recupera só
+**10/203 = 4,9%** dos inevitáveis. Teto do que política pode endereçar: **~30%**.
+
+**Por que a economia está fechada — e isto é o achado.** 61% das vítimas são {G} (Crustle 41,9% +
+Dwebble 14,1%), e varrendo o pool inteiro por "prevent all effects of attacks", a **Mist é a ÚNICA
+carta que cobre um ativo {G}** — e já está no teto de 4 cópias. As alternativas não servem:
+Battle Cage (Stadium) só cobre o BANCO; Acerola's Mischief só contra {ex} e só com o oponente a
+≤2 prêmios; Antique Cover Fossil protege apenas a si mesma (60 HP) e já foi testada e regrediu.
+Ou seja: não existe deck legal com mais cobertura para o muro. A alavanca de deck não "falhou por
+pouco" — ela **não existe**. Some-se a isso que as variantes V1–V4 já mediram nulo/negativo a
+N=600/célula, e a frente de deck encerra.
+
+**A regra candidata não tem volume.** O padrão dos evitáveis é claro: 74/74 anexaram algo, 74,3%
+no Great Tusk, enquanto a vítima era a Crustle em 41,9% dos casos. Como a Rock cobre o Great Tusk
+tão bem quanto a Mist, a regra óbvia é "não gaste Mist num host {F} se há Rock disponível". Medida
+a população exata: **28 trocas em 215 jogos = 0,13/jogo (8,9% das Mist anexadas em host {F})**.
+Isso é da ordem do v4 (0,6% das decisões, resultado nulo) — **não paga um A/B caro**. A população
+maior (421/3447 = 12,2% dos NOSSOS TURNOS com ativo descoberto e attach protetora legal) não é
+almoço grátis: anexar para proteger disputa o mesmo attach que paga o `Land Collapse` ({C}{C}),
+então também é economia, não política.
+
+**Veredito (A): ECONOMIA, estruturalmente fechada. Encerra a frente.**
+
+### (B) Archaludon: célula fechada, e ela nunca foi um buraco
+Lista reconstruída dos nossos 32 episódios reais (`src/analysis/mine_opponent_deck.py`). O método
+NÃO é o do meta_radar: aqui os jogos vêm de **30 times diferentes** jogando o mesmo arquétipo, e
+o "máximo já visto" entre times une as techs de todos e estoura 60 (medido: 76). Cada jogo vira
+uma observação ruidosa de uma lista-padrão: inclusão por presença (≥50% dos jogos), cópias pela
+**moda do máximo por jogo**, e a Basic Energy fecha os 60. Resultado: 49 cartas nomeadas + 11
+Basic {M} — e 11 é exatamente a moda observada, o que fecha sozinho. LEGAL e aceita pelo motor.
+Descartadas como ruído: Xerosic's (7/32), Hand Trimmer (2/32), Dwebble/Flutter Mane/Great Tusk
+(1/32 cada).
+
+| | winrate |
+|---|---|
+| REAL (32 jogos) | **90,6%** (29-3), IC95 [75,8%, 96,8%] |
+| interno, oponente heurístico (N=600) | 97,0% [95,3%, 98,1%] |
+| interno, oponente network (N=600) | 97,7% [96,1%, 98,6%] |
+
+Δ(interno − real) = **+6,4pp [+0,0, +21,3]**. Formalmente na fronteira, mas a comparação certa é
+de ordem de grandeza: a célula Alakazam erra **+48,5pp [+35,5, +59,7]**. Rótulo honesto:
+**levemente otimista, mesmo regime** — não é o tipo de descalibração que invalida a célula. E o
+sinal prático é o oposto de um buraco: ganhamos 90,6% no real. As variantes de deck também são
+chatas aqui (V1 +1,7pp [−0,1, +3,6], nenhuma significativa).
+
+**Mecanismo das 3 derrotas reais** (perspectiva fixa): em 2 delas o oponente estava a **2 e 3
+cartas** do deck-out com 1 prêmio restante — perdemos a corrida por um turno. Nas três o nosso
+ativo final era Terrakion/Dwebble, não o Great Tusk: o miller já tinha morrido e o mill parou. Os
+ataques deles (Raging Hammer, Hammer In, Metal Defender) são **dano puro, sem efeito prevenível** —
+coerente com (A), onde a lista de hits preveníveis é 257 Alakazam + 20 Dragapult e **zero**
+Archaludon. Aqui a Mist não teria ajudado; não há resposta ignorada no nosso deck.
+
+**Higiene que faltava.** As `variant_*.csv` da rodada anterior estavam entrando no campo
+auto-descoberto do gauntlet — quatro quase-clones da nossa própria lista substituindo células reais
+e reponderando toda média de campo. `discover_decks` agora as exclui por padrão
+(`include_candidates=True` para pedi-las), e `tests/test_deck_pool_contract.py` passa a exigir que
+TODO deck do pool tenha 60 cartas legais que o **motor** aceita, e que o campo não contenha
+candidatos e contenha Archaludon.

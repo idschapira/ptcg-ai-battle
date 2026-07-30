@@ -86,6 +86,11 @@ CELLS: Final[dict[str, tuple[str, float]]] = {
         "data/decks/meta_grimmsnarl.csv@network,models/bc_grimmsnarl.npz,"
         "models/feature_stats.npz", 0.160),
     "lucario": ("data/decks/seed_mega_lucario.csv@heuristic", 0.160),
+    # 14.2% of real games and, until 31/Jul, a cell with no decklist at
+    # all -> silently never tested. List reconstructed from our own 32
+    # real episodes by src/analysis/mine_opponent_deck.py. Roughly
+    # calibrated: internal 97.0% vs 90.6% real (29/32).
+    "archaludon": ("data/decks/meta_archaludon.csv@heuristic", 0.142),
     "kangaskhan": ("data/decks/meta_crustle_kangaskhan.csv@heuristic", 0.058),
     "starmie": ("data/decks/meta_starmie.csv@heuristic", 0.040),
     "spidops": ("data/decks/meta_spidops.csv@heuristic", 0.036),
