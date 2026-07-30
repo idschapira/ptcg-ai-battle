@@ -377,3 +377,87 @@ N=396 — exatamente o nível do prior, contra 44,8% da busca cheia. Coerente e 
 adaptativa busca em só 16% das decisões no espelho, então joga quase o prior. Confirma o desenho —
 quando a busca não tem o que agregar, o filtro a apaga em vez de deixá-la sangrar. Custo do
 espelho cai para 47,9s de pior episódio = **24% do banco**. Todas as células: 0 exceptions.
+
+## [30/Jul] Variantes de deck do Crustle: a premissa do "peso morto" estava invertida
+Hipótese a testar: as 4 Rock Fighting são peso morto (a Crustle é {G}, a cláusula não a protege),
+então os slots comprariam mais como CORPOS — cada corpo ≈ 1 turno, e em ~28% das derrotas o
+oponente estava a ≤5 cartas do deck-out. **Resultado: nenhuma variante merece ship, e o motivo é
+que a premissa media a coisa errada.**
+
+**A medição que era o portão (e reprovou a premissa).** Baixei os 222 episódios reais da submissão
+54917180 — cujo deck é byte-idêntico ao `deck.csv` — e auditei 225 jogos com o piloto do ship
+(`src/analysis/deadweight_audit.py`). Duas armadilhas de amostra apanhadas antes de qualquer conta:
+`viewer/episodes/` mistura TODAS as nossas submissões (73 jogos de Grimmsnarl, 62 de Abomasnow), e
+os dois agentes publicam um `current` por passo com visões divergentes — somar as duas inventa
+oscilação de HP e KOs fantasma (contei 1445 KOs de um Pokémon antes de pinar a perspectiva). Com
+isso corrigido:
+
+| fator | medido nos 225 jogos reais |
+|---|---|
+| ativo é {F} (cláusula VIVA) | **57,8% das decisões**; Great Tusk sozinho **52,4%** |
+| ativo é {F} E sob ameaça | 56,5% |
+| dano absorvido pelo Great Tusk | 47,8% do total, 314 KOs |
+| anexações de Rock em host {F} | 331/455 = **72,7%** |
+
+**O mill exige que o Great Tusk esteja no ativo, e ele é {F}.** A premissa raciocinou sobre a
+Crustle (que é {G}) e concluiu que a cláusula nunca paga; na prática ela está viva na maior parte
+do jogo. Verificado CONTRA O MOTOR, não contra o texto da carta
+(`tests/test_effect_prevention_contract.py`, sonda = `Painful Memories` do Uxie, 2 contadores,
+dano 0, leitura binária): Mist previne em host {F} e em host {G}; Rock previne em {F} e **não**
+previne em {G}; energia comum não previne nada (controle não-vácuo).
+
+**O que a auditoria achou de fato — e é maior que os slots.** `Powerful Hand` do Alakazam é
+**89,2% dos ataques do oponente na célula real** (365/409 em 60 jogos). Ele *coloca contadores de
+dano*, e contador é EFEITO, não dano — logo Mist/Rock o anulam por inteiro. Só que dos 416 efeitos
+preveníveis recebidos, **69% chegaram SEM prevenção**. Isso não é problema de slot, é de piloto
+(prioridade de anexação). A célula Alakazam é 26,7% dos jogos reais e a nossa pior (35% real).
+
+**As variantes, medidas de qualquer forma.** Três listas legais (`legality.py` E `battle_start` do
+motor), motor de mill intacto nas três (4 Great Tusk + 4 Explorer's Guidance — que é o **único
+Supporter Ancient de todo o pool**, então o mill de 4 já estava no teto). N=600 por (arm, célula),
+8 células, 0 exceptions, Newcombe para a diferença, quebra por assento:
+
+| célula (share real) | SHIP | V1 corpos | V2 mill | V3 corpos agr. |
+|---|---|---|---|---|
+| alakazam-heur (26,7%) | 83,5% | +1,2 [−3,0,+5,3] | −0,7 | −0,3 |
+| alakazam-BC (mesma célula, piloto honesto) | 89,7% | −1,0 | −1,2 | −3,7 [−7,4,+0,0] |
+| grimmsnarl-BC (16,0%) | 45,4% | −0,2 | −3,7 | **−12,6 [−18,0,−7,1]** |
+| lucario (16,0%) | 96,8% | +0,8 | −2,3 [−4,7,−0,0] | +0,3 |
+| starmie (4,0%) | 25,8% | −2,7 | **−7,8 [−12,5,−3,2]** | **−9,0 [−13,6,−4,4]** |
+| espelho (1,3%) | 51,3% | **−6,7 [−12,3,−1,0]** | **−6,8** | **−11,7 [−17,2,−6,0]** |
+| agregado ponderado | 75,5% | 75,9% | 73,3% | 71,8% |
+
+Nenhuma célula melhora significativamente em nenhuma variante. V1 é empate; V2 e V3 regridem.
+
+**O mecanismo MOVEU — e é isso que explica o veredito.** O turno da morte subiu (alakazam-BC 15 →
+17 → 17 → **19**; kangaskhan 15 → **30**) e a fração de derrotas com o oponente a ≤5 cartas subiu
+(32,3% → 36,8% → 40,6% → **44,0%**). Corpos compram turnos, exatamente como a tese dizia. Só que
+**os turnos são pagos com a gasolina do mill**: as três variantes trocam energia por não-energia
+(10 → 8 → 8 → **6**) e `Land Collapse` custa {C}{C}. Onde o jogo é longo o dano aparece invertido —
+no Grimmsnarl o turno da morte CAIU (28 → 25) e o oponente chegou MENOS perto do deck-out (36,7% →
+25,8%), com os auto-deck-outs subindo. Os slots não pagavam só proteção; pagavam combustível.
+
+**O controle que separa as duas coisas (V4).** −2 Rock, +2 Basic {F}: energia de volta em 10,
+corpos em 13, única variável = a cláusula. Resultado: tudo chato **menos** alakazam-BC, que cai
+**−6,0pp [−9,8, −2,2]**. Ou seja: as 2 Rock removidas valiam ~6pp na célula que mais pesa, e o
+prejuízo de V2/V3 era energia por cima disso. Fidelidade da célula conferida antes de acreditar:
+os dois pilotos internos disparam `Powerful Hand` em 78% / 72% dos seus ataques contra 89,2% do
+real — o nível absoluto do winrate segue inflado (81–90% interno vs 35% real), mas **a mecânica
+sob teste é exercitada no regime certo**, que é o que a diferença precisa.
+
+**Veredito: NÃO shipar nenhuma variante.** `deck.csv` intocado, verificado idêntico ao HEAD. O que
+sobrevive e vale independentemente: a auditoria de peso morto sobre jogos reais, o teste de
+contrato da matriz de prevenção, o `observer` de mecanismo em `play_one_game` (mede turno da morte
+e proximidade de deck-out sem reimplementar o loop), e a correção de um fato de carta no CLAUDE.md
+que tinha caído na própria armadilha de off-by-one que ele documenta (`Mini Drain` é do Applin 346,
+não da Crustle 345).
+
+**Onde apontar o próximo esforço, com número.** Não é o deck: é a anexação. 69% dos efeitos
+preveníveis chegaram sem prevenção, e a Mist — que protege QUALQUER host, inclusive a Crustle {G} —
+é usada 2,02×/jogo, praticamente igual à Rock (2,02) e distribuída quase igual (70,7% no Great
+Tusk). Priorizar Mist na Crustle e garantir prevenção no ativo sob ameaça é mudança de PILOTO,
+custa 0 slots, e ataca 26,7% do campo pela porta certa.
+
+**Lacuna declarada.** Archaludon é 14,2% dos jogos reais (ganhamos 29/3) e **não tem decklist em
+`data/decks/`** — a célula ficou sem medir. Vale minerar a lista consenso dos 32 episódios reais
+antes do próximo teste de deck.

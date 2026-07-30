@@ -87,11 +87,20 @@ submissão.** Exportar pesos para `.npz` e implementar o forward em numpy. Torch
   + 12 Energia especial). Não precisa destilar esses efeitos por LLM — é dado de primeira mão.
   (Pokémon: 218 dos 1056 têm texto de habilidade.)
 - **Fatos de carta (reconciliados contra `cg.api`, não contra memória):**
-  - **Crustle = id 345, `energyType=1` ({G})**, HP 150, ataque único `Mini Drain` custo `[1]`
-    ({G}); habilidade `Mysterious Rock Inn` = previne todo dano de Pokémon **{ex}** do oponente.
-    (Existe um segundo Crustle, id 533, {F} — não é o nosso.)
+  - **Crustle = id 345, `energyType=1` ({G})**, HP 150, ataque único **`Superb Scissors`
+    (attackId 479), custo `[1,0,0]` = {G}{C}{C}, 120 de dano** ("damage isn't affected by any
+    effects on your opponent's Active"); habilidade `Mysterious Rock Inn` = previne todo dano de
+    Pokémon **{ex}** do oponente. (Existe um segundo Crustle, id 533, {F} — não é o nosso.)
+    ⚠️ Este verbete já dizia "`Mini Drain` custo `[1]`" e era a própria armadilha de off-by-one
+    documentada abaixo: `Mini Drain` é o attackId **480**, do **Applin (346)** — a carta seguinte.
+    Conferir carta→ataque por `CardData.attacks`, nunca por vizinhança de id.
   - **Rock Fighting Energy (id 20) só protege Pokémon {F}**: "…done to the **{F} Pokémon** this
     card is attached to". Logo NÃO protege o Crustle ({G}) — só Great Tusk/Terrakion ({F}, type 6).
+    **Mas isso NÃO a torna peso morto**: o Great Tusk é o nosso ativo em 52,4% das decisões reais
+    (o mill exige que ele esteja no ativo), então a cláusula está VIVA na maior parte do jogo.
+    Nem Rock nem Mist previnem DANO — só *efeitos*; e **contador de dano é efeito**, não dano, o
+    que faz as duas anularem o `Powerful Hand` do Alakazam por completo. Matriz de prevenção
+    verificada CONTRA O MOTOR em `tests/test_effect_prevention_contract.py`.
   - **Land Collapse = attackId 62, do Great Tusk, custo `[0,0]` = {C}{C}** (é o mill). Custo
     incolor ⇒ **Mist Energy (id 11, provê {C}) paga o mill** — e ainda previne efeitos de ataques.
   - `all_attack()` é **0-based por posição mas os attackId são 1-based**: `atk[i].attackId == i+1`.

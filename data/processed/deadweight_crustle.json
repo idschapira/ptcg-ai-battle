@@ -1,0 +1,182 @@
+{
+  "n_episodes": 225,
+  "results": {
+    "loss": 115,
+    "win": 110
+  },
+  "active_states": {
+    "Great Tusk": 5618,
+    "Crustle": 3231,
+    "Dwebble": 1288,
+    "Terrakion": 582
+  },
+  "active_states_threatened": {
+    "Great Tusk": 1912,
+    "Crustle": 1321,
+    "Dwebble": 317,
+    "Terrakion": 214
+  },
+  "fighting_active_share": 0.5784121653139286,
+  "fighting_threatened_share": 0.5648246546227418,
+  "rock_targets": {
+    "Great Tusk": 317,
+    "Crustle": 92,
+    "Terrakion": 14,
+    "Dwebble": 32
+  },
+  "rock_clause_live_share": 0.7274725274725274,
+  "mist_targets": {
+    "Great Tusk": 321,
+    "Crustle": 89,
+    "Dwebble": 36,
+    "Terrakion": 8
+  },
+  "attacks_on_us": 1497,
+  "attacks_with_effect": 1335,
+  "effect_vs_fighting_with_rock": 266,
+  "effect_vs_mist": 385,
+  "damage_absorbed": {
+    "Great Tusk": 47840,
+    "Crustle": 36940,
+    "Dwebble": 9220,
+    "Terrakion": 6160
+  },
+  "kos_suffered": {
+    "Great Tusk": 314,
+    "Crustle": 225,
+    "Dwebble": 105,
+    "Terrakion": 43
+  },
+  "by_archetype": {
+    "unknown": {
+      "n": 16,
+      "wins": 8,
+      "losses": 8,
+      "mean_turn_of_death": 22.875,
+      "median_turn_of_death": 16.0,
+      "opp_near_deckout_share": 0.5625,
+      "opp_near_deckout_share_in_losses": 0.125,
+      "median_opp_deck_low_in_losses": 16.5
+    },
+    "Mega Lucario ex": {
+      "n": 36,
+      "wins": 16,
+      "losses": 20,
+      "mean_turn_of_death": 19.0,
+      "median_turn_of_death": 16.5,
+      "opp_near_deckout_share": 0.7222222222222222,
+      "opp_near_deckout_share_in_losses": 0.5,
+      "median_opp_deck_low_in_losses": 5.0
+    },
+    "Alakazam box (non-ex)": {
+      "n": 60,
+      "wins": 21,
+      "losses": 39,
+      "mean_turn_of_death": 15.153846153846153,
+      "median_turn_of_death": 16.0,
+      "opp_near_deckout_share": 0.5,
+      "opp_near_deckout_share_in_losses": 0.23076923076923078,
+      "median_opp_deck_low_in_losses": 13.0
+    },
+    "Dragapult ex": {
+      "n": 7,
+      "wins": 3,
+      "losses": 4,
+      "mean_turn_of_death": 19.25,
+      "median_turn_of_death": 17.0,
+      "opp_near_deckout_share": 0.5714285714285714,
+      "opp_near_deckout_share_in_losses": 0.25,
+      "median_opp_deck_low_in_losses": 8.5
+    },
+    "Crustle stall (other)": {
+      "n": 4,
+      "wins": 2,
+      "losses": 2,
+      "mean_turn_of_death": 35.0,
+      "median_turn_of_death": 35.0,
+      "opp_near_deckout_share": 0.5,
+      "opp_near_deckout_share_in_losses": 0.0,
+      "median_opp_deck_low_in_losses": 17.0
+    },
+    "Crustle + Mega Kangaskhan stall": {
+      "n": 13,
+      "wins": 9,
+      "losses": 4,
+      "mean_turn_of_death": 33.25,
+      "median_turn_of_death": 31.0,
+      "opp_near_deckout_share": 0.7692307692307693,
+      "opp_near_deckout_share_in_losses": 0.25,
+      "median_opp_deck_low_in_losses": 15.0
+    },
+    "Mega Starmie / Mega Froslass": {
+      "n": 9,
+      "wins": 5,
+      "losses": 4,
+      "mean_turn_of_death": 11.25,
+      "median_turn_of_death": 11.5,
+      "opp_near_deckout_share": 0.5555555555555556,
+      "opp_near_deckout_share_in_losses": 0.0,
+      "median_opp_deck_low_in_losses": 31.0
+    },
+    "Crustle mill (ours)": {
+      "n": 3,
+      "wins": 2,
+      "losses": 1,
+      "mean_turn_of_death": 44.0,
+      "median_turn_of_death": 44.0,
+      "opp_near_deckout_share": 1.0,
+      "opp_near_deckout_share_in_losses": 1.0,
+      "median_opp_deck_low_in_losses": 2.0
+    },
+    "Archaludon ex box": {
+      "n": 32,
+      "wins": 29,
+      "losses": 3,
+      "mean_turn_of_death": 27.333333333333332,
+      "median_turn_of_death": 28.0,
+      "opp_near_deckout_share": 0.96875,
+      "opp_near_deckout_share_in_losses": 0.6666666666666666,
+      "median_opp_deck_low_in_losses": 3.0
+    },
+    "Marnie's Grimmsnarl ex": {
+      "n": 36,
+      "wins": 14,
+      "losses": 22,
+      "mean_turn_of_death": 19.454545454545453,
+      "median_turn_of_death": 18.5,
+      "opp_near_deckout_share": 0.4166666666666667,
+      "opp_near_deckout_share_in_losses": 0.045454545454545456,
+      "median_opp_deck_low_in_losses": 16.5
+    },
+    "Team Rocket Spidops (non-ex)": {
+      "n": 8,
+      "wins": 1,
+      "losses": 7,
+      "mean_turn_of_death": 14.571428571428571,
+      "median_turn_of_death": 12.0,
+      "opp_near_deckout_share": 0.125,
+      "opp_near_deckout_share_in_losses": 0.0,
+      "median_opp_deck_low_in_losses": 27.0
+    },
+    "Iono's Bellibolt ex": {
+      "n": 1,
+      "wins": 0,
+      "losses": 1,
+      "mean_turn_of_death": 16.0,
+      "median_turn_of_death": 16.0,
+      "opp_near_deckout_share": 0.0,
+      "opp_near_deckout_share_in_losses": 0.0,
+      "median_opp_deck_low_in_losses": 13.0
+    }
+  },
+  "overall_mechanism": {
+    "n": 225,
+    "wins": 110,
+    "losses": 115,
+    "mean_turn_of_death": 18.704347826086956,
+    "median_turn_of_death": 16.0,
+    "opp_near_deckout_share": 0.6044444444444445,
+    "opp_near_deckout_share_in_losses": 0.22608695652173913,
+    "median_opp_deck_low_in_losses": 13.0
+  }
+}

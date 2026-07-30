@@ -33,7 +33,7 @@ import argparse
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Final
+from typing import Callable, Final, Protocol
 
 from ..agent_heuristics.heuristic_agent import HeuristicAgent
 from ..agent_heuristics.random_agent import RandomAgent
@@ -58,6 +58,19 @@ def discover_decks(decks_dir: Path = DECKS_DIR) -> dict[str, Path]:
             name = name.removeprefix(prefix)
         decks[name] = path
     return decks
+
+
+class GameObserver(Protocol):
+    """Per-game mechanism probe handed to play_one_game by run_pair.
+
+    Called with every observation dict as the game runs, then once with
+    the outcome. Implementations live with whoever is measuring; the
+    gauntlet only needs the shape.
+    """
+
+    def __call__(self, obs_dict: dict) -> None: ...
+
+    def finish(self, result: int, turns: int) -> None: ...
 
 
 class TimedAgent:
@@ -106,13 +119,20 @@ class PairResult:
 
 def run_pair(make_a: Callable[[int], Agent], make_b: Callable[[int], Agent],
              deck_a: list[int], deck_b: list[int], n_games: int,
-             seed: int, timed: TimedAgent | None = None) -> PairResult:
+             seed: int, timed: TimedAgent | None = None,
+             on_game: Callable[[int, int, int], "GameObserver | None"]
+             | None = None) -> PairResult:
     """n games of (agent A, deck A) vs (agent B, deck B), seats alternating.
 
     Same alternation contract as arena.run_arena: A is player 0 in even
     games and the deck follows its agent. `timed` aggregates the pilot's
     per-call latency across the pair (pass the wrapper used inside
     make_a/make_b).
+
+    ``on_game(game_index, a_seat, seed)`` optionally returns an observer
+    to hand to play_one_game for MECHANISM measurement (how low each deck
+    ran, what turn it ended on). It is called once per game before play
+    and may return None to skip observation for that game.
     """
     a_wins = b_wins = draws = 0
     a_wins_seat = [0, 0]
@@ -125,11 +145,16 @@ def run_pair(make_a: Callable[[int], Agent], make_b: Callable[[int], Agent],
         a_seat = game_index % 2
         agents = (agent_a, agent_b) if a_seat == 0 else (agent_b, agent_a)
         decks = (deck_a, deck_b) if a_seat == 0 else (deck_b, deck_a)
+        observer = (on_game(game_index, a_seat, seed + game_index)
+                    if on_game is not None else None)
         try:
-            result, turns = play_one_game(agents, list(decks[0]), list(decks[1]))
+            result, turns = play_one_game(agents, list(decks[0]),
+                                          list(decks[1]), observer=observer)
         except Exception as exc:  # noqa: BLE001 — exceptions are a gate metric
             errors.append(f"game {game_index}: {type(exc).__name__}: {exc}")
             continue
+        if observer is not None:
+            observer.finish(result, turns)
         turns_seen.append(turns)
         if result == RESULT_DRAW:
             draws += 1
