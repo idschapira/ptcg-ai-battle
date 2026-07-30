@@ -533,3 +533,92 @@ e reponderando toda média de campo. `discover_decks` agora as exclui por padrã
 (`include_candidates=True` para pedi-las), e `tests/test_deck_pool_contract.py` passa a exigir que
 TODO deck do pool tenha 60 cartas legais que o **motor** aceita, e que o campo não contenha
 candidatos e contenha Archaludon.
+
+## [31/Jul] O Alakazam nao mente por disrupcao, mente por TEMPO -- e havia um segundo buraco igual
+Duas frentes, offline, nada shipado. `deck.csv` intocado.
+
+### (A) Por que a celula Alakazam mente -- hipotese principal REFUTADA
+Coletor unico consumindo `(agent_index, obs, action)`, alimentado pelos replays reais E pelos jogos
+internos -- medir os dois lados com codigos diferentes deixaria a comparacao a merce dos proprios
+bugs. 59 jogos reais (filtro de submissao + sentinela + assento fixo) vs 300 internos por piloto.
+
+**Enhanced Hammer nao explica nada.** Era a hipotese principal e morre no dado: os reais jogam
+**2,00/jogo**, o heuristico **1,97/jogo** -- identicos (o BC-majkel e que subjoga, 1,09). Pior para
+a hipotese: a fracao das nossas energias especiais **ARRANCADAS** com o portador vivo e
+**38,6% no real e 51,4% no heuristico** -- a celula interna e MAIS dura com a nossa prevencao, nao
+menos. Dano medio do Powerful Hand tambem empata (266 real vs 256/273).
+
+**O que explica e tempo.** Ranqueado por caminho mecanico ate o winrate:
+
+| divergencia | real | heuristico | BC-majkel |
+|---|---|---|---|
+| **Powerful Hands ACERTADOS/jogo** | **6,08** | 3,70 | 4,43 |
+| share dos ataques que e Powerful Hand | 89,3% | 75,9% | 69,5% |
+| Rare Candy/jogo (monta o Stage 2) | **1,10** | 0,63 | 0,63 |
+| turno em que o Alakazam entra | **5,25** | 6,53 | 5,78 |
+| -- consequencia: eles DECKAM (chegam a 0) | 28,8% | 67,3% | 66,7% |
+| -- deck deles no minimo (mediana) | 5,0 | 0,0 | 0,0 |
+
+O oponente real monta o Alakazam ~1,3 turno antes (Rare Candy 1,75x) e converte 89,3% dos seus
+ataques no golpe que mata, contra 76%/70%. Resultado: **1,64x mais Powerful Hands por jogo**, ao
+mesmo dano unitario. A conta fecha: 6,08 x 266 = 1617 de dano entregue no real contra 3,70 x 256 =
+947 no interno. Com ~150 HP por corpo, 1617 fecha 6 premios com folga e 947 fecha na unha -- que e
+exatamente a diferenca entre perder 64% e ganhar 83%.
+
+**E nao e o nosso mill que esta rapido demais.** Cartas milladas por turno: 3,00 real vs 3,50
+heuristico; turnos por jogo 19,58 vs 17,90. Mesma vazao, mesma duracao. O que muda e o relogio
+DELES. **Veredito: descalibracao explicada por comportamento subjogado, sem residuo material.** A
+celula e consertavel com um oponente melhor -- e o matchup real e genuinamente mais duro do que
+sabiamos (35,6% e o numero verdadeiro; 83,5% era tempo regalado).
+
+### (B) Cobertura do campo: 58,6% -> 88,4%, e um segundo buraco do mesmo tamanho
+Auditoria dos 215 jogos reais decididos. **So 58,6% do campo estava coberto por celula medida** --
+e o que faltava nao eram listas, era **mapeamento**:
+
+| arquetipo | share real | WR real | tinha celula? |
+|---|---|---|---|
+| Alakazam | 27,4% | 35,6% | sim |
+| Grimmsnarl | 16,7% | 38,9% | sim |
+| **Mega Lucario ex** | **14,9%** | **50,0%** | **NAO (sem mapeamento)** |
+| **Archaludon** | **14,9%** | 90,6% | **NAO (lista existia, sem mapeamento)** |
+| unknown | 7,0% | 53,3% | nao (cauda longa real) |
+
+Minerei o Lucario dos 32 jogos reais: bate **57/60** com o seed feito a mao que ja estava no disco.
+Ou seja, os dois buracos grandes eram entradas faltando em `ARCHETYPE_DECKS`, nao decks faltando --
+o tipo de buraco que nao parece nada. Corrigido; cobertura vai a **88,4%**. O resto e cauda longa
+(`unknown` = Hop Trevenant 4, Cynthia Garchomp 4, Hydrapple 2 -- nenhum >=5% sozinho).
+
+**E o Lucario escondia um segundo buraco de calibracao do tamanho do Alakazam:**
+
+| celula | piloto interno | real | interno | delta |
+|---|---|---|---|---|
+| Grimmsnarl | **BC casado** | 38,9% | 45,4% | **+6,5pp** compativel |
+| Archaludon | heuristico | 90,6% | 96,3% | +5,7pp compativel |
+| Alakazam | heuristico | 35,6% | 83,5% | **+47,9pp** |
+| Alakazam | BC-majkel (nao casado) | 35,6% | 89,7% | **+54,1pp** |
+| **Mega Lucario** | heuristico | 50,0% | 96,0% | **+46,0pp** |
+| Kangaskhan | heuristico | 75,0% | 97,0% | +22,0pp |
+| Spidops | heuristico | 12,5% | 82,8% | **+70,3pp** |
+| Starmie | heuristico | 62,5% | 25,8% | **-36,7pp** (pessimista!) |
+
+O Lucario tem a **mesma assinatura** do Alakazam: mesma vazao de mill (2,94 vs 3,10/turno), mesma
+duracao (20,78 vs 21,45 turnos), mas eles deckam **34,4% no real e 86,7% no interno**.
+
+**A leitura que unifica tudo: o piloto interno subjoga tempo, entao toda celula cuja corrida e
+apertada sai inflada; a unica que calibra sem BC casado (Archaludon) e justamente a que ganhamos de
+verdade, onde nao ha o que inflar.** E o remedio nao e mais jogos: o unico piloto casado por
+arquetipo que temos (`bc_grimmsnarl`) produz a unica celula contestada calibrada, enquanto um BC
+clonado de jogador mas aplicado a outro arquetipo (BC-majkel no Alakazam) fica **pior** que o
+heuristico. Calibracao = **behaviour cloning casado por arquetipo**. O Starmie ainda e o caso
+oposto e nao explicado (interno pessimista), com N real de 8.
+
+**Ressalva de N.** So Alakazam (59) e Grimmsnarl (36) tem N real decente; Lucario e Archaludon tem
+32; Kangaskhan 12; Spidops e Starmie 8. Os ICs de Newcombe ja carregam isso -- Spidops e
+[+35,6, +81,0], largo mas ainda excluindo zero.
+
+**Bug encontrado e corrigido no caminho.** `mine_opponent_deck` agregava por NOME e resolvia de
+volta pelo primeiro id com aquele nome. "Alakazam" e o id 743 (Powerful Hand, a condicao de vitoria
+inteira) **e** o 245 (Strange Hacking/Psychic). Re-minerar o Alakazam produzia uma lista que nao
+sabe executar o proprio plano. Agora tudo e chaveado por card id; a lista do Archaludon commitada
+ontem foi conferida e **nao** foi afetada. Guarda hermetica em `tests/test_mine_opponent_deck.py`,
+que primeiro verifica que a colisao ainda existe (senao o teste seria vacuo).

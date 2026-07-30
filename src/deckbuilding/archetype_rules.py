@@ -77,6 +77,15 @@ ARCHETYPE_DECKS: Final[dict[str, str]] = {
     "Crustle + Mega Kangaskhan stall": "data/decks/meta_crustle_kangaskhan.csv",
     # the mirror: an opponent playing our own list
     "Crustle mill (ours)": "data/decks/candidate_crustle_e10.csv",
+    # Added 31/Jul after the field-coverage audit: these two were 29.8%
+    # of our real games between them and had NO mapping, so the runtime
+    # estimator could never form a hypothesis about them and
+    # field_coverage counted them as holes. Neither was actually missing
+    # a list — Archaludon's was reconstructed on 31/Jul and Lucario's
+    # hand-made seed matches its mined version 57/60. The gap was the
+    # mapping, which is exactly the kind of hole that looks like nothing.
+    "Archaludon ex box": "data/decks/meta_archaludon.csv",
+    "Mega Lucario ex": "data/decks/meta_mega_lucario.csv",
 }
 
 

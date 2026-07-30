@@ -30,6 +30,14 @@ Everything is observation-floored: a card never drawn in 32 games is
 invisible, so the output is a HYPOTHESIS about the archetype, never the
 opponent's true list. Callers must treat it as such.
 
+Reconstruction is keyed on CARD ID, never on card name. Names are not
+unique in this pool and the collisions are not cosmetic: "Alakazam" is
+both id 743 (Powerful Hand — the archetype's entire win condition) and id
+245 (Strange Hacking / Psychic, a different card). Aggregating by name
+and resolving back to "the first id with that name" silently builds a
+deck that cannot execute its own game plan, and the cell then measures
+something that does not exist. Names appear in the report only.
+
 Sample discipline: submission-id filter + deck sentinel on our side
 (viewer/episodes/ mixes every submission we ever ran), and card
 ownership comes from the engine's own playerIndex on each card dict.
@@ -75,7 +83,7 @@ def _mode(values: list[int]) -> int:
 def collect(episodes_dir: Path, archetype: str, team: str,
             allowed: set[int] | None,
             index: CardIndex) -> tuple[list[Counter], Counter, Counter]:
-    """(per-game opponent card counts, results, opposing team names)."""
+    """(per-game opponent card counts BY CARD ID, results, team names)."""
     per_game: list[Counter] = []
     results: Counter = Counter()
     teams: Counter = Counter()
@@ -92,14 +100,18 @@ def collect(episodes_dir: Path, archetype: str, team: str,
         if team not in names:
             continue
         seat = names.index(team)
+        # keyed on card ID; a parallel name view exists only so the
+        # archetype rules (which match on names) can be applied
         revealed: dict[int, Counter] = {0: Counter(), 1: Counter()}
+        named: dict[int, Counter] = {0: Counter(), 1: Counter()}
         for (player, _serial), card_id in _observed_serials(replay).items():
             card = index.get_card(card_id)
             if card is not None and player in revealed:
-                revealed[player][card.card_name] += 1
-        if label_archetype(revealed[seat]) != OUR_DECK_LABEL:
+                revealed[player][card_id] += 1
+                named[player][card.card_name] += 1
+        if label_archetype(named[seat]) != OUR_DECK_LABEL:
             continue
-        if label_archetype(revealed[1 - seat]) != archetype:
+        if label_archetype(named[1 - seat]) != archetype:
             continue
         per_game.append(revealed[1 - seat])
         teams[names[1 - seat]] += 1
@@ -114,41 +126,34 @@ def collect(episodes_dir: Path, archetype: str, team: str,
 
 
 def reconstruct(per_game: list[Counter], index: CardIndex,
-                min_presence: float) -> tuple[Counter, list[str], list[str]]:
-    """(name -> copies, kept names, dropped names) before energy fill."""
+                min_presence: float) -> tuple[Counter, list[str]]:
+    """(card_id -> copies, dropped descriptions) before the energy fill."""
     n = len(per_game)
     presence: Counter = Counter()
-    maxima: dict[str, list[int]] = defaultdict(list)
+    maxima: dict[int, list[int]] = defaultdict(list)
     for observation in per_game:
-        for name, count in observation.items():
-            presence[name] += 1
-            maxima[name].append(count)
+        for card_id, count in observation.items():
+            presence[card_id] += 1
+            maxima[card_id].append(count)
 
-    by_name = {card.card_name: card for card in index.cards.values()} \
-        if hasattr(index, "cards") else {}
     kept: Counter = Counter()
-    keep_names, dropped = [], []
-    for name, seen in presence.items():
+    dropped: list[str] = []
+    for card_id, seen in presence.items():
+        card = index.get_card(card_id)
+        label = card.card_name if card is not None else f"id={card_id}"
         if seen / n < min_presence:
-            dropped.append(f"{name} ({seen}/{n} jogos)")
+            dropped.append(f"{label} (id {card_id}, {seen}/{n} jogos)")
             continue
-        card = by_name.get(name)
         if card is not None and card.stage_code == STAGE_BASIC_ENERGY:
             continue                       # energy is the fill variable
-        kept[name] = _mode(maxima[name])
-        keep_names.append(name)
-    return kept, keep_names, dropped
+        kept[card_id] = _mode(maxima[card_id])
+    return kept, dropped
 
 
-def to_ids(counts: Counter, index: CardIndex) -> list[int]:
-    by_name: dict[str, int] = {}
-    for card in index.cards.values():
-        by_name.setdefault(card.card_name, card.card_id)
+def to_ids(counts: Counter) -> list[int]:
+    """Already keyed on card id — expand copies, no name lookup anywhere."""
     ids: list[int] = []
-    for name, copies in counts.items():
-        card_id = by_name.get(name)
-        if card_id is None:
-            raise SystemExit(f"carta desconhecida no consenso: {name!r}")
+    for card_id, copies in counts.items():
         ids.extend([card_id] * copies)
     return ids
 
@@ -164,7 +169,7 @@ def main() -> None:
                         help="drop cards seen in fewer than this share of "
                              "games (tech/noise, not the archetype)")
     parser.add_argument("--energy", type=str, default=None,
-                        help="Basic Energy card name used to fill to 60 "
+                        help="Basic Energy card ID used to fill to 60 "
                              "(default: the most-seen Basic Energy)")
     args = parser.parse_args()
 
@@ -183,14 +188,20 @@ def main() -> None:
     print(f"{len(per_game)} jogos reais, {len(teams)} times distintos; "
           f"NOSSO resultado: {dict(results)}")
 
-    kept, keep_names, dropped = reconstruct(per_game, index,
-                                            args.min_presence)
+    kept, dropped = reconstruct(per_game, index, args.min_presence)
     named_total = sum(kept.values())
+
+    def label(card_id: int) -> str:
+        card = index.get_card(card_id)
+        return card.card_name if card is not None else f"id={card_id}"
+
     print(f"\ncartas nomeadas (presença >= {args.min_presence:.0%}, "
           f"cópias = MODA do máximo por jogo): {named_total}")
-    for name, copies in sorted(kept.items(), key=lambda kv: (-kv[1], kv[0])):
-        seen = sum(1 for o in per_game if name in o)
-        print(f"  {copies}x {name[:32]:32s} (visto em {seen}/{len(per_game)})")
+    for card_id, copies in sorted(kept.items(),
+                                  key=lambda kv: (-kv[1], label(kv[0]))):
+        seen = sum(1 for o in per_game if card_id in o)
+        print(f"  {copies}x [{card_id:5d}] {label(card_id)[:30]:30s} "
+              f"(visto em {seen}/{len(per_game)})")
     if dropped:
         print(f"\ndescartadas como tech/ruído (< {args.min_presence:.0%}):")
         for text in dropped:
@@ -200,25 +211,25 @@ def main() -> None:
         raise SystemExit(f"FALHOU: cartas nomeadas somam {named_total} > 60 "
                          f"— reconstrução ambígua, revise --min-presence")
 
-    # energy fills the remainder
+    # energy fills the remainder (also keyed on id)
     energy_counts: Counter = Counter()
     for observation in per_game:
-        for name, count in observation.items():
-            card = next((c for c in index.cards.values()
-                         if c.card_name == name), None)
+        for card_id, count in observation.items():
+            card = index.get_card(card_id)
             if card is not None and card.stage_code == STAGE_BASIC_ENERGY:
-                energy_counts[name] = max(energy_counts[name], count)
-    energy_name = args.energy or (energy_counts.most_common(1)[0][0]
-                                  if energy_counts else None)
-    if energy_name is None:
+                energy_counts[card_id] = max(energy_counts[card_id], count)
+    energy_id = (int(args.energy) if args.energy
+                 else (energy_counts.most_common(1)[0][0]
+                       if energy_counts else None))
+    if energy_id is None:
         raise SystemExit("nenhuma Basic Energy observada — informe --energy")
     fill = DECK_SIZE - named_total
-    kept[energy_name] = kept.get(energy_name, 0) + fill
-    print(f"\npreenchimento: {fill}x {energy_name} "
-          f"(máximo observado num jogo: {energy_counts[energy_name]}) "
+    kept[energy_id] = kept.get(energy_id, 0) + fill
+    print(f"\npreenchimento: {fill}x [{energy_id}] {label(energy_id)} "
+          f"(máximo observado num jogo: {energy_counts[energy_id]}) "
           f"-> INFERIDO, não observado como contagem exata")
 
-    ids = sorted(to_ids(kept, index))
+    ids = sorted(to_ids(kept))
     if len(ids) != DECK_SIZE:
         raise SystemExit(f"FALHOU: {len(ids)} cartas, esperado 60")
 
