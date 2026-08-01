@@ -910,3 +910,123 @@ passaram 10/10 rodadas seguidas.
 - `src/analysis/field_calibration.py`: a tabela de calibracao como um comando (NOVO)
 - `tests/test_attack_profile.py`: 13 testes -- derivacao, banda e routing sobre opcoes REAIS,
   inercia do ship e o contra-teste da banda
+
+## [01/Ago] O gusting: mecanismo CONFIRMADO, magnitude insuficiente -- e uma metrica quebrada achada
+Offline, nada shipado. `deck.csv`/`main.py`/`build_submission.py` identicos ao HEAD. 324/326 testes
+(as 2 falhas de `test_portfolio_watch` seguem pre-existentes), 3 rodadas estaveis. 0 exceptions em
+7.200 jogos de calibracao.
+
+### 1. A hipotese, e o numero que a decide
+Powerful Hand so alcanca o ATIVO e e anulado por Mist/Rock (contador de dano e EFEITO). Entao o
+caminho que sobra para o oponente real nao e atacar mais forte, e atacar OUTRO: puxar para o ativo
+o corpo sem cobertura. Quando o motor oferece um SWITCH sobre o NOSSO banco ele esta oferecendo uma
+ESCOLHA, e a estatistica que decide e condicional: **dado um conjunto com corpo COBERTO e corpo
+DESCOBERTO na mesa, quantas vezes levam o descoberto?**
+
+`src/analysis/gust_telemetry.py`, um coletor alimentado pelos dois lados (replays reais com filtro
+de submissao + sentinela de arquetipo nos DOIS decks, e jogos internos):
+
+| | REAL (59 jogos) | interno | interno + fix |
+|---|---|---|---|
+| gusts/jogo | 1,08 | 1,59 | 1,67 |
+| turno medio do gust | 12,84 | 10,18 | 10,17 |
+| alvo DESPROTEGIDO (todos os gusts) | 100,0% | 81,8% | 97,0% |
+| **>> escolhas com coberto E descoberto na mesa** | **6** | **54** | **66** |
+| **>> ...e puxaram o DESCOBERTO** | **100,0%** | **11,1%** | **100,0%** |
+| HP medio do alvo puxado | 115,8 | 129,1 | 97,5 |
+
+**Achado.** O piloto generico fazia o OPOSTO exato do real. Os alvos dizem tudo: o real puxa
+Dwebble x23 (70 de HP, sem energia) e Crustle x23; o nosso puxava **Great Tusk x174** -- o corpo
+{F} que carrega a Rock Fighting, ou seja, a unica peca que a prevencao protege. A causa e estrutural:
+`_own_pokemon_score` avalia um corpo INIMIGO com a regra das nossas proprias promocoes (maior HP +
+dano impresso), entao arrastava a nossa parede.
+
+### 2. Consequencia medida
+Dos KOs que sofremos, **16,3% (real) foram num corpo que tinha ACABADO de ser arrastado**, e desses
+**85,0% morreram no MESMO turno do gust** -- a sequencia e gust -> KO no mesmo turno, como a hipotese
+previa. Nas nossas derrotas reais a fracao e 11,1%. Interno: 25,5% dos KOs pos-gust, mas so 54,8% no
+mesmo turno (arrastavam a parede, que nao morre).
+
+### 3. Os OUTROS bypasses: varridos, e nao ha um terceiro
+Varri as **30 cartas distintas efetivamente reveladas** do lado deles nos 59 jogos reais (fonte =
+corpus, nao a nossa lista reconstruida) contra o texto do motor. Prevencao so para EFEITOS DE ATAQUE
+feitos ao portador, entao os contornos possiveis sao: bater no banco, bater com DANO puro, tirar a
+energia antes, usar ABILITY, ou puxar outro corpo. Resultado:
+- **`Boss's Orders` x146** -- o gust. Medido e corrigido acima.
+- **`Enhanced Hammer` x190** -- tirar a cobertura antes de atacar. **Ja estava casado**: 2,00
+  descartes/jogo reais contra 1,90 internos, e levaram energia que de fato COBRIA em 91,5% (real)
+  contra 90,3% (interno). Nao e deficit.
+- **Nenhum ataque que ignore efeito, e nenhuma ability que cause dano.** ⚠️ Meu primeiro parse
+  concatenou o texto da skill com o do ataque e fez a ability do Alakazam parecer "Draw 3 cards.
+  Place 2 damage counters..."; conferido carta a carta, a ability e **so** "Draw 3 cards" e os
+  contadores sao o ATAQUE 1072, que E prevenido. Nao existe bypass por ability.
+- `Shaymin` e `Battle Cage` aparecem na varredura por conterem "prevent"/"Benched", mas sao
+  protecao DELES, nao contorno da nossa.
+
+### 4. O fix, atras de flag (`gust_targeting`, default OFF)
+`_gust_target_score`: cobertura primeiro (ataque prevenido e turno perdido), depois a armadilha --
+HP baixo e KO agora, custo de recuo alto e falta de energia sao o que prende o corpo la. A tabela de
+cobertura e **derivada do texto do motor**, nao memorizada: energia especial cujo texto diz prevenir
+todos os efeitos de ataques feitos ao Pokemon a que esta ligada, com restricao de tipo opcional. Hoje
+isso da exatamente Mist (qualquer host) e Rock Fighting (host {F}) -- a matriz que o teste de
+contrato ja verificara contra o motor, mas agora vinda da carta.
+
+**Inercia do ship**: lockstep sobre os jogos REAIS, 222 episodios / **11.495 decisoes**, flag forcada
+no shadow: **0 divergencias**. (CrustleAgent ja roteia promocao de inimigo pelo proprio
+`_v2_trap_target_score`, entao ha duas camadas.)
+
+### 5. Calibracao, N=600/celula, alvos reais fixos, 0 exceptions
+| celula | real | antes | gust | erro antes | erro gust |
+|---|---|---|---|---|---|
+| Alakazam | 35,6% | 82,0% | 78,0% | +46,4 | **+42,4** |
+| Mega Lucario | 50,0% | 97,0% | 93,7% | +47,0 | +43,7 |
+| Archaludon | 90,6% | 96,8% | 97,0% | +6,2 | +6,4 |
+| Kangaskhan | 75,0% | 97,3% | 96,0% | +22,3 | +21,0 |
+| Spidops | 12,5% | 81,5% | 80,0% | +69,0 | +67,5 |
+| Starmie | 62,5% | 26,0% | 24,5% | -36,5 | -38,0 |
+| **erro absoluto medio** | | **37,9pp** | **36,5pp** | | |
+
+(routing+gust: 32,9pp, ainda o melhor conjunto.) Alakazam **-4,0pp, IC95 Newcombe [-8,5, +0,5]** --
+o sinal anda na direcao certa mas **atravessa o zero a N=600**: e sugestivo, nao estabelecido.
+
+**GATE: FALHOU.** Exigia erro do Alakazam <= ~15pp; veio +42,4pp. **Veredito da hipotese: o
+mecanismo estava LA e estava invertido, e corrigi-lo nao fecha a celula.** E aritmetica: 1,08
+gusts/jogo e 16,3% dos nossos KOs. Mesmo um gusting perfeito nao vale 44pp.
+
+### 6. O que esta rodada de fato encontrou: a metrica de premios estava quebrada
+Investigando por que "KOs/jogo" e "premios que eles tiram/jogo" nao fechavam entre si, achei que
+`cell_telemetry` tirava o MINIMO da contagem de premios do oponente sobre TODAS as observacoes --
+inclusive as de SETUP, em que os premios ainda nao foram distribuidos e a lista esta vazia. Vazio e
+indistinguivel de "tirou os seis", entao a metrica reportava ~6,0 em praticamente todo jogo, real e
+interno. **Eu citei esse numero nas rodadas de 31/Jul e 01/Ago** ("os premios que eles tiram nao se
+moveram: 5,59 -> 5,48"). Aquela frase nao se sustenta: a metrica nao media o que dizia medir.
+
+Corrigido (so conta depois da primeira leitura nao-vazia) e com uma segunda leitura independente do
+mesmo fato (KOs = corpos nossos que somem do board, que nao depende de campo nenhum de setup):
+
+| | real | interno | interno + gust |
+|---|---|---|---|
+| **premios que ELES tiram/jogo** | **3,51** | **2,13** | **2,40** |
+| KOs que ELES nos dao/jogo | 5,49 | 4,02 | 4,24 |
+
+**O gap que a metrica quebrada escondia e enorme: 3,51 contra 2,13, 65% de diferenca.** E a variavel
+de saida que faltava -- todas as outras (ataques/jogo, share de Powerful Hand, dano do PH, Rare
+Candy, Enhanced Hammer) ja estao casadas com o real, e mesmo assim o oponente interno **converte
+quase metade** dos premios. O fix de gusting move 2,13 -> 2,40, na direcao certa e pequeno demais,
+exatamente como o winrate.
+
+A conclusao da rodada anterior ("os ataques extras foram desperdicados") continua de pe, mas agora
+apoiada nas duas evidencias que nao dependiam da metrica furada -- o nosso winrate SUBIU (80,0 ->
+84,3%) e o deck-out deles CAIU (64,7 -> 56,3%) -- e nao mais na frase sobre premios.
+
+**Proximo passo indicado pelos dados**: parar de casar comportamento de entrada e medir a CONVERSAO
+-- por que 4,02 KOs viram 2,13 premios internamente e 5,49 viram 3,51 no real. E a unica variavel de
+saida ainda descasada, e agora ela tem um medidor confiavel.
+
+- `src/agent_heuristics/heuristic_agent.py`: `gust_targeting=`, `_gust_target_score`,
+  `_is_covered`, `prevention_energies()` (tabela derivada do texto do motor)
+- `src/environment_wrapper/ab_test.py`: arms `-gust`
+- `src/analysis/gust_telemetry.py`: gusting + Enhanced Hammer, real vs interno (NOVO)
+- `src/analysis/cell_telemetry.py`: fix da contagem de premios + KOs/jogo
+- `tests/test_gust_targeting.py`: tabela de cobertura vinda do motor, escolha sobre opcoes REAIS,
+  e lockstep de inercia do ship

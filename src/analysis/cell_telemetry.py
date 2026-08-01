@@ -117,6 +117,7 @@ class Telemetry:
     # our special energies leaving the board, by cause
     stripped_survivor: int = 0      # host lived -> an effect removed it
     lost_with_host: int = 0         # host was KO'd
+    our_kos: int = 0                # our bodies that left the board
     attached_special: int = 0       # how many we managed to attach at all
 
     alakazam_online_turn: list[int] = field(default_factory=list)
@@ -141,6 +142,7 @@ class Telemetry:
         self.powerful_hand_handsize.extend(other.powerful_hand_handsize)
         self.stripped_survivor += other.stripped_survivor
         self.lost_with_host += other.lost_with_host
+        self.our_kos += other.our_kos
         self.attached_special += other.attached_special
         self.alakazam_online_turn.extend(other.alakazam_online_turn)
         self.opp_prizes_taken.extend(other.opp_prizes_taken)
@@ -160,6 +162,7 @@ class Collector:
 
     def _reset(self) -> None:
         self._our_seat: int | None = None
+        self._prizes_dealt = False
         self._special: dict[int, list[int]] = {}   # our serial -> specials
         self._alive: set[int] = set()
         self._online: int | None = None
@@ -187,9 +190,20 @@ class Collector:
         if agent_index == self._our_seat:
             self._track_our_board(players[self._our_seat])
             opponent = players[1 - self._our_seat]
+            # Prizes are only DEALT after setup, and before that the list
+            # is empty — which is indistinguishable from "took all six"
+            # unless the tracking starts at the first non-empty reading.
+            # Taking min over every observation instead made this metric
+            # report ~6.0 taken in essentially every game, real and
+            # internal alike: an artifact of the setup phase, not a fact
+            # about the opponent. (Found 01/Ago; the number it produced
+            # was quoted in the 31/Jul and 01/Ago rounds.)
             prize = len(opponent.get("prize") or [])
-            self._opp_prize = (prize if self._opp_prize is None
-                               else min(self._opp_prize, prize))
+            if prize > 0:
+                self._prizes_dealt = True
+            if self._prizes_dealt:
+                self._opp_prize = (prize if self._opp_prize is None
+                                   else min(self._opp_prize, prize))
             opp_deck = opponent.get("deckCount")
             if isinstance(opp_deck, int):
                 self._opp_deck_end = opp_deck
@@ -258,6 +272,11 @@ class Collector:
                 self._game.stripped_survivor += len(previous) - len(specials)
         for serial in set(self._special) - set(present):
             self._game.lost_with_host += len(self._special[serial])
+            # our bodies do not leave the board except by knockout, so a
+            # vanished serial IS a KO — an independent read on the same
+            # question the prize count answers, and one that does not
+            # depend on a field that is empty during setup
+            self._game.our_kos += 1
         self._special = present
 
     def end_game(self, our_result: bool | None, turns: int) -> None:
@@ -428,6 +447,8 @@ def compare(rows: dict[str, Telemetry], index: CardIndex) -> dict:
     line("turnos por jogo (média)", [_mean(rows[l].turns) for l in labels])
     line("prêmios que ELES tiram/jogo",
          [_mean(rows[l].opp_prizes_taken) for l in labels])
+    line("KOs que ELES nos dão/jogo",
+         [_per_game(rows[l].our_kos, rows[l].games) for l in labels])
     line("turno em que Alakazam entra",
          [_mean(rows[l].alakazam_online_turn) for l in labels])
 
@@ -492,6 +513,7 @@ def compare(rows: dict[str, Telemetry], index: CardIndex) -> dict:
                             if telemetry.games else None),
             "mean_turns": _mean(telemetry.turns),
             "opp_prizes_taken": _mean(telemetry.opp_prizes_taken),
+            "our_kos_per_game": _per_game(telemetry.our_kos, telemetry.games),
             "alakazam_online_turn": _mean(telemetry.alakazam_online_turn),
             "plays_per_game": {
                 TRACKED[c]: _per_game(telemetry.plays.get(c, 0),

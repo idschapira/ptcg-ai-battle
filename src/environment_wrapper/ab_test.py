@@ -77,9 +77,16 @@ ARM_KINDS: Final[tuple[str, ...]] = (
     # "-routing" extends the scaled valuation to the ATTACH and PROMOTE
     #            scorers, so energy and the active slot go to the body
     #            that actually threatens.
-    "heuristic-aggro", "heuristic-routing",
+    # "-gust"    drags the opponent's UNCOVERED body into the Active Spot
+    #            instead of its biggest one. Measured on the ladder: with
+    #            both a covered and a bare body on the table, real
+    #            opponents took the bare one 6/6 and the generic pilot
+    #            0/28 (src/analysis/gust_telemetry.py).
+    "heuristic-aggro", "heuristic-routing", "heuristic-gust",
     "heuristic-tempo-scaled-aggro", "heuristic-tempo-scaled-routing",
     "heuristic-tempo-scaled-aggro-routing",
+    "heuristic-tempo-scaled-gust", "heuristic-tempo-scaled-routing-gust",
+    "heuristic-tempo-scaled-aggro-routing-gust",
     "crustle", "crustle-v2", "crustle-v3", "network",
     # runtime search (submission candidate). "-blind" pins the estimator
     # off so the arm degrades to its prior — that is the FLOOR arm, and
@@ -380,6 +387,7 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
         tempo = "tempo" in spec.kind
         scaled = "scaled" in spec.kind
         routing = "routing" in spec.kind
+        gust = "gust" in spec.kind
         profile = PROFILE_DEVELOPMENT
         if "aggro" in spec.kind:
             profile = deck_profile(_deck_card_names(deck or [], index))
@@ -387,7 +395,8 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
                                         effects=effects, tempo=tempo,
                                         scaled_damage=scaled,
                                         profile=profile,
-                                        energy_routing=routing)
+                                        energy_routing=routing,
+                                        gust_targeting=gust)
     elif spec.kind == "crustle":
         from ..agent_heuristics.crustle_agent import CrustleAgent
         base = lambda s: CrustleAgent(seed=s, index=index, effects=effects)

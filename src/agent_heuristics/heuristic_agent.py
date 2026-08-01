@@ -270,6 +270,66 @@ _UNRESOLVED_UNITS_ESTIMATE: Final[float] = 2.0
 # Routing reuses the SAME clause parser and the SAME live unit count, so
 # the three scorers finally agree about what an attack is worth.
 
+# --------------------------------------------------------------------------
+# GUST TARGETING — which of the opponent's bodies to drag into the Active
+# --------------------------------------------------------------------------
+# Boss's Orders and friends arrive as a SWITCH over the OPPONENT'S board,
+# and _own_pokemon_score scores those options with the rule it uses for
+# our own promotions: highest HP plus printed damage. Against a deck that
+# carries prevention that is exactly backwards — it drags out the wall.
+#
+# Measured on the ladder corpus vs internal games (src/analysis/
+# gust_telemetry.py, 01/Ago): when the choice set held BOTH a covered and
+# a bare body, real opponents took the bare one 6 times out of 6 and the
+# generic pilot took it 0 times out of 28. Real gusts pull Dwebble (70 HP,
+# no energy); ours pull Great Tusk, the {F} body holding the Rock.
+#
+# "Covered" is read from the ENGINE'S OWN TEXT rather than from a
+# memorized pair of card ids: a special energy whose text says it
+# prevents all effects of attacks done to the Pokémon it is attached to
+# (optionally restricted to one type) is cover. Today that is exactly
+# Mist Energy (any host) and Rock Fighting Energy ({F} host only), which
+# is the matrix tests/test_effect_prevention_contract.py verified against
+# the engine — but the rule now comes from the card, so a new printing
+# is picked up without an edit here.
+_COVER_CLAUSE: Final["re.Pattern[str]"] = re.compile(
+    r"prevent all effects of attacks[^.]*?done to the\s*(?:\{(\w)\}\s*)?"
+    r"pok.mon this card is attached to", re.I)
+
+_PREVENTION_ENERGIES: dict[int, int | None] | None = None
+
+
+def prevention_energies() -> dict[int, int | None]:
+    """card id -> energy code the host must be for the cover to apply
+    (None = any host). Parsed once from the engine's card text."""
+    global _PREVENTION_ENERGIES
+    if _PREVENTION_ENERGIES is None:
+        table: dict[int, int | None] = {}
+        try:
+            import cg.api as _api
+            for card in _api.all_card_data():
+                if getattr(card, "hp", None):
+                    continue          # Pokémon, not an attached energy
+                for skill in (card.skills or ()):
+                    match = _COVER_CLAUSE.search(
+                        (skill.text or "").replace("\n", " "))
+                    if match is None:
+                        continue
+                    symbol = match.group(1)
+                    table[card.cardId] = (_ENERGY_SYMBOL.get(symbol.upper())
+                                          if symbol else None)
+                    break
+        except Exception:
+            table = {}
+        _PREVENTION_ENERGIES = table
+    return _PREVENTION_ENERGIES
+
+
+# A covered body must never be dragged out over a bare one, so the malus
+# has to dominate every other term rather than trade against it.
+_GUST_COVER_MALUS: Final[float] = 100.0
+_GUST_BASE: Final[float] = 40.0
+
 
 class HeuristicAgent:
     """Greedy one-ply evaluator satisfying the competition contract.
@@ -281,7 +341,7 @@ class HeuristicAgent:
 
     __slots__ = ("_index", "_effects", "_wrapper", "_deck_path", "_rng",
                  "_tempo", "_scaled_damage", "_profile", "_energy_routing",
-                 "_scale_cache", "last_scores")
+                 "_gust_targeting", "_scale_cache", "last_scores")
 
     def __init__(
         self,
@@ -293,6 +353,7 @@ class HeuristicAgent:
         scaled_damage: bool = False,
         profile: str = PROFILE_DEVELOPMENT,
         energy_routing: bool = False,
+        gust_targeting: bool = False,
     ) -> None:
         """``tempo=True`` promotes EVOLUTION_ACCELERATORS out of the
         trainer band (see the constant). ``scaled_damage=True`` values
@@ -301,12 +362,15 @@ class HeuristicAgent:
         ``profile=PROFILE_AGGRO`` lets a LETHAL attack outrank development
         (see _AGGRO_LETHAL_BAND); ``energy_routing=True`` extends the
         scaled valuation to the attach and promotion scorers, so energy
-        and the active slot go to the body that actually threatens.
+        and the active slot go to the body that actually threatens;
+        ``gust_targeting=True`` drags the opponent's UNCOVERED body into
+        the Active Spot instead of its biggest one.
 
-        All four default to the SHIPPED behaviour so every existing
+        All five default to the SHIPPED behaviour so every existing
         caller — the ship's CrustleAgent above all — stays byte-identical;
-        tests/test_tempo_equivalence.py, tests/test_scaled_damage.py and
-        tests/test_attack_profile.py hold that line decision-by-decision.
+        tests/test_tempo_equivalence.py, tests/test_scaled_damage.py,
+        tests/test_attack_profile.py and tests/test_gust_targeting.py hold
+        that line decision-by-decision.
         """
         self._index = index if index is not None else CardIndex()
         self._effects = effects if effects is not None else EffectIndex()
@@ -317,6 +381,7 @@ class HeuristicAgent:
         self._scaled_damage = scaled_damage
         self._profile = profile
         self._energy_routing = energy_routing
+        self._gust_targeting = gust_targeting
         self._scale_cache: dict[int, ScaledClause | None] = {}
         self.last_scores: list[float] | None = None
 
@@ -708,7 +773,53 @@ class HeuristicAgent:
         active_bonus = 3.0 if option.inPlayArea == AreaType.ACTIVE else 0.0
         return _ATTACH_BAND + active_bonus + min(gain, 200.0) / 20.0
 
+    def _is_covered(self, pokemon: Pokemon | None,
+                    card: Card | None) -> bool:
+        """Does an attached energy nullify effect-based attacks here?"""
+        if pokemon is None:
+            return False
+        table = prevention_energies()
+        if not table:
+            return False
+        for attached in (pokemon.energyCards or []):
+            required = table.get(getattr(attached, "id", None), False)
+            if required is False:
+                continue                      # not a prevention energy
+            if required is None:
+                return True                   # covers any host
+            if card is not None and card.type_code == required:
+                return True
+        return False
+
+    def _gust_target_score(self, obs: Observation, option: Option) -> float:
+        """Which of the OPPONENT'S bodies to drag into the Active Spot.
+
+        Cover first (an attack that gets prevented is a wasted turn),
+        then the trap: low HP is a knockout now, retreat cost and missing
+        energy are what keep the body stuck there afterwards.
+        """
+        state = obs.current
+        pokemon = self._pokemon_at(state, option.playerIndex, option.area,
+                                   option.index)
+        if pokemon is None:
+            return 0.0
+        card = self._card_of(pokemon)
+        score = _GUST_BASE - (pokemon.hp or 0) / 10.0
+        if card is not None:
+            score += 4.0 * (card.retreat_cost or 0)
+        score -= 2.0 * len(pokemon.energies or [])
+        if self._is_covered(pokemon, card):
+            score -= _GUST_COVER_MALUS
+        return score
+
     def _own_pokemon_score(self, obs: Observation, option: Option, for_active: bool) -> float:
+        if (self._gust_targeting and for_active
+                and option.playerIndex is not None
+                and obs.current is not None
+                and option.playerIndex != obs.current.yourIndex):
+            # a SWITCH over the OPPONENT'S board is a gust, not a
+            # promotion: the rule for our own bodies is the wrong one
+            return self._gust_target_score(obs, option)
         card_id = self._wrapper.resolve_card_id(obs, option)
         card = self._index.get_card(card_id) if card_id is not None else None
         if card is None:
