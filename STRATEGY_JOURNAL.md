@@ -777,3 +777,136 @@ operacao das celulas grandes continua deslocado ~44pp. Entao **nada a re-rodar p
 ordem de dependencia segue a mesma (busca em runtime > variantes de deck > v4 do piloto). O que
 mudaria a resposta e a banda de ataque -- se ela for corrigida e o Alakazam cair para a faixa dos
 40-50%, ai sim vale re-rodar, comecando pela busca com N>=600/celula.
+
+## [01/Ago] A banda de ataque NAO era o gargalo -- e o alvo telemetrico era um proxy ruim
+Offline, nada shipado. `deck.csv` intocado. 319/321 testes (as 2 falhas de `test_portfolio_watch`
+seguem pre-existentes; a suite tem ainda 0-2 falhas intermitentes por rodada, verificadas na MESMA
+taxa num worktree limpo do HEAD -- motor nao semeavel, nao e regressao). 0 exceptions em 12.000
+jogos de calibracao.
+
+### 1. A premissa caiu antes de escrever codigo
+O diagnostico da rodada anterior era: `_ATTACK_BAND=20` mantem o ataque abaixo de desenvolver, e
+por isso ataques/jogo fica em 4,86 contra 6,81 do real. **Atacar ENCERRA o turno** -- entao a banda
+so REORDENA acoes DENTRO do turno; ela so pode custar um ataque se uma acao de desenvolvimento
+tomada antes remover a capacidade de atacar. Isso e mensuravel, e foi medido antes de mexer
+(`src/analysis/attack_census.py`, 60 jogos da lista Alakazam):
+
+| | antes |
+|---|---|
+| turnos que OFERECERAM ataque | 319/543 = 58,7% |
+| ...e que CONVERTERAM em ataque | 315/319 = **98,7%** |
+| turnos SEM ataque na mesa | 224 = **41,3%** |
+| ...destes, com ativo de ZERO energia | 210 de 215 |
+| ataques nao-PH com Powerful Hand na mesa | **0 de 58** |
+
+**O piloto ataca em 98,7% dos turnos em que atacar e legal, e ja escolhe sempre o ataque certo.**
+O deficit inteiro esta nos 41,3% de turnos em que nunca houve ataque na mesa -- corpo errado na
+frente, ou sem energia. Nenhuma banda alcanca isso.
+
+Segunda sonda (40 jogos): energia so esta anexavel em 5,38 turnos/jogo e o piloto anexa nos 5,38
+(100%). Mas **46 das 155 anexacoes foram para outro corpo com um Alakazam de 0 energia no board**,
+e das 45 promocoes em que o Alakazam estava disponivel so 29 o escolheram. Causa: `_attach_score`
+(via `_best_affordable_damage`) e `_own_pokemon_score` leem `damage_base`, que e None no Powerful
+Hand -- **a mesma cegueira que o fix de escala tirou do `_attack_value` e deixou nos dois scorers
+que decidem o BOARD**.
+
+### 2. O que foi implementado (dois flags, ambos default OFF)
+**(a) Banda por PERFIL DE DECK** -- o item pre-registrado. `archetype_rules.deck_profile()` deriva
+o perfil da lista pelas MESMAS regras do radar e do estimador de runtime: AGGRO para quem fecha na
+corrida de premios, DEVELOPMENT para mill/muro/lock e para `UNKNOWN` (o lado conservador). Sob
+AGGRO um ataque **LETAL** sobe para 90, acima de EVOLVE; ataque nao-letal fica exatamente onde
+estava, porque atacar encerra o turno e trocar desenvolvimento por um golpe que nao mata e pior.
+`deck.csv` deriva DEVELOPMENT -- o arm e inerte na nossa lista por construcao, asserido contra a
+`arm_factory` de verdade.
+
+**(b) `energy_routing`** -- `_body_damage()` passa a ser compartilhado por `_best_affordable_damage`
+(anexacao) e `_own_pokemon_score` (promocao/banco), reusando o mesmo parser de clausula e a mesma
+contagem viva de unidade. Os tres scorers finalmente concordam sobre quanto vale um ataque.
+
+### 3. Inercia do ship
+Lockstep sobre os JOGOS REAIS -- 222 episodios da submissao 54917180, **11.495 decisoes**:
+
+| shadow | divergencias |
+|---|---|
+| `energy_routing` + `scaled` + `tempo` forcados | **0 / 11.495** |
+| `profile=AGGRO` **forcado** | 144 / 11.495 = 1,25% |
+
+O segundo numero e o teste que importa: a banda **nao** e inofensiva, e o ship esta seguro porque
+`deck.csv` deriva DEVELOPMENT, nao porque a regra nao morde. Os dois lados estao em
+`tests/test_attack_profile.py`, sobre opcoes REAIS do motor, inclusive o contra-teste que exige que
+forcar AGGRO mude alguma coisa (se vier zero, ou a regra morreu ou o teste parou de exercita-la).
+
+### 4. O alvo telemetrico foi ATINGIDO -- pela banda, nao pelo routing (N=300/arm)
+| metrica | real | antes | **aggro** | routing | aggro+routing |
+|---|---|---|---|---|---|
+| **ataques/jogo** | **6,81** | 5,03 | **7,69** | 4,84 | 7,39 |
+| share Powerful Hand | 89,3% | 80,4% | 83,6% | 78,4% | 83,2% |
+| **Powerful Hands acertados/jogo** | **6,08** | 4,04 | **6,42** | 3,79 | 6,14 |
+| premios que ELES tiram/jogo | 5,66 | 5,59 | 5,48 | 5,38 | 5,55 |
+| turnos por jogo | 19,58 | 18,12 | 23,09 | 17,75 | 22,72 |
+| eles deckam (chegam a 0) | 28,8% | 64,7% | 56,3% | 67,3% | 55,0% |
+| NOSSO winrate | **35,6%** | 80,0% | 84,3% | 83,7% | 84,0% |
+
+**E aqui esta a licao.** Os tres alvos telemetricos foram cravados (ataques/jogo 5,03->7,69 contra
+6,81; PH acertados 4,04->6,42 contra 6,08) e **os premios que eles tiram nao se moveram**: 5,59 ->
+5,48. Cinquenta por cento mais ataques, o mesmo numero de premios. O mecanismo e conhecido e ja
+estava documentado no CLAUDE.md: **Powerful Hand poe CONTADORES de dano, que sao efeito, e Mist/Rock
+previnem efeito** -- o ataque "letal" que a banda agora prioriza e anulado pela nossa parede. O que
+os ataques extras de fato compraram foi o oponente parar de jogar os trainers que o deckavam: os
+jogos passam de 18,1 para 23,1 turnos, o deck-out deles cai de 64,7% para 56,3%, e **o nosso
+winrate SOBE de 80,0% para 84,3%** -- para longe do alvo real de 35,6%.
+
+`ataques/jogo` era um PROXY, e casar o proxy nao calibrou a celula. O censo mostra por que o proxy
+subiu: a conversao continua 98,7% nos dois arms; o que mudou foi o numero de turnos do oponente
+(9,05 -> 11,22) e os turnos sem oferta (41,3% -> 30,0%).
+
+### 5. Calibracao, N=600/celula, alvos reais fixos, 0 exceptions
+| celula | real | antes | aggro | routing | erro antes | erro aggro | erro routing |
+|---|---|---|---|---|---|---|---|
+| Alakazam | 35,6% | 81,8% | 85,3% | 79,3% | +46,2 | +49,7 | +43,7 |
+| Mega Lucario | 50,0% | 95,0% | 96,0% | 96,7% | +45,0 | +46,0 | +46,7 |
+| Archaludon | 90,6% | 96,5% | **89,7%** | 96,8% | +5,9 | **-0,9** | +6,2 |
+| Kangaskhan | 75,0% | 98,2% | 98,8% | 97,8% | +23,2 | +23,8 | +22,8 |
+| Spidops | 12,5% | 80,8% | 79,3% | **65,2%** | +68,3 | +66,8 | **+52,7** |
+| Starmie | 62,5% | 27,7% | 31,7% | **37,8%** | -34,8 | -30,8 | **-24,7** |
+| **erro absoluto medio** | | | | | **37,2pp** | **36,4pp** | **32,8pp** |
+
+(aggro+routing: 33,9pp.) Spidops e Kangaskhan derivam DEVELOPMENT, entao o arm aggro e inerte neles
+por construcao -- e os dois se moveram so dentro do IC (80,8->79,3 e 98,2->98,8). Controle embutido
+que funcionou.
+
+**GATE PRE-REGISTRADO: FALHOU.** Exigia erro do Alakazam <= ~15pp (celula interna em 40-50%). Veio
++49,7pp (aggro) e +43,7pp (routing). **Nao reabro a lista do regime errado nesta rodada.** A ordem
+segue a mesma para quando houver gate: busca em runtime (N>=600/celula) > variantes de deck > v4.
+
+### 6. O que sobra, e e um resultado de verdade
+1. **O routing e a melhor calibracao ate agora**: erro medio 37,2 -> **32,8pp**, o maior salto de
+   qualquer rodada desta serie, e vem das duas celulas que mais erravam depois do Alakazam (Spidops
+   +15,6pp, Starmie +10,1pp). E o arm a carregar como oponente padrao daqui pra frente.
+2. **A banda calibrou o Archaludon quase perfeitamente** (96,5% -> 89,7% contra 90,6% real) --
+   uma celula agressiva de verdade, sem parede que anule o plano dela.
+3. **O Alakazam nao mente por agressao.** Tres rodadas ja tentaram: tempo (Rare Candy, alvo cravado,
+   +2,3pp), valor (escala, +5,5pp) e agora banda (alvo cravado, **-3,5pp**). A celula erra +44pp
+   com o comportamento de ataque casado com o real. A hipotese que sobra e a que a telemetria
+   aponta sozinha: **eles tiram 5,66 premios contra os nossos ~5,5 e ainda assim ganham 64% -- o
+   que difere e o que acontece com a nossa PREVENCAO**, e a proxima medicao tem de ser essa, nao
+   mais uma variavel de ataque.
+
+### 7. Higiene de suite (duas flakes pre-existentes, mesma familia)
+Ambas de dimensionamento de amostra, nao de comportamento. (a) Os lockstep de inercia rodavam UM
+jogo e guardavam contra vacuidade com `compared > 10`; um jogo pode terminar em 8 decisoes nossas,
+e ai a guarda falhava no lugar da assercao que ela protege -- agora sao 5 jogos e guarda em 100.
+(b) `test_without_the_fix_the_value_ignores_the_hand` exigia que o valor cego fosse a constante
+13,0, mas `_attack_value` soma `_KO_BONUS` quando o valor ja alcanca o HP do defensor: um defensor
+em 10 de HP transforma o mesmo 13,0 em 113,0. A assercao agora e lida sobre os ataques que o
+defensor SOBREVIVE, que e a afirmacao que se queria fazer. Com as duas, os tres modulos de flag
+passaram 10/10 rodadas seguidas.
+
+- `src/deckbuilding/archetype_rules.py`: PROFILE_*, AGGRO_ARCHETYPES, `deck_profile()`
+- `src/agent_heuristics/heuristic_agent.py`: `profile=`, `energy_routing=`, `_body_damage`,
+  `_scaled_units`, `_is_lethal`
+- `src/environment_wrapper/ab_test.py`: arms `-aggro` / `-routing` (perfil derivado do DECK do arm)
+- `src/analysis/attack_census.py`: o censo que separa "recusou" de "nunca foi legal" (NOVO)
+- `src/analysis/field_calibration.py`: a tabela de calibracao como um comando (NOVO)
+- `tests/test_attack_profile.py`: 13 testes -- derivacao, banda e routing sobre opcoes REAIS,
+  inercia do ship e o contra-teste da banda

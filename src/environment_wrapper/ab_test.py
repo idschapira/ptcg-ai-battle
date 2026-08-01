@@ -55,6 +55,7 @@ from pathlib import Path
 from typing import Callable, Final
 
 from ..agent_heuristics.random_agent import RandomAgent
+from ..deckbuilding.archetype_rules import PROFILE_DEVELOPMENT, deck_profile
 from ..deckbuilding.gauntlet import PairResult, discover_decks, run_pair
 from ..deckbuilding.legality import read_deck_ids, validate_deck
 from ..ingestion.build_effect_model import EffectIndex
@@ -67,6 +68,18 @@ REGRESSION_MARGIN: Final[float] = 0.05
 ARM_KINDS: Final[tuple[str, ...]] = (
     "random", "heuristic", "heuristic-tempo", "heuristic-scaled",
     "heuristic-tempo-scaled",
+    # "-aggro"   makes the ATTACK BAND depend on the arm's own deck: a
+    #            deck whose archetype wins the prize race lets a LETHAL
+    #            attack outrank development (archetype_rules.deck_profile,
+    #            so a mill/stall deck derives DEVELOPMENT and the arm is
+    #            inert on it — the profile is a fact about the deck, not
+    #            a switch the experimenter sets).
+    # "-routing" extends the scaled valuation to the ATTACH and PROMOTE
+    #            scorers, so energy and the active slot go to the body
+    #            that actually threatens.
+    "heuristic-aggro", "heuristic-routing",
+    "heuristic-tempo-scaled-aggro", "heuristic-tempo-scaled-routing",
+    "heuristic-tempo-scaled-aggro-routing",
     "crustle", "crustle-v2", "crustle-v3", "network",
     # runtime search (submission candidate). "-blind" pins the estimator
     # off so the arm degrades to its prior — that is the FLOOR arm, and
@@ -254,6 +267,18 @@ class _Instrumented:
         return answer
 
 
+def _deck_card_names(deck: list[int], index: CardIndex) -> list[str]:
+    """Engine card names of a decklist, for archetype labelling. Unknown
+    ids are dropped rather than raised on: an arm with no deck simply
+    labels as UNKNOWN, which resolves to the conservative profile."""
+    names = []
+    for card_id in deck:
+        card = index.get_card(card_id)
+        if card is not None:
+            names.append(card.card_name)
+    return names
+
+
 def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
                 metrics: ArmMetrics,
                 deck: list[int] | None = None) -> Callable[[int], Agent]:
@@ -347,12 +372,22 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
         #           quantity by counting the unit live: Powerful Hand
         #           scored 13.0 for ~266 of real damage, and was never
         #           recognised as lethal (0 of 767 decisions).
-        # Both flags are opponent-side calibration, never the ship.
+        # "-aggro"   makes the attack band a property of the arm's DECK
+        #           (see ARM_KINDS); "-routing" lets the attach and
+        #           promotion scorers see scaled damage, which is what
+        #           puts the energy on the attacker in the first place.
+        # All flags are opponent-side calibration, never the ship.
         tempo = "tempo" in spec.kind
         scaled = "scaled" in spec.kind
+        routing = "routing" in spec.kind
+        profile = PROFILE_DEVELOPMENT
+        if "aggro" in spec.kind:
+            profile = deck_profile(_deck_card_names(deck or [], index))
         base = lambda s: HeuristicAgent(seed=s, index=index,  # noqa: E731
                                         effects=effects, tempo=tempo,
-                                        scaled_damage=scaled)
+                                        scaled_damage=scaled,
+                                        profile=profile,
+                                        energy_routing=routing)
     elif spec.kind == "crustle":
         from ..agent_heuristics.crustle_agent import CrustleAgent
         base = lambda s: CrustleAgent(seed=s, index=index, effects=effects)

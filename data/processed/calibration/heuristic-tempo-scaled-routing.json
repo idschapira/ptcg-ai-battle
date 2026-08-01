@@ -1,0 +1,110 @@
+{
+ "games_per_cell": 600,
+ "arms": [
+  "heuristic-tempo-scaled-routing"
+ ],
+ "cells": {
+  "Alakazam": {
+   "real": 0.356,
+   "real_games": 59,
+   "heuristic-tempo-scaled-routing": {
+    "a_wins": 476,
+    "b_wins": 124,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.7933333333333333,
+    "ci": [
+     0.7591172954308381,
+     0.8238171733077908
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  },
+  "Mega Lucario": {
+   "real": 0.5,
+   "real_games": 12,
+   "heuristic-tempo-scaled-routing": {
+    "a_wins": 580,
+    "b_wins": 20,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.9666666666666667,
+    "ci": [
+     0.9490759071771072,
+     0.978319838543439
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  },
+  "Archaludon": {
+   "real": 0.906,
+   "real_games": 32,
+   "heuristic-tempo-scaled-routing": {
+    "a_wins": 581,
+    "b_wins": 19,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.9683333333333334,
+    "ci": [
+     0.9510727848694855,
+     0.9796350885143483
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  },
+  "Kangaskhan": {
+   "real": 0.75,
+   "real_games": 12,
+   "heuristic-tempo-scaled-routing": {
+    "a_wins": 587,
+    "b_wins": 13,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.9783333333333334,
+    "ci": [
+     0.9632857238042716,
+     0.9872949155592883
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  },
+  "Spidops": {
+   "real": 0.125,
+   "real_games": 8,
+   "heuristic-tempo-scaled-routing": {
+    "a_wins": 391,
+    "b_wins": 209,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.6516666666666666,
+    "ci": [
+     0.6126883977611565,
+     0.688715219598021
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  },
+  "Starmie": {
+   "real": 0.625,
+   "real_games": 8,
+   "heuristic-tempo-scaled-routing": {
+    "a_wins": 227,
+    "b_wins": 373,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.37833333333333335,
+    "ci": [
+     0.3404181493731606,
+     0.41779653120684
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  }
+ }
+}

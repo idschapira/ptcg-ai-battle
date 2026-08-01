@@ -140,8 +140,14 @@ class TestValuationOnRealOptions(unittest.TestCase):
         """
         seen = self._values(scaled=False)
         self.assertTrue(seen, "o motor nunca ofereceu Powerful Hand")
-        values = {round(v, 6) for v, _hp, _hand in seen}
-        hands = {hand for _v, _hp, hand in seen}
+        # Read on the attacks the defender SURVIVES. _attack_value adds
+        # _KO_BONUS (100) when the raw value already reaches the
+        # defender's HP, so a defender sitting on 10 HP turns the same
+        # blind 13.0 into 113.0 — a second value that says nothing about
+        # the hand, and whose appearance is pure luck of the board. The
+        # claim being made is about the raw valuation.
+        values = {round(v, 6) for v, hp, _hand in seen if v < hp}
+        hands = {hand for v, hp, hand in seen if v < hp}
         self.assertEqual(values, {13.0},
                          f"esperado 13.0 constante, veio {sorted(values)}")
         self.assertGreater(len(hands), 1,
@@ -218,8 +224,12 @@ class TestShippedCrustleIsUnchanged(unittest.TestCase):
 
         opponent = CrustleAgent(index=self.index, effects=self.effects,
                                 variant="v3", seed=8)
-        play_one_game((lockstep, opponent), list(self.deck), list(self.deck))
-        self.assertGreater(compared, 20, "quase nada comparado — teste vácuo")
+        # several games: one game can end in a handful of our decisions
+        # and then the vacuity guard fires instead of the assertion
+        for _game in range(5):
+            play_one_game((lockstep, opponent), list(self.deck),
+                          list(self.deck))
+        self.assertGreater(compared, 100, "quase nada comparado — teste vácuo")
         self.assertEqual(divergences, [],
                          f"o fix mudou o piloto do ship em "
                          f"{len(divergences)}/{compared} decisões")
@@ -250,8 +260,9 @@ class TestShippedCrustleIsUnchanged(unittest.TestCase):
             return answer
 
         foe = HeuristicAgent(index=self.index, effects=self.effects, seed=12)
-        play_one_game((lockstep, foe), list(self.deck), list(alakazam))
-        self.assertGreater(compared, 10, "quase nada comparado — teste vácuo")
+        for _game in range(5):
+            play_one_game((lockstep, foe), list(self.deck), list(alakazam))
+        self.assertGreater(compared, 100, "quase nada comparado — teste vácuo")
         self.assertEqual(divergences, 0)
 
 

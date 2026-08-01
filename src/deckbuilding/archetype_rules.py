@@ -98,5 +98,52 @@ def label_archetype(names: Iterable[str]) -> str:
     return UNKNOWN
 
 
-__all__ = ["ARCHETYPE_DECKS", "ARCHETYPE_RULES", "UNKNOWN",
-           "label_archetype", "norm"]
+# --------------------------------------------------------------------------
+# Deck PROFILE — how the pilot should weigh attacking against developing
+# --------------------------------------------------------------------------
+# HeuristicAgent's score bands put attacking below every development
+# action, on the reasoning that attacking ENDS the turn while everything
+# else keeps the MAIN prompt open. That is our Crustle lesson (mill and
+# wall: the board is the win condition, the attack is incidental) and it
+# was applied globally, to decks whose whole plan is a KO race.
+#
+# The profile makes that a property of the DECK instead of a constant.
+# AGGRO decks win by taking prizes; DEVELOPMENT decks win by surviving
+# and grinding (mill, wall, stall), so for them the shipped ordering is
+# already right. UNKNOWN falls to DEVELOPMENT — the conservative side,
+# and the one the ship is on.
+PROFILE_DEVELOPMENT: Final[str] = "development"
+PROFILE_AGGRO: Final[str] = "aggro"
+
+# Labelled by win condition, not by power level: every archetype here
+# closes games by knocking bodies out. The excluded ones (Crustle mill,
+# both Crustle stalls, and Team Rocket Spidops, which locks and grinds)
+# are the decks whose plan is NOT the prize race.
+AGGRO_ARCHETYPES: Final[frozenset[str]] = frozenset({
+    "Alakazam box (non-ex)",
+    "Dragapult ex",
+    "Mega Lucario ex",
+    "Lillie's Clefairy",
+    "Gardevoir ex / Jellicent ex",
+    "Slowking / Kyurem",
+    "Iono's Bellibolt ex",
+    "Mega Starmie / Mega Froslass",
+    "Archaludon ex box",
+    "Marnie's Grimmsnarl ex",
+})
+
+
+def archetype_profile(label: str) -> str:
+    """Profile of a labelled archetype; UNKNOWN -> DEVELOPMENT."""
+    return PROFILE_AGGRO if label in AGGRO_ARCHETYPES else PROFILE_DEVELOPMENT
+
+
+def deck_profile(names: Iterable[str]) -> str:
+    """Profile of a decklist, via its archetype label (same rules as the
+    radar and the runtime estimator — one source of truth)."""
+    return archetype_profile(label_archetype(names))
+
+
+__all__ = ["AGGRO_ARCHETYPES", "ARCHETYPE_DECKS", "ARCHETYPE_RULES",
+           "PROFILE_AGGRO", "PROFILE_DEVELOPMENT", "UNKNOWN",
+           "archetype_profile", "deck_profile", "label_archetype", "norm"]

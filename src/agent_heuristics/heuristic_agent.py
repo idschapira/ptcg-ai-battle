@@ -22,6 +22,7 @@ from cg.api import (
     State,
 )
 
+from ..deckbuilding.archetype_rules import PROFILE_AGGRO, PROFILE_DEVELOPMENT
 from ..environment_wrapper.wrapper import EnvironmentWrapper
 from ..ingestion.build_card_model import EnergyType
 from ..ingestion.build_effect_model import EffectIndex, EffectRow, EffectType
@@ -41,6 +42,22 @@ _TRAINER_BAND: Final[float] = 35.0
 _ATTACK_BAND: Final[float] = 20.0
 _RETREAT_LOW_HP: Final[float] = 15.0
 _END_SCORE: Final[float] = 0.5
+
+# PROFILE-DEPENDENT attack band (see archetype_rules.deck_profile).
+# The bands above are the Crustle lesson: the board is the win condition,
+# so development outranks attacking. For a deck whose plan IS the prize
+# race that reasoning does not hold, and an AGGRO profile lets a LETHAL
+# attack outrank development — nothing on the board is worth more than
+# the knockout it would spend.
+#
+# Measured ceiling, stated up front because it bounds what this can buy:
+# probed over 60 games of the Alakazam list, 96.6% of the turns that ever
+# offered an attack already ended in one (312/323). Attacking ends the
+# turn, so the band only REORDERS actions inside a turn; it cannot add
+# attacks to turns where no attack was ever legal, and 40% of their turns
+# are exactly that (210 of 215 with a zero-energy active). The band is a
+# tie-break, not the constraint — `energy_routing` below is.
+_AGGRO_LETHAL_BAND: Final[float] = 90.0   # above EVOLVE (80 + hp/40)
 
 _STATUS_VALUE: Final[dict[int, float]] = {0: 20.0, 1: 20.0, 2: 30.0, 3: 30.0, 4: 25.0}
 
@@ -228,6 +245,31 @@ _UNIT_PATTERNS: Final[tuple[tuple["re.Pattern[str]", str], ...]] = (
 # stated assumption rather than a magic constant buried in a branch.
 _UNRESOLVED_UNITS_ESTIMATE: Final[float] = 2.0
 
+# --------------------------------------------------------------------------
+# ENERGY ROUTING — the same blindness, in the paths that DECIDE THE BOARD
+# --------------------------------------------------------------------------
+# `scaled_damage` taught _attack_value to count the scaling unit live.
+# Two more scorers still read `damage_base` alone and so still value a
+# scaling attacker at zero:
+#
+#   _best_affordable_damage  -> _attach_score: "how much damage does this
+#                               body unlock if I put the energy HERE"
+#   _own_pokemon_score       -> promotion/switch/bench: "which body do I
+#                               want in front"
+#
+# Powerful Hand's printed base is None, so under both scorers Alakazam is
+# a 0-damage body: energy goes to whatever has printed damage and the
+# promotion prompt prefers the fattest, not the attacker. Measured over
+# 40 games of the list (31/Jul): 46 of 155 attachments went somewhere
+# else while an Alakazam sat on the board with zero energy, and only
+# 29 of 45 promotions that COULD have promoted Alakazam did. Downstream,
+# 40% of their turns never offered an attack at all, 210 of 215 of them
+# with an empty active — which is the real reason attacks/game reads 4.86
+# against 6.81 for real opponents.
+#
+# Routing reuses the SAME clause parser and the SAME live unit count, so
+# the three scorers finally agree about what an attack is worth.
+
 
 class HeuristicAgent:
     """Greedy one-ply evaluator satisfying the competition contract.
@@ -238,7 +280,8 @@ class HeuristicAgent:
     """
 
     __slots__ = ("_index", "_effects", "_wrapper", "_deck_path", "_rng",
-                 "_tempo", "_scaled_damage", "_scale_cache", "last_scores")
+                 "_tempo", "_scaled_damage", "_profile", "_energy_routing",
+                 "_scale_cache", "last_scores")
 
     def __init__(
         self,
@@ -248,16 +291,22 @@ class HeuristicAgent:
         effects: EffectIndex | None = None,
         tempo: bool = False,
         scaled_damage: bool = False,
+        profile: str = PROFILE_DEVELOPMENT,
+        energy_routing: bool = False,
     ) -> None:
         """``tempo=True`` promotes EVOLUTION_ACCELERATORS out of the
         trainer band (see the constant). ``scaled_damage=True`` values
         attacks whose damage scales with a board quantity by counting the
         unit live instead of using a fixed per-row bonus.
+        ``profile=PROFILE_AGGRO`` lets a LETHAL attack outrank development
+        (see _AGGRO_LETHAL_BAND); ``energy_routing=True`` extends the
+        scaled valuation to the attach and promotion scorers, so energy
+        and the active slot go to the body that actually threatens.
 
-        Both default OFF so every existing caller — the ship's
-        CrustleAgent above all — keeps byte-identical behaviour;
-        tests/test_tempo_equivalence.py and tests/test_scaled_damage.py
-        hold that line decision-by-decision.
+        All four default to the SHIPPED behaviour so every existing
+        caller — the ship's CrustleAgent above all — stays byte-identical;
+        tests/test_tempo_equivalence.py, tests/test_scaled_damage.py and
+        tests/test_attack_profile.py hold that line decision-by-decision.
         """
         self._index = index if index is not None else CardIndex()
         self._effects = effects if effects is not None else EffectIndex()
@@ -266,6 +315,8 @@ class HeuristicAgent:
         self._rng = random.Random(seed)
         self._tempo = tempo
         self._scaled_damage = scaled_damage
+        self._profile = profile
+        self._energy_routing = energy_routing
         self._scale_cache: dict[int, ScaledClause | None] = {}
         self.last_scores: list[float] | None = None
 
@@ -469,6 +520,32 @@ class HeuristicAgent:
             return float(count)
         return None
 
+    def _scaled_units(self, clause: ScaledClause, obs: Observation) -> float:
+        """How many units the clause scales over, on the live board.
+
+        Coin clauses carry their own expectation; an unobservable unit
+        falls to the DECLARED estimate rather than inventing a number.
+        """
+        if clause.fixed_units is not None:
+            return clause.fixed_units
+        units = self._unit_count(clause.unit, clause.energy_code, obs)
+        return _UNRESOLVED_UNITS_ESTIMATE if units is None else units
+
+    def _body_damage(self, attack: Attack, obs: Observation | None) -> float:
+        """Damage an attack represents when judging a BODY (not a move).
+
+        Printed base only, exactly as before — unless energy routing is
+        on, in which case the scaling clause is counted too, so a body
+        whose whole damage IS the scale stops reading as harmless.
+        """
+        damage = float(attack.damage_base or 0)
+        if not self._energy_routing or obs is None:
+            return damage
+        clause = self._scaled_clause(attack.attack_id)
+        if clause is None:
+            return damage
+        return damage + clause.per_unit * self._scaled_units(clause, obs)
+
     def _attack_value(self, attack_id: int | None, obs: Observation) -> float:
         """Expected value of using an attack (damage-equivalent units)."""
         attack = self._index.get_attack(attack_id) if attack_id is not None else None
@@ -486,14 +563,7 @@ class HeuristicAgent:
         if self._scaled_damage and attack_id is not None:
             clause = self._scaled_clause(attack_id)
             if clause is not None:
-                if clause.fixed_units is not None:
-                    units = clause.fixed_units
-                else:
-                    units = self._unit_count(clause.unit, clause.energy_code,
-                                             obs)
-                    if units is None:
-                        units = _UNRESOLVED_UNITS_ESTIMATE
-                damage += clause.per_unit * units
+                damage += clause.per_unit * self._scaled_units(clause, obs)
                 scaled_applied = True
         if opp_card is not None and my_card is not None and my_card.type_code is not None:
             if opp_card.weakness_code == my_card.type_code:
@@ -506,13 +576,14 @@ class HeuristicAgent:
             value += _KO_BONUS
         return value
 
-    def _best_affordable_damage(self, card_id: int | None, energies: list[int]) -> float:
+    def _best_affordable_damage(self, card_id: int | None, energies: list[int],
+                                obs: Observation | None = None) -> float:
         if card_id is None:
             return 0.0
         best = 0.0
         for attack in self._index.attacks_of(card_id):
             if self._affordable(attack, energies):
-                best = max(best, float(attack.damage_base or 0))
+                best = max(best, self._body_damage(attack, obs))
         return best
 
     # ------------------------------------------------------------------ #
@@ -560,6 +631,17 @@ class HeuristicAgent:
 
     # ---- scoring helpers ---- #
 
+    def _is_lethal(self, value: float, obs: Observation) -> bool:
+        """Would this attack knock the opposing active out?
+
+        Read back out of the value rather than recomputed: _attack_value
+        adds _KO_BONUS exactly when the damage already reached the
+        defender's HP, so subtracting it recovers the raw comparison
+        without valuing the attack twice.
+        """
+        opp = self._opp_active(obs)
+        return opp is not None and value - _KO_BONUS >= opp.hp
+
     def _main_score(self, obs: Observation, option: Option) -> float:
         kind = option.type
         state = obs.current
@@ -567,6 +649,12 @@ class HeuristicAgent:
             # capped so attacking never outranks development actions —
             # those keep the MAIN prompt open, attacking ends the turn
             value = self._attack_value(option.attackId, obs)
+            if (self._profile == PROFILE_AGGRO
+                    and self._is_lethal(value, obs)):
+                # AGGRO profile: a knockout is worth more than anything
+                # the rest of the turn could develop, so it stops losing
+                # to evolve/play/attach (see _AGGRO_LETHAL_BAND).
+                return _AGGRO_LETHAL_BAND + min(value, 450.0) / 45.0
             return _ATTACK_BAND + min(value, 450.0) / 45.0 + (5.0 if value >= _KO_BONUS else 0.0)
         if kind == OptionType.ATTACH:
             return self._attach_score(obs, option)
@@ -613,8 +701,9 @@ class HeuristicAgent:
         if target is None:
             return 5.0
         energies = [int(e) for e in (target.energies or [])]
-        now = self._best_affordable_damage(target.id, energies)
-        then = self._best_affordable_damage(target.id, energies + [energy_code])
+        now = self._best_affordable_damage(target.id, energies, obs)
+        then = self._best_affordable_damage(target.id, energies + [energy_code],
+                                            obs)
         gain = then - now
         active_bonus = 3.0 if option.inPlayArea == AreaType.ACTIVE else 0.0
         return _ATTACH_BAND + active_bonus + min(gain, 200.0) / 20.0
@@ -624,7 +713,8 @@ class HeuristicAgent:
         card = self._index.get_card(card_id) if card_id is not None else None
         if card is None:
             return 0.0
-        best_damage = max((float(a.damage_base or 0) for a in self._index.attacks_of(card.card_id)),
+        best_damage = max((self._body_damage(a, obs)
+                           for a in self._index.attacks_of(card.card_id)),
                           default=0.0)
         score = (card.hp or 0) / 10.0 + best_damage / 10.0
         # Tera Pokémon are immune to attack damage on the Bench (verified in
