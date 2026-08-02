@@ -1030,3 +1030,103 @@ saida ainda descasada, e agora ela tem um medidor confiavel.
 - `src/analysis/cell_telemetry.py`: fix da contagem de premios + KOs/jogo
 - `tests/test_gust_targeting.py`: tabela de cobertura vinda do motor, escolha sobre opcoes REAIS,
   e lockstep de inercia do ship
+
+## [01/Ago] Auditoria de conversao: um dos dois relogios NAO existia, e o outro tem uma raiz so
+Offline, nada shipado. **Nenhum arquivo de agente tocado nesta rodada** -- so analise e testes;
+`git diff` contra `src/agent_heuristics/`, `deck.csv`, `main.py` e `build_submission.py` = vazio.
+327/329 testes em 3 rodadas (as 2 de `test_portfolio_watch` seguem pre-existentes). 0 exceptions.
+
+`src/analysis/conversion_audit.py` mede tudo a partir do ESTADO DO TABULEIRO, nao de um modelo de
+dano: o dano de um ataque e o delta de HP que o motor de fato aplicou no corpo que estava na frente,
+entao "prevenido" nao e inferido de uma leitura de regra -- e o ataque que pousou e nao moveu nada.
+
+### 1. O funil dano -> KO
+| metrica | REAL (59) | interno (250) | +gust (250) |
+|---|---|---|---|
+| turnos em que fomos consultados/jogo | 14,12 | 12,07 | 12,62 |
+| ataques no nosso ativo/jogo | 6,81 | 5,08 | 4,99 |
+| ...com o nosso ativo COBERTO | 27,9% | 28,7% | 24,1% |
+| dano efetivo por ataque (HP medido) | 82,11 | 68,88 | 69,25 |
+| dano efetivo/jogo | 559 | 350 | 345 |
+| ataques que moveram ZERO | 25,9% | 29,8% | 27,5% |
+| ...e o alvo estava coberto | **98,1%** | **81,3%** | 77,8% |
+| KOs nossos/jogo | 6,24 | 4,36 | 4,41 |
+| **KOs por ataque (conversao)** | **91,5%** | **85,8%** | 88,4% |
+| Jumbo Ice Cream (nossas curas)/jogo | 0,03 | 0,01 | 0,01 |
+
+**O gap de KO se decompoe exatamente:** volume 5,08/6,81 = 0,75 vezes eficiencia 85,8/91,5 = 0,938,
+e 0,75 x 0,938 = 0,70 = 4,36/6,24. **~83% do deficit e VOLUME de ataque, ~17% e eficiencia.**
+
+Duas leituras que fecham portas:
+- **A taxa de cobertura no momento do ataque e a MESMA** (27,9% vs 28,7%). Nao e que o oponente real
+  desvie melhor da nossa prevencao -- ele encara a mesma parede.
+- **Dos ataques que moveram zero, 98,1% dos reais foram em alvo COBERTO** -- ou seja, quase todo
+  ataque real desperdicado foi desperdicado PELA NOSSA PREVENCAO. No interno so 81,3%: cerca de 19%
+  dos zeros internos bateram num corpo DESCOBERTO e ainda assim nao fizeram nada. Em termos
+  absolutos, 5,6% de todos os ataques internos sao puro desperdicio contra 0,5% dos reais.
+
+### 2. O relogio do mill: o gap NAO EXISTE
+| | REAL | interno | +gust |
+|---|---|---|---|
+| **Land Collapse usados/jogo** | 2,46 | 2,23 | 1,73 |
+| **>> ...por turno consultado** | **17,4%** | **18,5%** | 13,7% |
+
+**A vazao do mill e identica** (o interno e ate ligeiramente maior). O "3,00 vs 3,50 cartas/turno"
+que motivou esta rodada nao era vazao de mill: e o `mill_per_turn` do `cell_telemetry`, que mede o
+consumo do deck deles por CICLO -- e o ciclo entre dois turnos NOSSOS contem o turno deles inteiro,
+**incluindo o saque deles**. Mesma classe de erro da metrica de premios da rodada passada: um
+agregado que parece medir uma coisa e mede outra. Aqui a medida limpa e contar o EVENTO (o ataque
+62), que nao admite ambiguidade. Fato que sustenta isso travado em
+`tests/test_conversion_audit.py`, dirigindo o motor: todo ataque oferecido pertence ao ATIVO, e o
+Land Collapse e exclusivo do Great Tusk.
+
+### 3. A hipotese do uptime: mecanismo CONFIRMADO, consequencia NULA
+| | REAL | interno |
+|---|---|---|
+| share dos nossos turnos com Great Tusk ativo | 38,2% | 46,3% |
+| mortes do Great Tusk/jogo | 1,68 | 1,12 |
+| turno da 1a morte | 8,77 | 9,70 |
+| jogos em que ele chega a morrer | **89,8%** | **68,8%** |
+
+A hipotese estava certa no mecanismo: o real **mata o nosso miller** (89,8% dos jogos contra 68,8%,
+1,68 mortes contra 1,12, e mais cedo), e por isso o uptime dele e menor no real -- 38,2% contra
+46,3%. **Mas isso nao vira vazao**: com 21% menos uptime, o real dispara o Land Collapse na MESMA
+taxa por turno. Logo o gargalo do mill nao e o uptime do Tusk -- e a disponibilidade de ataque
+(energia/corpo), o mesmo achado do `attack_census`.
+
+**Por isso NAO implementei o fix do item 3.** A condicao pre-registrada era "se o uptime explicar o
+gap de mill"; nao ha gap de mill para explicar, e priorizar matar o miller seria adicionar um botao
+que a medicao nao pede. Nada a calibrar nesta rodada.
+
+### 4. O residuo -- e ele tem UMA raiz
+Sobra explicar o volume: por que os jogos reais nos dao 14,12 turnos contra 12,07. A resposta esta
+na linha medida nos ciclos em que o Great Tusk **nao** estava no ativo, quando o Land Collapse
+**nao pode** disparar e portanto o que sai do deck deles e consumo PROPRIO:
+
+| deck deles consumido/ciclo, SEM Tusk ativo | REAL 3,04 | interno 3,82 |
+|---|---|---|
+
+**O oponente interno queima o proprio deck 26% mais rapido que o real.** Isso encadeia tudo:
+
+    saque/busca demais -> ele se decka (64,7% interno vs 28,8% real)
+      -> jogos mais curtos (12,07 vs 14,12 turnos)
+      -> menos ataques (5,08 vs 6,81)
+      -> menos KOs (4,36 vs 6,24)
+      -> menos premios (2,13 vs 3,51)
+      -> a celula infla ~+44pp
+
+E bate com a evidencia independente da rodada da banda: quando a flag `aggro` fez o oponente atacar
+mais e jogar menos trainers, o deck-out dele caiu 64,7% -> 56,3% e os jogos alongaram 18,1 -> 23,1
+turnos. Mesmo mecanismo, visto de outro angulo.
+
+**Nao e comportamento de ataque, e GESTAO DE RECURSO.** Todas as tres rodadas anteriores mexeram em
+variaveis de ataque porque era la que os numeros pareciam estar; o funil agora diz que o ataque esta
+casado e o que nao esta e o piloto generico nao saber parar de sacar. Proximo alvo: uma regra de
+conservacao de deck no piloto generico (nao buscar/sacar quando o deck esta baixo ou quando a
+corrida de deck-out esta perdida) -- que e, ironicamente, a **regra (i) do nosso proprio
+CrustleAgent**, o anti-self-mill, que o piloto generico nunca teve.
+
+- `src/analysis/conversion_audit.py`: funil dano->KO por delta de HP, uptime do Tusk, Land Collapse
+  por evento, consumo proprio do deck deles (NOVO)
+- `tests/test_conversion_audit.py`: Land Collapse e exclusivo do Great Tusk; todo ataque oferecido
+  pertence ao ativo (dirigido contra o motor)
