@@ -1130,3 +1130,122 @@ CrustleAgent**, o anti-self-mill, que o piloto generico nunca teve.
   por evento, consumo proprio do deck deles (NOVO)
 - `tests/test_conversion_audit.py`: Land Collapse e exclusivo do Great Tusk; todo ataque oferecido
   pertence ao ativo (dirigido contra o motor)
+
+## [02/Ago] Anti-self-mill no piloto generico: a raiz foi corrigida, e a cadeia quebrou no ultimo elo
+Offline, nada shipado. `deck.csv`, `main.py`, `build_submission.py` e `crustle_agent.py` identicos
+ao HEAD. 338/340 testes em 2 rodadas (as 2 de `test_portfolio_watch` seguem pre-existentes; a flake
+intermitente de `test_effect_prevention_contract` tambem e pre-existente, ja verificada em worktree
+limpo). 0 exceptions em 7.200 jogos de calibracao.
+
+### 1. O fix, e como o "o que e um thinner" foi derivado
+Portei a FORMA da regra (i) do CrustleAgent v3 para o `HeuristicAgent`, atras de
+`deck_conservation` (default OFF): piso ABSOLUTO de deck, mais a corrida relativa so quando o deck
+ja esta baixo. A conservadoria e a licao registrada: v1/v2 usavam gatilho relativo puro e
+estrangulavam o proprio setup desde o turno 1 (causa medida das derrotas por board-wipe).
+
+O que conta como thinner **nao** pode ser uma lista a mao: o piloto generico voa todo deck. Entao e
+lido do TEXTO DO MOTOR, como custo liquido de cartas que SAEM do deck -- busca leva os alvos, saque
+leva N, "look at the top N ... discard the other cards" leva os N, mas "look at the top N ...
+shuffle the other cards back" leva so o que foi pra mao.
+
+**Validacao do parser contra o gabarito:** ele reencontra, so pelo texto, os **7 thinners que o
+CrustleAgent lista a mao**, com as magnitudes certas (Explorer's Guidance 6, Poffin 2, Ultra Ball
+1). E no NOSSO deck o conjunto derivado e **exatamente** o conjunto curado -- nem uma carta a mais
+nem a menos -- com os gatilhos numericamente iguais (piso 15 = `LOW_DECK`, corrida 30 =
+`V3_RACE_FLOOR`).
+
+### 2. Inercia do ship: estrutural, nao por sorte
+Lockstep sobre os jogos REAIS -- 222 episodios, **11.495 decisoes**, flag forcada no shadow:
+**0 divergencias**. E agora sabemos POR QUE: no nosso deck a regra generica derivada e literalmente
+a mesma regra, sobre as mesmas 7 cartas, com os mesmos dois limiares. Isso esta travado em
+`tests/test_deck_conservation.py` como igualdade de conjuntos, entao deixa de valer em voz alta se
+alguem mexer em qualquer um dos dois lados.
+
+### 3. Calibracao do piso: pelo dado, como pedido
+Varri o piso contra o alvo pre-registrado (3,04 cartas/ciclo de consumo PROPRIO deles, medido nos
+ciclos em que o Great Tusk nao estava ativo e o Land Collapse nao podia disparar):
+
+| piso | 10 | **15** | 20 | 35 |
+|---|---|---|---|---|
+| cartas/ciclo (alvo **3,04**) | 3,11 | **3,06** | 2,97 | 2,73 |
+
+**Piso 15 crava o alvo** -- e e o mesmo `LOW_DECK` que o CrustleAgent ja usava.
+
+⚠️ Uma leitura minha nao sobreviveu ao N: a N=150 o piso 8 parecia claramente melhor no winrate da
+celula (67,3% contra 77,3%). A N=600 os dois ficam indistinguiveis (**77,3% contra 78,0%**). Era
+ruido do N baixo; o piso escolhido e o 15, pelo criterio pre-registrado.
+
+### 4. A cadeia telemetrica: 4 elos andaram, 3 nao
+| metrica | real | antes | conserve,15 | veredito |
+|---|---|---|---|---|
+| **cartas/ciclo (consumo proprio deles)** | **3,04** | 3,94 | **2,99** | **cravado** |
+| **ataques/jogo** | **6,81** | 5,12 | **7,02** | **cravado** |
+| **Powerful Hands acertados/jogo** | **6,08** | 3,83 | **5,44** | quase |
+| deck-out deles | 28,8% | 69,6% | 52,8% | metade do caminho |
+| KOs/jogo | 6,24 | 4,28 | 4,80 | pouco |
+| turnos/jogo | 19,58 | 17,36 | **27,03** | **estourou 38%** |
+| premios deles/jogo | 3,51 | 2,28 | **2,16** | **PIOROU** |
+| nosso winrate | 35,6% | 82,4% | 76,0% | -6,4pp |
+
+**A cadeia quebra no ultimo elo, e o funil diz exatamente por que.** Com o oponente parando de se
+sacar, o jogo alonga -- e o jogo longo e o que o NOSSO piloto queria:
+
+| | real | antes | conserve,15 |
+|---|---|---|---|
+| nosso ativo COBERTO no momento do ataque | 27,9% | **27,9%** | **42,3%** |
+| ataques deles que moveram ZERO | 25,9% | 29,4% | 42,5% |
+| **KOs por ataque (conversao)** | **91,5%** | 83,5% | **68,4%** |
+| Land Collapse (nosso mill) usados/jogo | 2,46 | 1,95 | **4,01** |
+
+O oponente ataca MAIS (7,02 contra 6,81 do real) e converte MENOS, porque nos passamos a ter tempo
+de manter Mist/Rock no ativo em 42,3% dos ataques contra 27,9% do real -- e a nossa vazao de mill
+DOBRA (1,95 -> 4,01 Land Collapse por jogo). O deck-out deles so cai para 52,8% porque o que agora
+os decka nao e mais o saque proprio (esse foi corrigido: 3,94 -> 2,99), somos nos.
+
+**Trocamos um descasamento por outro.** A taxa de cobertura era a unica metrica do funil que ja
+batia exatamente (27,9% contra 27,9%), e o fix a quebrou.
+
+### 5. Calibracao, N=600/celula, alvos reais fixos, 0 exceptions
+| celula | real | antes | conserve,15 | conserve,8 | **stack completo** |
+|---|---|---|---|---|---|
+| Alakazam | 35,6% | 82,8% | 78,0% | 77,3% | **74,8%** |
+| Mega Lucario | 50,0% | 96,5% | 92,3% | 94,0% | 90,8% |
+| Archaludon | 90,6% | 98,0% | 81,8% | 92,0% | **90,5%** |
+| Kangaskhan | 75,0% | 97,7% | 97,2% | 97,7% | 96,3% |
+| Spidops | 12,5% | 78,7% | 75,8% | 73,5% | **58,2%** |
+| Starmie | 62,5% | 23,0% | 19,8% | 23,0% | 36,7% |
+| **erro absoluto medio** | | **38,2pp** | 36,9pp | 35,0pp | **28,8pp** |
+
+("stack completo" = `routing` + `gust` + `conserve,8`, as tres correcoes de oponente das ultimas
+duas rodadas juntas.)
+
+**GATE: FALHOU.** Exigia erro do Alakazam <= ~15pp; veio +42,4pp (conserve,15) e **+39,2pp** no
+stack completo. Nao reabro a lista do regime errado.
+
+**Mas o stack e o melhor campo interno que ja tivemos**: erro medio 38,2 -> **28,8pp**, uma queda de
+24%, com o Archaludon praticamente exato (90,5% contra 90,6% real) e o Spidops andando 20,5pp. O
+arm a carregar como oponente padrao daqui pra frente e
+`heuristic-tempo-scaled-routing-gust-conserve,8`.
+
+### 6. O que isto ensina sobre o metodo
+Quatro rodadas corrigiram quatro comportamentos do oponente generico, cada um verificado contra o
+real e cada um acertando o proprio alvo. Somados valem 9,4pp de erro medio -- e a celula Alakazam
+segue +39pp. O padrao e consistente demais para ser coincidencia: **cada fix desloca o equilibrio e
+o nosso proprio piloto colhe a folga**, porque so o oponente esta sendo calibrado. O jogo longo que
+o anti-self-mill produziu foi capturado pela nossa parede; a agressao que a banda produziu foi
+anulada pela nossa prevencao.
+
+A conclusao que os dados agora sustentam e a do item 4 da rodada anterior: **um piloto heuristico
+generico provavelmente nao alcanca a celula Alakazam por ajuste de regra.** A unica celula que ja
+calibrou de verdade nesta serie foi a que usou BC casado por arquetipo (Grimmsnarl, escada de
+fidelidade). Antes de gastar outra rodada em regra, o proximo passo honesto e medir a celula
+Alakazam com **BC casado** (`bc_majkel` / `bc_yushin` ja existem) e comparar o erro contra estes
+28,8pp -- isso decide se o problema e o piloto ou a abordagem.
+
+- `src/agent_heuristics/heuristic_agent.py`: `deck_conservation=`, `deck_floor=`, `race_floor=`,
+  `_deck_starved`, `deck_cost()` / `deck_costs()` (custo derivado do texto do motor)
+- `src/environment_wrapper/ab_test.py`: arms `-conserve` (piso no slot de weights, para varrer)
+- `src/analysis/cell_telemetry.py`, `conversion_audit.py`: rotulo do arm mantem o spec inteiro --
+  dois arms que so diferem depois da virgula estavam se sobrescrevendo no relatorio
+- `tests/test_deck_conservation.py`: parser contra o gabarito curado, igualdade de conjuntos no
+  nosso deck, supressao sobre opcoes REAIS e lockstep de inercia

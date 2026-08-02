@@ -1,0 +1,110 @@
+{
+ "games_per_cell": 600,
+ "arms": [
+  "heuristic-tempo-scaled-routing-gust-conserve,8"
+ ],
+ "cells": {
+  "Alakazam": {
+   "real": 0.356,
+   "real_games": 59,
+   "heuristic-tempo-scaled-routing-gust-conserve,8": {
+    "a_wins": 449,
+    "b_wins": 151,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.7483333333333333,
+    "ci": [
+     0.7121038568753553,
+     0.7814031649545066
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  },
+  "Mega Lucario": {
+   "real": 0.5,
+   "real_games": 12,
+   "heuristic-tempo-scaled-routing-gust-conserve,8": {
+    "a_wins": 545,
+    "b_wins": 55,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.9083333333333333,
+    "ci": [
+     0.8825742919982179,
+     0.9288969855072599
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  },
+  "Archaludon": {
+   "real": 0.906,
+   "real_games": 32,
+   "heuristic-tempo-scaled-routing-gust-conserve,8": {
+    "a_wins": 543,
+    "b_wins": 57,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.905,
+    "ci": [
+     0.8788951125090315,
+     0.9259519096698711
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  },
+  "Kangaskhan": {
+   "real": 0.75,
+   "real_games": 12,
+   "heuristic-tempo-scaled-routing-gust-conserve,8": {
+    "a_wins": 578,
+    "b_wins": 22,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.9633333333333334,
+    "ci": [
+     0.9451083863696614,
+     0.9756631040243093
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  },
+  "Spidops": {
+   "real": 0.125,
+   "real_games": 8,
+   "heuristic-tempo-scaled-routing-gust-conserve,8": {
+    "a_wins": 349,
+    "b_wins": 251,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.5816666666666667,
+    "ci": [
+     0.541799114298437,
+     0.6204951412026586
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  },
+  "Starmie": {
+   "real": 0.625,
+   "real_games": 8,
+   "heuristic-tempo-scaled-routing-gust-conserve,8": {
+    "a_wins": 220,
+    "b_wins": 380,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.36666666666666664,
+    "ci": [
+     0.32906950577084787,
+     0.4059602811661391
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  }
+ }
+}

@@ -535,7 +535,11 @@ def main() -> None:
     our_deck = read_deck_ids(args.our_deck)
     opp_deck = read_deck_ids(args.opp_deck)
     for arm in args.opp_arms:
-        rows[arm.split(",")[0]] = from_selfplay(
+        # keep the WHOLE spec in the label: two -conserve arms differ only
+        # in the floor after the comma, and cutting there silently made
+        # them overwrite each other in this dict
+        label = arm.replace("heuristic-tempo-scaled", "h-t-s")
+        rows[label] = from_selfplay(
             our_deck, opp_deck, args.our_arm, arm, args.games, args.seed,
             index, effects, fighting, wrapper)
 

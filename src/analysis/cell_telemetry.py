@@ -581,7 +581,9 @@ def main() -> None:
     our_deck = read_deck_ids(args.our_deck)
     opp_deck = read_deck_ids(args.opp_deck)
     for arm in args.opp_arms:
-        label = arm.split(",")[0]
+        # keep the whole spec: arms that differ only after the comma (the
+        # -conserve floor) would otherwise overwrite each other here
+        label = arm.replace("heuristic-tempo-scaled", "h-t-s")
         if "bc_" in arm:
             label = "BC-" + arm.split("bc_")[1].split(".")[0]
         rows[label] = from_selfplay(our_deck, opp_deck, args.our_arm, arm,

@@ -330,6 +330,118 @@ def prevention_energies() -> dict[int, int | None]:
 _GUST_COVER_MALUS: Final[float] = 100.0
 _GUST_BASE: Final[float] = 40.0
 
+# --------------------------------------------------------------------------
+# DECK CONSERVATION — do not draw yourself out of the game
+# --------------------------------------------------------------------------
+# Measured root cause of the whole Alakazam inflation (conversion audit,
+# 01/Ago): on the cycles where our Great Tusk was NOT active — so Land
+# Collapse provably could not fire, and everything leaving their deck was
+# their own doing — the internal opponent consumed 3.82 cards per cycle
+# against 3.04 for real ladder opponents. 26% faster. It decks ITSELF
+# out in 64.7% of games against 28.8% on the ladder, which shortens the
+# game, which costs it attacks, knockouts and prizes, which is the +44pp.
+#
+# CrustleAgent has carried the fix since v3 (rule i): suppress your own
+# thinners below the END score so the pilot passes instead. The generic
+# HeuristicAgent never had it — it has no notion that its deck is a
+# resource. This ports the SHAPE of the v3 rule, whose history is the
+# reason for the shape: v1/v2 used a RELATIVE trigger (any deficit in the
+# deck race suppresses) and that strangled setup from turn one, causing
+# board-wipe losses. v3 replaced it with an ABSOLUTE floor, plus the
+# relative race only once the deck is genuinely low.
+#
+# What counts as a thinner is read from the ENGINE'S TEXT rather than
+# from a hand-listed set, because the generic pilot flies every deck. The
+# estimate is net cards LEAVING the deck, which is the quantity the
+# deck-out race is denominated in: a search takes its targets out, a draw
+# takes N, "look at the top N ... discard the other cards" takes all N,
+# but "look at the top N ... shuffle the other cards back" only takes
+# what went to hand.
+_DECK_SUPPRESSED_SCORE: Final[float] = 0.2      # below END (0.5): pass
+DEFAULT_DECK_FLOOR: Final[int] = 15             # absolute, as CrustleAgent
+DEFAULT_RACE_FLOOR: Final[int] = 30             # relative only below this
+
+_LOOK_TOP_RE: Final["re.Pattern[str]"] = re.compile(
+    r"look at the top (\d+) cards? of your deck", re.I)
+_DISCARD_OTHERS_RE: Final["re.Pattern[str]"] = re.compile(
+    r"discard the other cards", re.I)
+_DISCARD_TOP_RE: Final["re.Pattern[str]"] = re.compile(
+    r"discard the top (\d+) cards? of your deck", re.I)
+_DRAW_RE: Final["re.Pattern[str]"] = re.compile(
+    r"draw (\d+) cards?", re.I)
+_DRAW_ONE_RE: Final["re.Pattern[str]"] = re.compile(r"draw a card", re.I)
+_SEARCH_RE: Final["re.Pattern[str]"] = re.compile(
+    r"search your deck for", re.I)
+_SEARCH_TWO_RE: Final["re.Pattern[str]"] = re.compile(
+    r"search your deck for (?:up to )?(\d+)", re.I)
+
+_DECK_COST: dict[int, float] | None = None
+
+
+def deck_cost(text: str | None) -> float:
+    """Net cards this card takes OUT of its owner's deck; 0.0 if none."""
+    if not text:
+        return 0.0
+    flat = text.replace("\n", " ")
+    look = _LOOK_TOP_RE.search(flat)
+    if look and _DISCARD_OTHERS_RE.search(flat):
+        try:
+            return float(look.group(1))      # the whole peek is consumed
+        except (TypeError, ValueError):
+            return 1.0
+    discard_top = _DISCARD_TOP_RE.search(flat)
+    if discard_top:
+        try:
+            return float(discard_top.group(1))
+        except (TypeError, ValueError):
+            return 1.0
+    draw = _DRAW_RE.search(flat)
+    if draw:
+        try:
+            return float(draw.group(1))
+        except (TypeError, ValueError):
+            return 1.0
+    if _DRAW_ONE_RE.search(flat):
+        return 1.0
+    if _SEARCH_RE.search(flat):
+        two = _SEARCH_TWO_RE.search(flat)
+        if two:
+            try:
+                return float(two.group(1))
+            except (TypeError, ValueError):
+                return 1.0
+        # "a Stadium card AND an Energy card" fetches two bodies
+        return 2.0 if re.search(r"card and an? ", flat, re.I) else 1.0
+    if look:
+        return 1.0                            # peek, keep one, shuffle back
+    return 0.0
+
+
+def deck_costs() -> dict[int, float]:
+    """card id -> net deck cost, parsed once from the engine's text.
+
+    Only non-Pokémon cards: an Ability that draws is paid for by having
+    the body in play, and suppressing a Pokémon would suppress board
+    development, which is the failure mode v3 was written to avoid.
+    """
+    global _DECK_COST
+    if _DECK_COST is None:
+        table: dict[int, float] = {}
+        try:
+            import cg.api as _api
+            for card in _api.all_card_data():
+                if getattr(card, "hp", None):
+                    continue
+                cost = 0.0
+                for skill in (card.skills or ()):
+                    cost = max(cost, deck_cost(skill.text))
+                if cost > 0.0:
+                    table[card.cardId] = cost
+        except Exception:
+            table = {}
+        _DECK_COST = table
+    return _DECK_COST
+
 
 class HeuristicAgent:
     """Greedy one-ply evaluator satisfying the competition contract.
@@ -341,7 +453,8 @@ class HeuristicAgent:
 
     __slots__ = ("_index", "_effects", "_wrapper", "_deck_path", "_rng",
                  "_tempo", "_scaled_damage", "_profile", "_energy_routing",
-                 "_gust_targeting", "_scale_cache", "last_scores")
+                 "_gust_targeting", "_deck_conservation", "_deck_floor",
+                 "_race_floor", "_scale_cache", "last_scores")
 
     def __init__(
         self,
@@ -354,6 +467,9 @@ class HeuristicAgent:
         profile: str = PROFILE_DEVELOPMENT,
         energy_routing: bool = False,
         gust_targeting: bool = False,
+        deck_conservation: bool = False,
+        deck_floor: int = DEFAULT_DECK_FLOOR,
+        race_floor: int = DEFAULT_RACE_FLOOR,
     ) -> None:
         """``tempo=True`` promotes EVOLUTION_ACCELERATORS out of the
         trainer band (see the constant). ``scaled_damage=True`` values
@@ -365,8 +481,11 @@ class HeuristicAgent:
         and the active slot go to the body that actually threatens;
         ``gust_targeting=True`` drags the opponent's UNCOVERED body into
         the Active Spot instead of its biggest one.
+        ``deck_conservation=True`` stops the pilot from drawing itself out
+        of the game, below ``deck_floor`` outright and below
+        ``race_floor`` when it is also losing the deck-out race.
 
-        All five default to the SHIPPED behaviour so every existing
+        All of them default to the SHIPPED behaviour so every existing
         caller — the ship's CrustleAgent above all — stays byte-identical;
         tests/test_tempo_equivalence.py, tests/test_scaled_damage.py,
         tests/test_attack_profile.py and tests/test_gust_targeting.py hold
@@ -382,6 +501,9 @@ class HeuristicAgent:
         self._profile = profile
         self._energy_routing = energy_routing
         self._gust_targeting = gust_targeting
+        self._deck_conservation = deck_conservation
+        self._deck_floor = deck_floor
+        self._race_floor = race_floor
         self._scale_cache: dict[int, ScaledClause | None] = {}
         self.last_scores: list[float] | None = None
 
@@ -696,6 +818,32 @@ class HeuristicAgent:
 
     # ---- scoring helpers ---- #
 
+    def _deck_starved(self, obs: Observation) -> bool:
+        """Is thinning our own deck a liability right now?
+
+        The CONSERVATIVE trigger, and the conservatism is the lesson:
+        CrustleAgent v1/v2 suppressed on any deficit in the deck race and
+        strangled its own setup from turn one (the measured cause of its
+        board-wipe losses). v3 replaced that with an absolute floor plus
+        the race only once the deck is genuinely low, and that is what is
+        ported here. Unknown deck count -> False, so a missing signal
+        never suppresses.
+        """
+        state = obs.current
+        if state is None or state.yourIndex is None:
+            return False
+        try:
+            mine = state.players[state.yourIndex].deckCount
+            theirs = state.players[1 - state.yourIndex].deckCount
+        except (IndexError, TypeError, AttributeError):
+            return False
+        if mine is None:
+            return False
+        if mine <= self._deck_floor:
+            return True
+        losing = theirs is not None and mine < theirs
+        return mine <= self._race_floor and losing
+
     def _is_lethal(self, value: float, obs: Observation) -> bool:
         """Would this attack knock the opposing active out?
 
@@ -729,6 +877,11 @@ class HeuristicAgent:
             return _EVOLVE_BAND + ((card.hp or 0) / 40.0 if card else 0.0)
         if kind == OptionType.PLAY:
             card_id = self._wrapper.resolve_card_id(obs, option)
+            if (self._deck_conservation and card_id is not None
+                    and card_id in deck_costs()
+                    and self._deck_starved(obs)):
+                # below END: pass the turn rather than draw into deck-out
+                return _DECK_SUPPRESSED_SCORE
             if self._tempo and card_id in EVOLUTION_ACCELERATORS:
                 # the engine only offers this when it really evolves
                 return _EVOLVE_BAND + _ACCELERATOR_BONUS

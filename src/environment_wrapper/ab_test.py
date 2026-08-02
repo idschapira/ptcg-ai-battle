@@ -54,6 +54,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Final
 
+from ..agent_heuristics.heuristic_agent import DEFAULT_DECK_FLOOR
 from ..agent_heuristics.random_agent import RandomAgent
 from ..deckbuilding.archetype_rules import PROFILE_DEVELOPMENT, deck_profile
 from ..deckbuilding.gauntlet import PairResult, discover_decks, run_pair
@@ -87,6 +88,13 @@ ARM_KINDS: Final[tuple[str, ...]] = (
     "heuristic-tempo-scaled-aggro-routing",
     "heuristic-tempo-scaled-gust", "heuristic-tempo-scaled-routing-gust",
     "heuristic-tempo-scaled-aggro-routing-gust",
+    # "-conserve" stops the pilot drawing itself out of the game. The
+    # floor is tunable through the arm spec's weights slot as a bare
+    # integer ("heuristic-conserve,20"), because the whole point of this
+    # arm is to CALIBRATE the floor against the ladder's deck-out rate.
+    "heuristic-conserve", "heuristic-tempo-scaled-conserve",
+    "heuristic-tempo-scaled-gust-conserve",
+    "heuristic-tempo-scaled-routing-gust-conserve",
     "crustle", "crustle-v2", "crustle-v3", "network",
     # runtime search (submission candidate). "-blind" pins the estimator
     # off so the arm degrades to its prior — that is the FLOOR arm, and
@@ -388,15 +396,28 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
         scaled = "scaled" in spec.kind
         routing = "routing" in spec.kind
         gust = "gust" in spec.kind
+        conserve = "conserve" in spec.kind
         profile = PROFILE_DEVELOPMENT
         if "aggro" in spec.kind:
             profile = deck_profile(_deck_card_names(deck or [], index))
+        # the weights slot doubles as the deck floor for -conserve arms,
+        # so a floor sweep is a plain arm-spec change and needs no code
+        floor = DEFAULT_DECK_FLOOR
+        if conserve and spec.weights is not None:
+            text = spec.weights.name
+            if text.isdigit():
+                floor = int(text)
+            else:
+                raise SystemExit(f"-conserve floor must be an integer, "
+                                 f"got '{text}'")
         base = lambda s: HeuristicAgent(seed=s, index=index,  # noqa: E731
                                         effects=effects, tempo=tempo,
                                         scaled_damage=scaled,
                                         profile=profile,
                                         energy_routing=routing,
-                                        gust_targeting=gust)
+                                        gust_targeting=gust,
+                                        deck_conservation=conserve,
+                                        deck_floor=floor)
     elif spec.kind == "crustle":
         from ..agent_heuristics.crustle_agent import CrustleAgent
         base = lambda s: CrustleAgent(seed=s, index=index, effects=effects)
