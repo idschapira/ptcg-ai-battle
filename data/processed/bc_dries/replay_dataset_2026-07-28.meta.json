@@ -1,0 +1,16 @@
+{
+ "schema": "ptcg-replay-dataset-v2",
+ "encoding_dim": 1185,
+ "option_dim": 154,
+ "max_options": 64,
+ "sides": "winner",
+ "games": 48,
+ "decision_pairs": 4528,
+ "skipped_unknown_id": 0,
+ "skipped_no_action": 0,
+ "skipped_other_side": 3895,
+ "coverage": 1.0,
+ "unknown_ids": {},
+ "overflow_warnings": 0,
+ "overflow_lens": []
+}

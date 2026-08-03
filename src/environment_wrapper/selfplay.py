@@ -52,10 +52,18 @@ def play_one_game(
     deck0: list[int],
     deck1: list[int],
     recorder: GameRecorder | None = None,
+    observer: Callable[[dict], None] | None = None,
 ) -> tuple[int, int]:
     """Play a single game; returns (result, final turn count).
 
     result: 0/1 = winning player index, 2 = draw.
+
+    ``observer`` is called with every observation dict, including the
+    terminal one. It exists so callers can accumulate MECHANISM metrics
+    (how low each deck got, which turn the game ended on) without
+    reimplementing this loop or paying for a full GameRecorder. It must
+    not mutate the dict; exceptions from it propagate, so keep it cheap
+    and None-safe.
     """
     obs_dict, start_data = game.battle_start(deck0, deck1)
     if obs_dict is None:
@@ -66,6 +74,8 @@ def play_one_game(
     try:
         for _ in range(MAX_SELECTIONS_PER_GAME):
             state = obs_dict["current"]
+            if observer is not None:
+                observer(obs_dict)
             result = state["result"]
             if result != -1:
                 return result, state["turn"]

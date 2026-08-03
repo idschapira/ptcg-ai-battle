@@ -33,7 +33,7 @@ import argparse
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Final
+from typing import Callable, Final, Protocol
 
 from ..agent_heuristics.heuristic_agent import HeuristicAgent
 from ..agent_heuristics.random_agent import RandomAgent
@@ -47,17 +47,46 @@ from .legality import read_deck_ids, validate_deck
 DECKS_DIR: Final[Path] = REPO_ROOT / "data" / "decks"
 
 
-def discover_decks(decks_dir: Path = DECKS_DIR) -> dict[str, Path]:
+# Candidate decks under test are NOT field opponents. They are
+# near-clones of our own list, so letting auto-discovery sweep them into
+# the round-robin quietly replaces real meta cells with mirrors and
+# reweights every field average. Files with this prefix are addressed
+# explicitly (by path) or not at all.
+CANDIDATE_PREFIX: Final[str] = "variant_"
+
+
+def discover_decks(decks_dir: Path = DECKS_DIR,
+                   include_candidates: bool = False) -> dict[str, Path]:
     """Every csv under data/decks/, named by stem minus the seed_/
     placeholder_ prefix (e.g. seed_raging_bolt.csv -> raging_bolt).
-    The whole curated field enters the round-robin automatically."""
+    The whole curated field enters the round-robin automatically.
+
+    Candidate decks (``variant_*.csv``) are excluded unless asked for:
+    they are our own list with a couple of slots changed, and a field
+    that contains four copies of ourselves is not the field.
+    """
     decks: dict[str, Path] = {}
     for path in sorted(decks_dir.glob("*.csv")):
+        if not include_candidates and path.stem.startswith(CANDIDATE_PREFIX):
+            continue
         name = path.stem
         for prefix in ("seed_", "placeholder_"):
             name = name.removeprefix(prefix)
         decks[name] = path
     return decks
+
+
+class GameObserver(Protocol):
+    """Per-game mechanism probe handed to play_one_game by run_pair.
+
+    Called with every observation dict as the game runs, then once with
+    the outcome. Implementations live with whoever is measuring; the
+    gauntlet only needs the shape.
+    """
+
+    def __call__(self, obs_dict: dict) -> None: ...
+
+    def finish(self, result: int, turns: int) -> None: ...
 
 
 class TimedAgent:
@@ -87,6 +116,12 @@ class PairResult:
     latency_mean_us: float
     latency_p99_us: float
     errors: tuple[str, ...]
+    # Per-seat breakdown. Seats alternate, so a lopsided split is a
+    # first-player-advantage artefact rather than a pilot difference --
+    # worth seeing rather than averaging away. Defaults keep older
+    # callers and stored results working.
+    a_wins_by_seat: tuple[int, int] = (0, 0)
+    decided_by_seat: tuple[int, int] = (0, 0)
 
     @property
     def games(self) -> int:
@@ -100,15 +135,24 @@ class PairResult:
 
 def run_pair(make_a: Callable[[int], Agent], make_b: Callable[[int], Agent],
              deck_a: list[int], deck_b: list[int], n_games: int,
-             seed: int, timed: TimedAgent | None = None) -> PairResult:
+             seed: int, timed: TimedAgent | None = None,
+             on_game: Callable[[int, int, int], "GameObserver | None"]
+             | None = None) -> PairResult:
     """n games of (agent A, deck A) vs (agent B, deck B), seats alternating.
 
     Same alternation contract as arena.run_arena: A is player 0 in even
     games and the deck follows its agent. `timed` aggregates the pilot's
     per-call latency across the pair (pass the wrapper used inside
     make_a/make_b).
+
+    ``on_game(game_index, a_seat, seed)`` optionally returns an observer
+    to hand to play_one_game for MECHANISM measurement (how low each deck
+    ran, what turn it ended on). It is called once per game before play
+    and may return None to skip observation for that game.
     """
     a_wins = b_wins = draws = 0
+    a_wins_seat = [0, 0]
+    decided_seat = [0, 0]
     turns_seen: list[int] = []
     errors: list[str] = []
     for game_index in range(n_games):
@@ -117,18 +161,26 @@ def run_pair(make_a: Callable[[int], Agent], make_b: Callable[[int], Agent],
         a_seat = game_index % 2
         agents = (agent_a, agent_b) if a_seat == 0 else (agent_b, agent_a)
         decks = (deck_a, deck_b) if a_seat == 0 else (deck_b, deck_a)
+        observer = (on_game(game_index, a_seat, seed + game_index)
+                    if on_game is not None else None)
         try:
-            result, turns = play_one_game(agents, list(decks[0]), list(decks[1]))
+            result, turns = play_one_game(agents, list(decks[0]),
+                                          list(decks[1]), observer=observer)
         except Exception as exc:  # noqa: BLE001 — exceptions are a gate metric
             errors.append(f"game {game_index}: {type(exc).__name__}: {exc}")
             continue
+        if observer is not None:
+            observer.finish(result, turns)
         turns_seen.append(turns)
         if result == RESULT_DRAW:
             draws += 1
         elif result == a_seat:
             a_wins += 1
+            a_wins_seat[a_seat] += 1
+            decided_seat[a_seat] += 1
         else:
             b_wins += 1
+            decided_seat[a_seat] += 1
 
     times = sorted(timed.times_us) if timed is not None else []
     return PairResult(
@@ -138,6 +190,8 @@ def run_pair(make_a: Callable[[int], Agent], make_b: Callable[[int], Agent],
         latency_p99_us=times[min(len(times) - 1, int(len(times) * 0.99))]
         if times else 0.0,
         errors=tuple(errors),
+        a_wins_by_seat=(a_wins_seat[0], a_wins_seat[1]),
+        decided_by_seat=(decided_seat[0], decided_seat[1]),
     )
 
 

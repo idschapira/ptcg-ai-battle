@@ -1,0 +1,135 @@
+{
+ "schema": "ptcg-replay-corpus-v1",
+ "sources": [
+  {
+   "source": "replay_dataset_2026-07-09.npz",
+   "samples": 0,
+   "games": 0,
+   "decision_pairs": 0,
+   "coverage": 1.0,
+   "skipped_unknown_id": 0,
+   "unknown_ids": {},
+   "overflow_warnings": 0,
+   "overflow_lens": []
+  },
+  {
+   "source": "replay_dataset_2026-07-10.npz",
+   "samples": 0,
+   "games": 0,
+   "decision_pairs": 0,
+   "coverage": 1.0,
+   "skipped_unknown_id": 0,
+   "unknown_ids": {},
+   "overflow_warnings": 0,
+   "overflow_lens": []
+  },
+  {
+   "source": "replay_dataset_2026-07-11.npz",
+   "samples": 0,
+   "games": 0,
+   "decision_pairs": 0,
+   "coverage": 1.0,
+   "skipped_unknown_id": 0,
+   "unknown_ids": {},
+   "overflow_warnings": 0,
+   "overflow_lens": []
+  },
+  {
+   "source": "replay_dataset_2026-07-12.npz",
+   "samples": 0,
+   "games": 0,
+   "decision_pairs": 0,
+   "coverage": 1.0,
+   "skipped_unknown_id": 0,
+   "unknown_ids": {},
+   "overflow_warnings": 0,
+   "overflow_lens": []
+  },
+  {
+   "source": "replay_dataset_2026-07-13.npz",
+   "samples": 0,
+   "games": 0,
+   "decision_pairs": 0,
+   "coverage": 1.0,
+   "skipped_unknown_id": 0,
+   "unknown_ids": {},
+   "overflow_warnings": 0,
+   "overflow_lens": []
+  },
+  {
+   "source": "replay_dataset_2026-07-14.npz",
+   "samples": 0,
+   "games": 0,
+   "decision_pairs": 0,
+   "coverage": 1.0,
+   "skipped_unknown_id": 0,
+   "unknown_ids": {},
+   "overflow_warnings": 0,
+   "overflow_lens": []
+  },
+  {
+   "source": "replay_dataset_2026-07-15.npz",
+   "samples": 0,
+   "games": 0,
+   "decision_pairs": 0,
+   "coverage": 1.0,
+   "skipped_unknown_id": 0,
+   "unknown_ids": {},
+   "overflow_warnings": 0,
+   "overflow_lens": []
+  },
+  {
+   "source": "replay_dataset_2026-07-17.npz",
+   "samples": 8982,
+   "games": 94,
+   "decision_pairs": 8982,
+   "coverage": 1.0,
+   "skipped_unknown_id": 0,
+   "unknown_ids": {},
+   "overflow_warnings": 0,
+   "overflow_lens": []
+  },
+  {
+   "source": "replay_dataset_2026-07-23.npz",
+   "samples": 5181,
+   "games": 50,
+   "decision_pairs": 5181,
+   "coverage": 1.0,
+   "skipped_unknown_id": 0,
+   "unknown_ids": {},
+   "overflow_warnings": 0,
+   "overflow_lens": []
+  },
+  {
+   "source": "replay_dataset_2026-07-24.npz",
+   "samples": 1655,
+   "games": 14,
+   "decision_pairs": 1655,
+   "coverage": 1.0,
+   "skipped_unknown_id": 0,
+   "unknown_ids": {},
+   "overflow_warnings": 0,
+   "overflow_lens": []
+  },
+  {
+   "source": "replay_dataset_2026-07-28.npz",
+   "samples": 0,
+   "games": 0,
+   "decision_pairs": 0,
+   "coverage": 1.0,
+   "skipped_unknown_id": 0,
+   "unknown_ids": {},
+   "overflow_warnings": 0,
+   "overflow_lens": []
+  }
+ ],
+ "n_sources": 11,
+ "games": 158,
+ "samples": 15818,
+ "decision_pairs": 15818,
+ "skipped_unknown_id": 0,
+ "coverage": 1.0,
+ "unknown_ids": {},
+ "overflow_warnings": 0,
+ "overflow_lens": []
+}

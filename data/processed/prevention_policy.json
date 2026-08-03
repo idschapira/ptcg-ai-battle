@@ -1,0 +1,55 @@
+{
+  "episodes": 215,
+  "our_decisions": 11360,
+  "hits": 277,
+  "verdicts": {
+    "EVITÁVEL: anexou energia SEM proteção": 35,
+    "EVITÁVEL: tinha na mão, anexou em outro": 39,
+    "INEVITÁVEL: nenhuma protetora elegível": 203
+  },
+  "avoidable": 74,
+  "inevitable": 203,
+  "avoidable_share": 0.26714801444043323,
+  "by_archetype": {
+    "Alakazam box (non-ex)": {
+      "hits": 257,
+      "avoidable": 70,
+      "inevitable": 187
+    },
+    "Dragapult ex": {
+      "hits": 20,
+      "avoidable": 4,
+      "inevitable": 16
+    }
+  },
+  "attach_targets": {
+    "Great Tusk": 55,
+    "Dwebble": 6,
+    "Crustle": 11,
+    "Terrakion": 2
+  },
+  "attach_cards": {
+    "Rock Fighting Energy": 21,
+    "Mist Energy": 42,
+    "Basic {F} Energy": 11
+  },
+  "protective_parked_elsewhere": 39,
+  "inevitable_by_victim": {
+    "Crustle": 95,
+    "Great Tusk": 72,
+    "Dwebble": 29,
+    "Terrakion": 7
+  },
+  "inevitable_repositionable": 10,
+  "mist_wasted_on_fighting": 28,
+  "mist_on_fighting_total": 313,
+  "volume": {
+    "decisions": 11360,
+    "already_covered": 4675,
+    "coverable_uncovered": 489,
+    "coverable_share": 0.04304577464788732,
+    "our_turns": 3447,
+    "coverable_turns": 421,
+    "coverable_turn_share": 0.12213519002030751
+  }
+}

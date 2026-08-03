@@ -1,0 +1,110 @@
+{
+ "games_per_cell": 600,
+ "arms": [
+  "heuristic-tempo-scaled-aggro-routing"
+ ],
+ "cells": {
+  "Alakazam": {
+   "real": 0.356,
+   "real_games": 59,
+   "heuristic-tempo-scaled-aggro-routing": {
+    "a_wins": 514,
+    "b_wins": 86,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.8566666666666667,
+    "ci": [
+     0.8263567150822606,
+     0.8824386048612995
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  },
+  "Mega Lucario": {
+   "real": 0.5,
+   "real_games": 12,
+   "heuristic-tempo-scaled-aggro-routing": {
+    "a_wins": 579,
+    "b_wins": 21,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.965,
+    "ci": [
+     0.9470879685332634,
+     0.9769956495239949
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  },
+  "Archaludon": {
+   "real": 0.906,
+   "real_games": 32,
+   "heuristic-tempo-scaled-aggro-routing": {
+    "a_wins": 545,
+    "b_wins": 55,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.9083333333333333,
+    "ci": [
+     0.8825742919982179,
+     0.9288969855072599
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  },
+  "Kangaskhan": {
+   "real": 0.75,
+   "real_games": 12,
+   "heuristic-tempo-scaled-aggro-routing": {
+    "a_wins": 583,
+    "b_wins": 17,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.9716666666666667,
+    "ci": [
+     0.9550960688718938,
+     0.9822360598385153
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  },
+  "Spidops": {
+   "real": 0.125,
+   "real_games": 8,
+   "heuristic-tempo-scaled-aggro-routing": {
+    "a_wins": 407,
+    "b_wins": 193,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.6783333333333333,
+    "ci": [
+     0.639924273145558,
+     0.7144733868262222
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  },
+  "Starmie": {
+   "real": 0.625,
+   "real_games": 8,
+   "heuristic-tempo-scaled-aggro-routing": {
+    "a_wins": 201,
+    "b_wins": 399,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.335,
+    "ci": [
+     0.29838896143846216,
+     0.37371039989605925
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  }
+ }
+}

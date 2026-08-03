@@ -8,6 +8,8 @@ path falls back to a legal answer even when data is missing.
 from __future__ import annotations
 
 import random
+import re
+from dataclasses import dataclass
 from typing import Final
 
 from cg.api import (
@@ -20,6 +22,7 @@ from cg.api import (
     State,
 )
 
+from ..deckbuilding.archetype_rules import PROFILE_AGGRO, PROFILE_DEVELOPMENT
 from ..environment_wrapper.wrapper import EnvironmentWrapper
 from ..ingestion.build_card_model import EnergyType
 from ..ingestion.build_effect_model import EffectIndex, EffectRow, EffectType
@@ -40,7 +43,404 @@ _ATTACK_BAND: Final[float] = 20.0
 _RETREAT_LOW_HP: Final[float] = 15.0
 _END_SCORE: Final[float] = 0.5
 
+# PROFILE-DEPENDENT attack band (see archetype_rules.deck_profile).
+# The bands above are the Crustle lesson: the board is the win condition,
+# so development outranks attacking. For a deck whose plan IS the prize
+# race that reasoning does not hold, and an AGGRO profile lets a LETHAL
+# attack outrank development — nothing on the board is worth more than
+# the knockout it would spend.
+#
+# Measured ceiling, stated up front because it bounds what this can buy:
+# probed over 60 games of the Alakazam list, 96.6% of the turns that ever
+# offered an attack already ended in one (312/323). Attacking ends the
+# turn, so the band only REORDERS actions inside a turn; it cannot add
+# attacks to turns where no attack was ever legal, and 40% of their turns
+# are exactly that (210 of 215 with a zero-energy active). The band is a
+# tie-break, not the constraint — `energy_routing` below is.
+_AGGRO_LETHAL_BAND: Final[float] = 90.0   # above EVOLVE (80 + hp/40)
+
 _STATUS_VALUE: Final[dict[int, float]] = {0: 20.0, 1: 20.0, 2: 30.0, 3: 30.0, 4: 25.0}
+
+_ENERGY_SYMBOL: Final[dict[str, int]] = {
+    "C": 0, "G": 1, "R": 2, "W": 3, "L": 4, "P": 5,
+    "F": 6, "D": 7, "M": 8, "N": 9,
+}
+
+
+@dataclass(frozen=True)
+class ScaledClause:
+    """An attack's damage-per-unit and which board quantity is the unit."""
+
+    per_unit: float          # damage (already converted from counters)
+    unit: str                # key understood by HeuristicAgent._unit_count
+    energy_code: int | None  # for the typed-energy units
+    # Units that are not on the board but ARE known in expectation —
+    # coin flips. "Flip 4 coins ... for each heads" is 2 heads in
+    # expectation, and "flip until tails" is 1. Carrying the number here
+    # keeps the estimate explicit instead of falling into the generic
+    # unresolved fallback, which would value a 2-coin attack at double.
+    fixed_units: float | None = None
+
+
+_ENGINE_ATTACK_TEXT: dict[int, str] | None = None
+
+
+def _engine_attack_text(attack_id: int) -> str | None:
+    """Attack rules text, straight from the engine (our star schema drops
+    it: dim_attack keeps the distilled effect rows, not the prose)."""
+    global _ENGINE_ATTACK_TEXT
+    if _ENGINE_ATTACK_TEXT is None:
+        try:
+            import cg.api as _api
+            _ENGINE_ATTACK_TEXT = {
+                a.attackId: (a.text or "") for a in _api.all_attack()
+            }
+        except Exception:
+            _ENGINE_ATTACK_TEXT = {}
+    return _ENGINE_ATTACK_TEXT.get(attack_id)
+
+
+def parse_scaled_clause(text: str | None) -> ScaledClause | None:
+    """Damage-scaling clause of an attack, or None if it has none.
+
+    Pure text -> structure; no engine or observation involved, so it is
+    cached per attack id by the caller and unit-testable on its own.
+    """
+    if not text:
+        return None
+    flat = text.replace("\n", " ")
+    for kind, pattern in _SCALE_SHAPES:
+        match = pattern.search(flat)
+        if match is None:
+            continue
+        try:
+            magnitude = float(match.group(1))
+        except (TypeError, ValueError):
+            return None
+        per_unit = (magnitude * _DAMAGE_PER_COUNTER if kind == "counters"
+                    else magnitude)
+        phrase = match.group(2)
+        if _HEADS_RE.search(phrase):
+            return ScaledClause(per_unit, "coin", None,
+                                fixed_units=_expected_heads(flat))
+        for unit_pattern, key in _UNIT_PATTERNS:
+            unit_match = unit_pattern.search(phrase)
+            if unit_match is None:
+                continue
+            code = None
+            if key == "my_active_energy_typed":
+                code = _ENERGY_SYMBOL.get(unit_match.group(1).upper())
+                if code is None:
+                    return None
+            return ScaledClause(per_unit, key, code)
+        return ScaledClause(per_unit, "unresolved", None)
+    return None
+
+
+_HEADS_RE: Final["re.Pattern[str]"] = re.compile(r"\bheads\b", re.I)
+_FLIP_N_RE: Final["re.Pattern[str]"] = re.compile(
+    r"flip\s+(\d+)\s+coins", re.I)
+_FLIP_UNTIL_RE: Final["re.Pattern[str]"] = re.compile(
+    r"flip a coin until you get tails", re.I)
+
+
+def _expected_heads(text: str) -> float:
+    """Heads in expectation: N/2 for N coins, 1 for flip-until-tails."""
+    match = _FLIP_N_RE.search(text)
+    if match:
+        try:
+            return float(match.group(1)) / 2.0
+        except (TypeError, ValueError):
+            return 1.0
+    if _FLIP_UNTIL_RE.search(text):
+        return 1.0     # sum of a geometric series with p=1/2
+    return 1.0
+
+# Cards that ARE an evolution, but arrive as a Trainer PLAY option and so
+# land in _TRAINER_BAND (35) where they lose to every real EVOLVE (80+)
+# and tie with every other Trainer. Measured consequence on the ladder
+# corpus (31/Jul): the generic pilot plays Rare Candy 0.63x/game against
+# 1.10x for real opponents and brings its Stage 2 online ~1.3 turns late,
+# which is most of the +46/+48pp inflation in every close-race cell.
+#
+# Promoting them is SAFE because the engine itself gates the option:
+# probed over 40 games of the Alakazam list, Rare Candy was offered as a
+# PLAY in 0 of 1504 decisions with no Stage 2 in hand, and in 289 of the
+# 2093 decisions where one was held (it also needs a matching Basic in
+# play). So every legal Rare Candy PLAY is a genuine two-stage jump, and
+# the scorer does not need to re-derive the condition.
+EVOLUTION_ACCELERATORS: Final[frozenset[int]] = frozenset({
+    1079,   # Rare Candy — Basic -> Stage 2, skipping Stage 1
+})
+# above a normal EVOLVE (80 + hp/40, so ~83.5 for a 140 HP Stage 2):
+# skipping a whole stage is strictly more tempo than taking one step.
+_ACCELERATOR_BONUS: Final[float] = 5.0
+
+# --------------------------------------------------------------------------
+# Attacks whose damage SCALES with a board quantity
+# --------------------------------------------------------------------------
+# _effect_adjustment values an attack as damage_base + a fixed bonus per
+# effect row, which is blind to any attack whose damage is the scale.
+# Measured consequence (31/Jul): Alakazam's Powerful Hand — "Place 2
+# damage counters on your opponent's Active Pokémon FOR EACH CARD IN YOUR
+# HAND", base 0 — scored 13.0 while delivering ~266, so the generic pilot
+# preferred Kadabra's 30-damage Super Psy Bolt. 163 attacks in the pool
+# carry a scaling clause, so this is not one card's problem.
+#
+# The clause is parsed from the attack TEXT (the engine exposes it) into
+# (damage per unit, unit key) once per attack id, then the unit is counted
+# on the LIVE observation. Where the unit is not observable — "for each
+# heads", "for each card you discarded in this way" — no resolver exists
+# and the old fixed-bonus path stays, so nothing silently invents a
+# number. `unresolved_scaled_units()` reports which those are.
+_DAMAGE_PER_COUNTER: Final[float] = 10.0
+
+_SCALE_SHAPES: Final[tuple[tuple[str, "re.Pattern[str]"], ...]] = (
+    # "Place N damage counters on your opponent's ... for each X"
+    ("counters",
+     re.compile(r"place\s+(\d+)\s+damage\s+counters?\s+on\s+your\s+"
+                r"opponent[^.]{0,40}?for each ([^.,]{3,70})", re.I)),
+    # "This attack does N more damage for each X"
+    ("damage",
+     re.compile(r"does\s+(\d+)\s+more\s+damage\s+for each ([^.,]{3,70})",
+                re.I)),
+    # "This attack does N damage for each X" (base is normally 0)
+    ("damage",
+     re.compile(r"does\s+(\d+)\s+damage\s+for each ([^.,]{3,70})", re.I)),
+)
+
+# unit phrase -> resolver key, ordered SPECIFIC -> GENERIC (first match
+# wins), exactly like archetype_rules: "{W} energy attached to this
+# Pokémon" must not be eaten by the generic "energy attached to this".
+_UNIT_PATTERNS: Final[tuple[tuple["re.Pattern[str]", str], ...]] = (
+    (re.compile(r"card in your hand", re.I), "my_hand"),
+    (re.compile(r"card in your opponent.s hand", re.I), "opp_hand"),
+    (re.compile(r"damage counter on this pok", re.I), "my_active_damage"),
+    (re.compile(r"damage counter on your opponent.s active", re.I),
+     "opp_active_damage"),
+    (re.compile(r"\{(\w)\} energy attached to this pok", re.I),
+     "my_active_energy_typed"),
+    (re.compile(r"energy attached to this pok", re.I), "my_active_energy"),
+    (re.compile(r"energy attached to your opponent.s active", re.I),
+     "opp_active_energy"),
+    (re.compile(r"energy attached to all of your opponent.s pok", re.I),
+     "opp_board_energy"),
+    (re.compile(r"energy attached to all of your pok", re.I),
+     "my_board_energy"),
+    (re.compile(r"benched pok.mon \(both", re.I), "both_bench"),
+    (re.compile(r"of your benched pok", re.I), "my_bench"),
+    (re.compile(r"of your opponent.s benched pok", re.I), "opp_bench"),
+    (re.compile(r"prize card your opponent has taken", re.I),
+     "opp_prizes_taken"),
+    (re.compile(r"prize card you have taken", re.I), "my_prizes_taken"),
+    (re.compile(r"pok.mon tool attached to all of your pok", re.I),
+     "my_board_tools"),
+    (re.compile(r"pok.mon tool attached to all pok", re.I), "both_tools"),
+    (re.compile(r"of your basic pok.mon in play", re.I), "my_basics"),
+    (re.compile(r"of your pok.mon in play", re.I), "my_board"),
+)
+
+# units we cannot see on the board; the declared fallback below is used
+# instead of pretending to know. Kept explicit so the estimate is a
+# stated assumption rather than a magic constant buried in a branch.
+_UNRESOLVED_UNITS_ESTIMATE: Final[float] = 2.0
+
+# --------------------------------------------------------------------------
+# ENERGY ROUTING — the same blindness, in the paths that DECIDE THE BOARD
+# --------------------------------------------------------------------------
+# `scaled_damage` taught _attack_value to count the scaling unit live.
+# Two more scorers still read `damage_base` alone and so still value a
+# scaling attacker at zero:
+#
+#   _best_affordable_damage  -> _attach_score: "how much damage does this
+#                               body unlock if I put the energy HERE"
+#   _own_pokemon_score       -> promotion/switch/bench: "which body do I
+#                               want in front"
+#
+# Powerful Hand's printed base is None, so under both scorers Alakazam is
+# a 0-damage body: energy goes to whatever has printed damage and the
+# promotion prompt prefers the fattest, not the attacker. Measured over
+# 40 games of the list (31/Jul): 46 of 155 attachments went somewhere
+# else while an Alakazam sat on the board with zero energy, and only
+# 29 of 45 promotions that COULD have promoted Alakazam did. Downstream,
+# 40% of their turns never offered an attack at all, 210 of 215 of them
+# with an empty active — which is the real reason attacks/game reads 4.86
+# against 6.81 for real opponents.
+#
+# Routing reuses the SAME clause parser and the SAME live unit count, so
+# the three scorers finally agree about what an attack is worth.
+
+# --------------------------------------------------------------------------
+# GUST TARGETING — which of the opponent's bodies to drag into the Active
+# --------------------------------------------------------------------------
+# Boss's Orders and friends arrive as a SWITCH over the OPPONENT'S board,
+# and _own_pokemon_score scores those options with the rule it uses for
+# our own promotions: highest HP plus printed damage. Against a deck that
+# carries prevention that is exactly backwards — it drags out the wall.
+#
+# Measured on the ladder corpus vs internal games (src/analysis/
+# gust_telemetry.py, 01/Ago): when the choice set held BOTH a covered and
+# a bare body, real opponents took the bare one 6 times out of 6 and the
+# generic pilot took it 0 times out of 28. Real gusts pull Dwebble (70 HP,
+# no energy); ours pull Great Tusk, the {F} body holding the Rock.
+#
+# "Covered" is read from the ENGINE'S OWN TEXT rather than from a
+# memorized pair of card ids: a special energy whose text says it
+# prevents all effects of attacks done to the Pokémon it is attached to
+# (optionally restricted to one type) is cover. Today that is exactly
+# Mist Energy (any host) and Rock Fighting Energy ({F} host only), which
+# is the matrix tests/test_effect_prevention_contract.py verified against
+# the engine — but the rule now comes from the card, so a new printing
+# is picked up without an edit here.
+_COVER_CLAUSE: Final["re.Pattern[str]"] = re.compile(
+    r"prevent all effects of attacks[^.]*?done to the\s*(?:\{(\w)\}\s*)?"
+    r"pok.mon this card is attached to", re.I)
+
+_PREVENTION_ENERGIES: dict[int, int | None] | None = None
+
+
+def prevention_energies() -> dict[int, int | None]:
+    """card id -> energy code the host must be for the cover to apply
+    (None = any host). Parsed once from the engine's card text."""
+    global _PREVENTION_ENERGIES
+    if _PREVENTION_ENERGIES is None:
+        table: dict[int, int | None] = {}
+        try:
+            import cg.api as _api
+            for card in _api.all_card_data():
+                if getattr(card, "hp", None):
+                    continue          # Pokémon, not an attached energy
+                for skill in (card.skills or ()):
+                    match = _COVER_CLAUSE.search(
+                        (skill.text or "").replace("\n", " "))
+                    if match is None:
+                        continue
+                    symbol = match.group(1)
+                    table[card.cardId] = (_ENERGY_SYMBOL.get(symbol.upper())
+                                          if symbol else None)
+                    break
+        except Exception:
+            table = {}
+        _PREVENTION_ENERGIES = table
+    return _PREVENTION_ENERGIES
+
+
+# A covered body must never be dragged out over a bare one, so the malus
+# has to dominate every other term rather than trade against it.
+_GUST_COVER_MALUS: Final[float] = 100.0
+_GUST_BASE: Final[float] = 40.0
+
+# --------------------------------------------------------------------------
+# DECK CONSERVATION — do not draw yourself out of the game
+# --------------------------------------------------------------------------
+# Measured root cause of the whole Alakazam inflation (conversion audit,
+# 01/Ago): on the cycles where our Great Tusk was NOT active — so Land
+# Collapse provably could not fire, and everything leaving their deck was
+# their own doing — the internal opponent consumed 3.82 cards per cycle
+# against 3.04 for real ladder opponents. 26% faster. It decks ITSELF
+# out in 64.7% of games against 28.8% on the ladder, which shortens the
+# game, which costs it attacks, knockouts and prizes, which is the +44pp.
+#
+# CrustleAgent has carried the fix since v3 (rule i): suppress your own
+# thinners below the END score so the pilot passes instead. The generic
+# HeuristicAgent never had it — it has no notion that its deck is a
+# resource. This ports the SHAPE of the v3 rule, whose history is the
+# reason for the shape: v1/v2 used a RELATIVE trigger (any deficit in the
+# deck race suppresses) and that strangled setup from turn one, causing
+# board-wipe losses. v3 replaced it with an ABSOLUTE floor, plus the
+# relative race only once the deck is genuinely low.
+#
+# What counts as a thinner is read from the ENGINE'S TEXT rather than
+# from a hand-listed set, because the generic pilot flies every deck. The
+# estimate is net cards LEAVING the deck, which is the quantity the
+# deck-out race is denominated in: a search takes its targets out, a draw
+# takes N, "look at the top N ... discard the other cards" takes all N,
+# but "look at the top N ... shuffle the other cards back" only takes
+# what went to hand.
+_DECK_SUPPRESSED_SCORE: Final[float] = 0.2      # below END (0.5): pass
+DEFAULT_DECK_FLOOR: Final[int] = 15             # absolute, as CrustleAgent
+DEFAULT_RACE_FLOOR: Final[int] = 30             # relative only below this
+
+_LOOK_TOP_RE: Final["re.Pattern[str]"] = re.compile(
+    r"look at the top (\d+) cards? of your deck", re.I)
+_DISCARD_OTHERS_RE: Final["re.Pattern[str]"] = re.compile(
+    r"discard the other cards", re.I)
+_DISCARD_TOP_RE: Final["re.Pattern[str]"] = re.compile(
+    r"discard the top (\d+) cards? of your deck", re.I)
+_DRAW_RE: Final["re.Pattern[str]"] = re.compile(
+    r"draw (\d+) cards?", re.I)
+_DRAW_ONE_RE: Final["re.Pattern[str]"] = re.compile(r"draw a card", re.I)
+_SEARCH_RE: Final["re.Pattern[str]"] = re.compile(
+    r"search your deck for", re.I)
+_SEARCH_TWO_RE: Final["re.Pattern[str]"] = re.compile(
+    r"search your deck for (?:up to )?(\d+)", re.I)
+
+_DECK_COST: dict[int, float] | None = None
+
+
+def deck_cost(text: str | None) -> float:
+    """Net cards this card takes OUT of its owner's deck; 0.0 if none."""
+    if not text:
+        return 0.0
+    flat = text.replace("\n", " ")
+    look = _LOOK_TOP_RE.search(flat)
+    if look and _DISCARD_OTHERS_RE.search(flat):
+        try:
+            return float(look.group(1))      # the whole peek is consumed
+        except (TypeError, ValueError):
+            return 1.0
+    discard_top = _DISCARD_TOP_RE.search(flat)
+    if discard_top:
+        try:
+            return float(discard_top.group(1))
+        except (TypeError, ValueError):
+            return 1.0
+    draw = _DRAW_RE.search(flat)
+    if draw:
+        try:
+            return float(draw.group(1))
+        except (TypeError, ValueError):
+            return 1.0
+    if _DRAW_ONE_RE.search(flat):
+        return 1.0
+    if _SEARCH_RE.search(flat):
+        two = _SEARCH_TWO_RE.search(flat)
+        if two:
+            try:
+                return float(two.group(1))
+            except (TypeError, ValueError):
+                return 1.0
+        # "a Stadium card AND an Energy card" fetches two bodies
+        return 2.0 if re.search(r"card and an? ", flat, re.I) else 1.0
+    if look:
+        return 1.0                            # peek, keep one, shuffle back
+    return 0.0
+
+
+def deck_costs() -> dict[int, float]:
+    """card id -> net deck cost, parsed once from the engine's text.
+
+    Only non-Pokémon cards: an Ability that draws is paid for by having
+    the body in play, and suppressing a Pokémon would suppress board
+    development, which is the failure mode v3 was written to avoid.
+    """
+    global _DECK_COST
+    if _DECK_COST is None:
+        table: dict[int, float] = {}
+        try:
+            import cg.api as _api
+            for card in _api.all_card_data():
+                if getattr(card, "hp", None):
+                    continue
+                cost = 0.0
+                for skill in (card.skills or ()):
+                    cost = max(cost, deck_cost(skill.text))
+                if cost > 0.0:
+                    table[card.cardId] = cost
+        except Exception:
+            table = {}
+        _DECK_COST = table
+    return _DECK_COST
 
 
 class HeuristicAgent:
@@ -51,7 +451,10 @@ class HeuristicAgent:
     consumed by the dev game recorder.
     """
 
-    __slots__ = ("_index", "_effects", "_wrapper", "_deck_path", "_rng", "last_scores")
+    __slots__ = ("_index", "_effects", "_wrapper", "_deck_path", "_rng",
+                 "_tempo", "_scaled_damage", "_profile", "_energy_routing",
+                 "_gust_targeting", "_deck_conservation", "_deck_floor",
+                 "_race_floor", "_scale_cache", "last_scores")
 
     def __init__(
         self,
@@ -59,12 +462,49 @@ class HeuristicAgent:
         deck_path: str | None = None,
         index: CardIndex | None = None,
         effects: EffectIndex | None = None,
+        tempo: bool = False,
+        scaled_damage: bool = False,
+        profile: str = PROFILE_DEVELOPMENT,
+        energy_routing: bool = False,
+        gust_targeting: bool = False,
+        deck_conservation: bool = False,
+        deck_floor: int = DEFAULT_DECK_FLOOR,
+        race_floor: int = DEFAULT_RACE_FLOOR,
     ) -> None:
+        """``tempo=True`` promotes EVOLUTION_ACCELERATORS out of the
+        trainer band (see the constant). ``scaled_damage=True`` values
+        attacks whose damage scales with a board quantity by counting the
+        unit live instead of using a fixed per-row bonus.
+        ``profile=PROFILE_AGGRO`` lets a LETHAL attack outrank development
+        (see _AGGRO_LETHAL_BAND); ``energy_routing=True`` extends the
+        scaled valuation to the attach and promotion scorers, so energy
+        and the active slot go to the body that actually threatens;
+        ``gust_targeting=True`` drags the opponent's UNCOVERED body into
+        the Active Spot instead of its biggest one.
+        ``deck_conservation=True`` stops the pilot from drawing itself out
+        of the game, below ``deck_floor`` outright and below
+        ``race_floor`` when it is also losing the deck-out race.
+
+        All of them default to the SHIPPED behaviour so every existing
+        caller — the ship's CrustleAgent above all — stays byte-identical;
+        tests/test_tempo_equivalence.py, tests/test_scaled_damage.py,
+        tests/test_attack_profile.py and tests/test_gust_targeting.py hold
+        that line decision-by-decision.
+        """
         self._index = index if index is not None else CardIndex()
         self._effects = effects if effects is not None else EffectIndex()
         self._wrapper = EnvironmentWrapper(self._index)
         self._deck_path = deck_path
         self._rng = random.Random(seed)
+        self._tempo = tempo
+        self._scaled_damage = scaled_damage
+        self._profile = profile
+        self._energy_routing = energy_routing
+        self._gust_targeting = gust_targeting
+        self._deck_conservation = deck_conservation
+        self._deck_floor = deck_floor
+        self._race_floor = race_floor
+        self._scale_cache: dict[int, ScaledClause | None] = {}
         self.last_scores: list[float] | None = None
 
     # ------------------------------------------------------------------ #
@@ -132,11 +572,25 @@ class HeuristicAgent:
     def _affordable(attack: Attack, energies: list[int]) -> bool:
         return is_cost_payable(attack.cost, energies)
 
-    def _effect_adjustment(self, attack: Attack, base: float) -> float:
-        """Expected-value tweak from dim_effect rows; scale gates multiply."""
+    def _effect_adjustment(self, attack: Attack, base: float,
+                           skip_scaling: bool = False) -> float:
+        """Expected-value tweak from dim_effect rows; scale gates multiply.
+
+        ``skip_scaling`` drops the rows that stand in for damage-per-unit
+        (DAMAGE_BONUS/DAMAGE_SCALE/COUNTERS with a per-unit condition)
+        because the caller already counted the unit on the live board.
+        Without it the two paths would both charge for the same clause.
+        """
         bonus = 0.0
         multiplier = 1.0
+        scaling_types = (int(EffectType.DAMAGE_BONUS),
+                         int(EffectType.DAMAGE_SCALE),
+                         int(EffectType.COUNTERS))
         for row in self._effects.effects_of(attack.attack_id):
+            if (skip_scaling and row.effect_type in scaling_types
+                    and row.condition in ("per_unit", "per_unit_minus",
+                                          "each", None)):
+                continue
             discount = 0.5 if row.coin_flip else 0.8
             effect = row.effect_type
             if effect == int(EffectType.DAMAGE_BONUS) and row.magnitude:
@@ -172,6 +626,113 @@ class HeuristicAgent:
                 multiplier *= 0.7
         return (base + bonus) * multiplier
 
+    def _scaled_clause(self, attack_id: int) -> ScaledClause | None:
+        """Cached text parse of the attack's damage-scaling clause."""
+        if attack_id not in self._scale_cache:
+            self._scale_cache[attack_id] = parse_scaled_clause(
+                _engine_attack_text(attack_id))
+        return self._scale_cache[attack_id]
+
+    def _unit_count(self, unit: str, energy_code: int | None,
+                    obs: Observation) -> float | None:
+        """Live count of a scaling unit, or None when unobservable."""
+        state = obs.current
+        if state is None:
+            return None
+        try:
+            me = state.players[state.yourIndex]
+            them = state.players[1 - state.yourIndex]
+        except (IndexError, TypeError):
+            return None
+        mine = self._my_active(obs)
+        theirs = self._opp_active(obs)
+
+        def board(player) -> list:
+            active = [p for p in (player.active or []) if p]
+            return active + [p for p in (player.bench or []) if p]
+
+        def energies(pokemon, code: int | None = None) -> int:
+            if pokemon is None:
+                return 0
+            values = [int(e) for e in (pokemon.energies or [])]
+            return len(values) if code is None else values.count(code)
+
+        def damage_counters(pokemon) -> int:
+            if pokemon is None or not pokemon.maxHp:
+                return 0
+            return max(0, int(pokemon.maxHp) - int(pokemon.hp)) // 10
+
+        if unit == "my_hand":
+            return float(me.handCount or len(me.hand or []))
+        if unit == "opp_hand":
+            return float(them.handCount or len(them.hand or []))
+        if unit == "my_active_damage":
+            return float(damage_counters(mine))
+        if unit == "opp_active_damage":
+            return float(damage_counters(theirs))
+        if unit == "my_active_energy_typed":
+            return float(energies(mine, energy_code))
+        if unit == "my_active_energy":
+            return float(energies(mine))
+        if unit == "opp_active_energy":
+            return float(energies(theirs))
+        if unit == "my_board_energy":
+            return float(sum(energies(p) for p in board(me)))
+        if unit == "opp_board_energy":
+            return float(sum(energies(p) for p in board(them)))
+        if unit == "my_bench":
+            return float(len([p for p in (me.bench or []) if p]))
+        if unit == "opp_bench":
+            return float(len([p for p in (them.bench or []) if p]))
+        if unit == "both_bench":
+            return float(len([p for p in (me.bench or []) if p])
+                         + len([p for p in (them.bench or []) if p]))
+        if unit == "opp_prizes_taken":
+            return float(max(0, 6 - len(them.prize or [])))
+        if unit == "my_prizes_taken":
+            return float(max(0, 6 - len(me.prize or [])))
+        if unit == "my_board_tools":
+            return float(sum(len(p.tools or []) for p in board(me)))
+        if unit == "both_tools":
+            return float(sum(len(p.tools or []) for p in board(me))
+                         + sum(len(p.tools or []) for p in board(them)))
+        if unit == "my_board":
+            return float(len(board(me)))
+        if unit == "my_basics":
+            count = 0
+            for pokemon in board(me):
+                card = self._index.get_card(pokemon.id)
+                if card is not None and card.stage_code == 7:
+                    count += 1
+            return float(count)
+        return None
+
+    def _scaled_units(self, clause: ScaledClause, obs: Observation) -> float:
+        """How many units the clause scales over, on the live board.
+
+        Coin clauses carry their own expectation; an unobservable unit
+        falls to the DECLARED estimate rather than inventing a number.
+        """
+        if clause.fixed_units is not None:
+            return clause.fixed_units
+        units = self._unit_count(clause.unit, clause.energy_code, obs)
+        return _UNRESOLVED_UNITS_ESTIMATE if units is None else units
+
+    def _body_damage(self, attack: Attack, obs: Observation | None) -> float:
+        """Damage an attack represents when judging a BODY (not a move).
+
+        Printed base only, exactly as before — unless energy routing is
+        on, in which case the scaling clause is counted too, so a body
+        whose whole damage IS the scale stops reading as harmless.
+        """
+        damage = float(attack.damage_base or 0)
+        if not self._energy_routing or obs is None:
+            return damage
+        clause = self._scaled_clause(attack.attack_id)
+        if clause is None:
+            return damage
+        return damage + clause.per_unit * self._scaled_units(clause, obs)
+
     def _attack_value(self, attack_id: int | None, obs: Observation) -> float:
         """Expected value of using an attack (damage-equivalent units)."""
         attack = self._index.get_attack(attack_id) if attack_id is not None else None
@@ -182,23 +743,34 @@ class HeuristicAgent:
         opp_card = self._card_of(opp)
 
         damage = float(attack.damage_base or 0)
+        # Damage that SCALES with the board is the attack's whole point
+        # when the printed base is 0; count the unit live instead of
+        # letting the fixed per-row bonus stand in for it.
+        scaled_applied = False
+        if self._scaled_damage and attack_id is not None:
+            clause = self._scaled_clause(attack_id)
+            if clause is not None:
+                damage += clause.per_unit * self._scaled_units(clause, obs)
+                scaled_applied = True
         if opp_card is not None and my_card is not None and my_card.type_code is not None:
             if opp_card.weakness_code == my_card.type_code:
                 damage *= 2
             if opp_card.resistance_code == my_card.type_code:
                 damage = max(0.0, damage - 30)
-        value = self._effect_adjustment(attack, damage)
+        value = self._effect_adjustment(attack, damage,
+                                        skip_scaling=scaled_applied)
         if opp is not None and value >= opp.hp:
             value += _KO_BONUS
         return value
 
-    def _best_affordable_damage(self, card_id: int | None, energies: list[int]) -> float:
+    def _best_affordable_damage(self, card_id: int | None, energies: list[int],
+                                obs: Observation | None = None) -> float:
         if card_id is None:
             return 0.0
         best = 0.0
         for attack in self._index.attacks_of(card_id):
             if self._affordable(attack, energies):
-                best = max(best, float(attack.damage_base or 0))
+                best = max(best, self._body_damage(attack, obs))
         return best
 
     # ------------------------------------------------------------------ #
@@ -246,6 +818,43 @@ class HeuristicAgent:
 
     # ---- scoring helpers ---- #
 
+    def _deck_starved(self, obs: Observation) -> bool:
+        """Is thinning our own deck a liability right now?
+
+        The CONSERVATIVE trigger, and the conservatism is the lesson:
+        CrustleAgent v1/v2 suppressed on any deficit in the deck race and
+        strangled its own setup from turn one (the measured cause of its
+        board-wipe losses). v3 replaced that with an absolute floor plus
+        the race only once the deck is genuinely low, and that is what is
+        ported here. Unknown deck count -> False, so a missing signal
+        never suppresses.
+        """
+        state = obs.current
+        if state is None or state.yourIndex is None:
+            return False
+        try:
+            mine = state.players[state.yourIndex].deckCount
+            theirs = state.players[1 - state.yourIndex].deckCount
+        except (IndexError, TypeError, AttributeError):
+            return False
+        if mine is None:
+            return False
+        if mine <= self._deck_floor:
+            return True
+        losing = theirs is not None and mine < theirs
+        return mine <= self._race_floor and losing
+
+    def _is_lethal(self, value: float, obs: Observation) -> bool:
+        """Would this attack knock the opposing active out?
+
+        Read back out of the value rather than recomputed: _attack_value
+        adds _KO_BONUS exactly when the damage already reached the
+        defender's HP, so subtracting it recovers the raw comparison
+        without valuing the attack twice.
+        """
+        opp = self._opp_active(obs)
+        return opp is not None and value - _KO_BONUS >= opp.hp
+
     def _main_score(self, obs: Observation, option: Option) -> float:
         kind = option.type
         state = obs.current
@@ -253,6 +862,12 @@ class HeuristicAgent:
             # capped so attacking never outranks development actions —
             # those keep the MAIN prompt open, attacking ends the turn
             value = self._attack_value(option.attackId, obs)
+            if (self._profile == PROFILE_AGGRO
+                    and self._is_lethal(value, obs)):
+                # AGGRO profile: a knockout is worth more than anything
+                # the rest of the turn could develop, so it stops losing
+                # to evolve/play/attach (see _AGGRO_LETHAL_BAND).
+                return _AGGRO_LETHAL_BAND + min(value, 450.0) / 45.0
             return _ATTACK_BAND + min(value, 450.0) / 45.0 + (5.0 if value >= _KO_BONUS else 0.0)
         if kind == OptionType.ATTACH:
             return self._attach_score(obs, option)
@@ -262,6 +877,14 @@ class HeuristicAgent:
             return _EVOLVE_BAND + ((card.hp or 0) / 40.0 if card else 0.0)
         if kind == OptionType.PLAY:
             card_id = self._wrapper.resolve_card_id(obs, option)
+            if (self._deck_conservation and card_id is not None
+                    and card_id in deck_costs()
+                    and self._deck_starved(obs)):
+                # below END: pass the turn rather than draw into deck-out
+                return _DECK_SUPPRESSED_SCORE
+            if self._tempo and card_id in EVOLUTION_ACCELERATORS:
+                # the engine only offers this when it really evolves
+                return _EVOLVE_BAND + _ACCELERATOR_BONUS
             card = self._index.get_card(card_id) if card_id is not None else None
             if card is None:
                 return _TRAINER_BAND
@@ -296,18 +919,66 @@ class HeuristicAgent:
         if target is None:
             return 5.0
         energies = [int(e) for e in (target.energies or [])]
-        now = self._best_affordable_damage(target.id, energies)
-        then = self._best_affordable_damage(target.id, energies + [energy_code])
+        now = self._best_affordable_damage(target.id, energies, obs)
+        then = self._best_affordable_damage(target.id, energies + [energy_code],
+                                            obs)
         gain = then - now
         active_bonus = 3.0 if option.inPlayArea == AreaType.ACTIVE else 0.0
         return _ATTACH_BAND + active_bonus + min(gain, 200.0) / 20.0
 
+    def _is_covered(self, pokemon: Pokemon | None,
+                    card: Card | None) -> bool:
+        """Does an attached energy nullify effect-based attacks here?"""
+        if pokemon is None:
+            return False
+        table = prevention_energies()
+        if not table:
+            return False
+        for attached in (pokemon.energyCards or []):
+            required = table.get(getattr(attached, "id", None), False)
+            if required is False:
+                continue                      # not a prevention energy
+            if required is None:
+                return True                   # covers any host
+            if card is not None and card.type_code == required:
+                return True
+        return False
+
+    def _gust_target_score(self, obs: Observation, option: Option) -> float:
+        """Which of the OPPONENT'S bodies to drag into the Active Spot.
+
+        Cover first (an attack that gets prevented is a wasted turn),
+        then the trap: low HP is a knockout now, retreat cost and missing
+        energy are what keep the body stuck there afterwards.
+        """
+        state = obs.current
+        pokemon = self._pokemon_at(state, option.playerIndex, option.area,
+                                   option.index)
+        if pokemon is None:
+            return 0.0
+        card = self._card_of(pokemon)
+        score = _GUST_BASE - (pokemon.hp or 0) / 10.0
+        if card is not None:
+            score += 4.0 * (card.retreat_cost or 0)
+        score -= 2.0 * len(pokemon.energies or [])
+        if self._is_covered(pokemon, card):
+            score -= _GUST_COVER_MALUS
+        return score
+
     def _own_pokemon_score(self, obs: Observation, option: Option, for_active: bool) -> float:
+        if (self._gust_targeting and for_active
+                and option.playerIndex is not None
+                and obs.current is not None
+                and option.playerIndex != obs.current.yourIndex):
+            # a SWITCH over the OPPONENT'S board is a gust, not a
+            # promotion: the rule for our own bodies is the wrong one
+            return self._gust_target_score(obs, option)
         card_id = self._wrapper.resolve_card_id(obs, option)
         card = self._index.get_card(card_id) if card_id is not None else None
         if card is None:
             return 0.0
-        best_damage = max((float(a.damage_base or 0) for a in self._index.attacks_of(card.card_id)),
+        best_damage = max((self._body_damage(a, obs)
+                           for a in self._index.attacks_of(card.card_id)),
                           default=0.0)
         score = (card.hp or 0) / 10.0 + best_damage / 10.0
         # Tera Pokémon are immune to attack damage on the Bench (verified in

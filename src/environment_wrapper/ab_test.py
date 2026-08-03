@@ -50,11 +50,13 @@ import argparse
 import json
 import math
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Final
 
+from ..agent_heuristics.heuristic_agent import DEFAULT_DECK_FLOOR
 from ..agent_heuristics.random_agent import RandomAgent
+from ..deckbuilding.archetype_rules import PROFILE_DEVELOPMENT, deck_profile
 from ..deckbuilding.gauntlet import PairResult, discover_decks, run_pair
 from ..deckbuilding.legality import read_deck_ids, validate_deck
 from ..ingestion.build_effect_model import EffectIndex
@@ -65,7 +67,68 @@ Z_95: Final[float] = 1.959963984540054
 REGRESSION_MARGIN: Final[float] = 0.05
 
 ARM_KINDS: Final[tuple[str, ...]] = (
-    "random", "heuristic", "crustle", "crustle-v2", "crustle-v3", "network")
+    "random", "heuristic", "heuristic-tempo", "heuristic-scaled",
+    "heuristic-tempo-scaled",
+    # "-aggro"   makes the ATTACK BAND depend on the arm's own deck: a
+    #            deck whose archetype wins the prize race lets a LETHAL
+    #            attack outrank development (archetype_rules.deck_profile,
+    #            so a mill/stall deck derives DEVELOPMENT and the arm is
+    #            inert on it — the profile is a fact about the deck, not
+    #            a switch the experimenter sets).
+    # "-routing" extends the scaled valuation to the ATTACH and PROMOTE
+    #            scorers, so energy and the active slot go to the body
+    #            that actually threatens.
+    # "-gust"    drags the opponent's UNCOVERED body into the Active Spot
+    #            instead of its biggest one. Measured on the ladder: with
+    #            both a covered and a bare body on the table, real
+    #            opponents took the bare one 6/6 and the generic pilot
+    #            0/28 (src/analysis/gust_telemetry.py).
+    "heuristic-aggro", "heuristic-routing", "heuristic-gust",
+    "heuristic-tempo-scaled-aggro", "heuristic-tempo-scaled-routing",
+    "heuristic-tempo-scaled-aggro-routing",
+    "heuristic-tempo-scaled-gust", "heuristic-tempo-scaled-routing-gust",
+    "heuristic-tempo-scaled-aggro-routing-gust",
+    # "-conserve" stops the pilot drawing itself out of the game. The
+    # floor is tunable through the arm spec's weights slot as a bare
+    # integer ("heuristic-conserve,20"), because the whole point of this
+    # arm is to CALIBRATE the floor against the ladder's deck-out rate.
+    "heuristic-conserve", "heuristic-tempo-scaled-conserve",
+    "heuristic-tempo-scaled-gust-conserve",
+    "heuristic-tempo-scaled-routing-gust-conserve",
+    "crustle", "crustle-v2", "crustle-v3",
+    # v4 = v3 + the two DEFENSIVE rules (threat-aware Xerosic, protective
+    # attach). New variant: v3 is untouched by construction.
+    "crustle-v4", "network",
+    # runtime search (submission candidate). "-blind" pins the estimator
+    # off so the arm degrades to its prior — that is the FLOOR arm, and
+    # comparing it against plain crustle-v3 is how the floor gets proven
+    # empirically rather than asserted.
+    # "-match" models the opponent in rollouts with the pilot that fits
+    # the ESTIMATED archetype instead of a generic heuristic.
+    # "-margin" makes the search prove its case before overriding the
+    # prior; "-both" applies the matched opponent model AND the margin.
+    # "-adaptive" spends the bank only on CONTESTED decisions.
+    "search-crustle", "search-crustle-blind", "search-crustle-match",
+    "search-crustle-margin", "search-crustle-both", "search-crustle-adaptive",
+    # "search-net,<npz>" models the ALAKAZAM opponent in rollouts with
+    # that behaviour-cloned net. Pinning the clone is what lets the
+    # fidelity ladder be built on one opponent: exact clone, a DIFFERENT
+    # human's clone of the same archetype, or none at all.
+    "search-net", "search-net-adaptive",
+    # parametric league pilot: "grimmsnarl-module" flies meta_grimmsnarl
+    # with GrimmsnarlModule + its shipped theta. Needed as an opponent
+    # that is NOT the rollout model.
+    "grimmsnarl-module")
+
+# Arms that carry their own search/estimator/budget instrumentation.
+SEARCH_ARMS: Final[frozenset[str]] = frozenset(
+    {"search-crustle", "search-crustle-blind", "search-crustle-match",
+     "search-crustle-margin", "search-crustle-both",
+     "search-crustle-adaptive", "search-net", "search-net-adaptive"})
+
+# One extra win in four determinizations — the smallest gain a 4x4
+# search can express that is not a single lucky rollout.
+OVERRIDE_MARGIN: Final[float] = 0.25
 
 
 # --------------------------------------------------------------------------- #
@@ -82,7 +145,13 @@ def wilson_interval(wins: int, n: int, z: float = Z_95) -> tuple[float, float]:
     denom = 1.0 + z2 / n
     center = (p + z2 / (2 * n)) / denom
     half = z * math.sqrt(p * (1.0 - p) / n + z2 / (4 * n * n)) / denom
-    return max(0.0, center - half), min(1.0, center + half)
+    # Clamp against the point estimate, not just against [0, 1]: at p=0
+    # the algebra lands on ~2.8e-17 instead of 0, so a caller asserting
+    # the interval contains p fails on float noise alone (a real, if
+    # cosmetic, flake in the smoke test). An interval that excludes its
+    # own point estimate is wrong at any magnitude.
+    return (min(p, max(0.0, center - half)),
+            max(p, min(1.0, center + half)))
 
 
 def verdict(wins: int, n: int, bar: float) -> str:
@@ -93,6 +162,31 @@ def verdict(wins: int, n: int, bar: float) -> str:
     if hi < bar:
         return "FAIL"
     return "HOLD"
+
+
+def newcombe_difference(w1: int, n1: int, w2: int,
+                        n2: int) -> tuple[float, float, float]:
+    """(diff, lo, hi) for p2 - p1: Newcombe's hybrid-score interval.
+
+    The right interval for a difference of two INDEPENDENT proportions.
+    Two separate Wilson intervals cannot be compared by eye -- their
+    overlapping is not the same question as the difference containing
+    zero -- and the normal approximation on the difference misbehaves
+    near 0 and 1, which is exactly where these winrates live. Newcombe
+    method 10 combines the two Wilson intervals instead:
+
+        lo = (p2-p1) - sqrt((p2-l2)^2 + (u1-p1)^2)
+        hi = (p2-p1) + sqrt((u2-p2)^2 + (p1-l1)^2)
+    """
+    if n1 <= 0 or n2 <= 0:
+        return 0.0, -1.0, 1.0
+    p1, p2 = w1 / n1, w2 / n2
+    l1, u1 = wilson_interval(w1, n1)
+    l2, u2 = wilson_interval(w2, n2)
+    diff = p2 - p1
+    lo = diff - math.sqrt((p2 - l2) ** 2 + (u1 - p1) ** 2)
+    hi = diff + math.sqrt((u2 - p2) ** 2 + (p1 - l1) ** 2)
+    return diff, max(-1.0, lo), min(1.0, hi)
 
 
 def binomial_p_value(wins: int, n: int, p0: float = 0.5) -> float:
@@ -133,43 +227,204 @@ class ArmSpec:
 
 @dataclass
 class ArmMetrics:
-    """Per-arm instrumentation aggregated across games."""
+    """Per-arm instrumentation aggregated across games.
+
+    ``episode_wall_s`` is the list of per-GAME wall times for this arm.
+    For search arms that is the number the 600s bank is spent against —
+    mean latency per selection says nothing useful once an agent is
+    allowed to think for seconds at a time.
+    """
 
     calls: int = 0
     time_us: float = 0.0
+    episode_wall_s: list[float] = field(default_factory=list)
+    search: object | None = None       # RuntimeSearchStats, if a search arm
+    budget: object | None = None       # BudgetStats, if a search arm
+    estimator: object | None = None    # EstimatorStats, if a search arm
 
     @property
     def mean_latency_us(self) -> float:
         return self.time_us / self.calls if self.calls else 0.0
 
+    def episode_percentiles(self) -> tuple[float, float, float]:
+        """(median, p95, max) episode wall seconds; zeros when empty."""
+        if not self.episode_wall_s:
+            return 0.0, 0.0, 0.0
+        ordered = sorted(self.episode_wall_s)
+        n = len(ordered)
+        return (ordered[n // 2],
+                ordered[min(n - 1, int(n * 0.95))],
+                ordered[-1])
+
 
 class _Instrumented:
-    """Wraps one agent instance, feeding the arm's shared metrics."""
+    """Wraps one agent instance, feeding the arm's shared metrics.
 
-    __slots__ = ("_agent", "_metrics")
+    One instance per GAME (run_pair builds agents per game), so this is
+    also where per-episode wall time is accumulated: the first call
+    opens a new episode bucket and every call adds to it.
+    """
+
+    __slots__ = ("_agent", "_metrics", "_episode")
 
     def __init__(self, agent: Agent, metrics: ArmMetrics) -> None:
         self._agent = agent
         self._metrics = metrics
+        self._episode: int | None = None
 
     def __call__(self, obs_dict: dict) -> list[int]:
+        if self._episode is None:
+            self._metrics.episode_wall_s.append(0.0)
+            self._episode = len(self._metrics.episode_wall_s) - 1
         t0 = time.perf_counter()
         answer = self._agent(obs_dict)
-        self._metrics.time_us += (time.perf_counter() - t0) * 1e6
+        elapsed = time.perf_counter() - t0
+        self._metrics.time_us += elapsed * 1e6
         self._metrics.calls += 1
+        self._metrics.episode_wall_s[self._episode] += elapsed
         return answer
 
 
+def _deck_card_names(deck: list[int], index: CardIndex) -> list[str]:
+    """Engine card names of a decklist, for archetype labelling. Unknown
+    ids are dropped rather than raised on: an arm with no deck simply
+    labels as UNKNOWN, which resolves to the conservative profile."""
+    names = []
+    for card_id in deck:
+        card = index.get_card(card_id)
+        if card is not None:
+            names.append(card.card_name)
+    return names
+
+
 def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
-                metrics: ArmMetrics) -> Callable[[int], Agent]:
-    """Per-game factory for an arm (index/effects shared; network shared)."""
-    if spec.kind == "heuristic":
+                metrics: ArmMetrics,
+                deck: list[int] | None = None) -> Callable[[int], Agent]:
+    """Per-game factory for an arm (index/effects shared; network shared).
+
+    ``deck`` is the arm's OWN 60. Search arms need it to determinize
+    their own hidden zones; the other kinds ignore it.
+    """
+    if spec.kind in SEARCH_ARMS:
+        from ..rl_models.budget import BudgetGuard, BudgetStats
+        from ..rl_models.opponent_estimator import (EstimatorStats,
+                                                    OpponentDeckEstimator)
+        from ..rl_models.runtime_search_agent import (RuntimeSearchAgent,
+                                                      RuntimeSearchStats)
+        # stats are SHARED across the pair's games so the report can say
+        # what the search actually did over the whole run; the estimator
+        # and the guard are per-game, because their state is per-episode.
+        search_stats = RuntimeSearchStats()
+        budget_stats = BudgetStats()
+        estimator_stats = EstimatorStats()
+        metrics.search = search_stats
+        metrics.budget = budget_stats
+        metrics.estimator = estimator_stats
+        from ..rl_models.runtime_search_agent import (OPPONENT_PILOT_GENERIC,
+                                                      OPPONENT_PILOT_MATCH)
+        blind = spec.kind == "search-crustle-blind"
+        opponent_pilot = (
+            OPPONENT_PILOT_MATCH
+            if spec.kind in ("search-crustle-match", "search-crustle-both")
+            else OPPONENT_PILOT_GENERIC)
+        margin = (OVERRIDE_MARGIN
+                  if spec.kind in ("search-crustle-margin",
+                                   "search-crustle-both")
+                  else 0.0)
+        from ..rl_models.runtime_search_agent import (
+            DEFAULT_CONTESTED_MARGIN, OPPONENT_PILOT_NETWORK)
+        contested = (DEFAULT_CONTESTED_MARGIN
+                     if spec.kind in ("search-crustle-adaptive",
+                                      "search-net-adaptive") else None)
+        # search-net pins WHICH clone models the Alakazam opponent; the
+        # weights field of the arm spec carries the npz path.
+        nets = None
+        if spec.kind in ("search-net", "search-net-adaptive"):
+            if spec.weights is None:
+                raise SystemExit(f"{spec.kind} needs ,<npz> (rollout model)")
+            if not spec.weights.exists():
+                raise SystemExit(f"rollout model missing: {spec.weights}")
+            opponent_pilot = OPPONENT_PILOT_NETWORK
+            # Point EVERY modellable archetype at this clone. Only the
+            # archetype the estimator actually reports is ever used, and
+            # each experiment faces one opponent, so this is unambiguous
+            # and keeps the arm usable for any cell.
+            from ..rl_models.runtime_search_agent import ARCHETYPE_NETWORKS
+            nets = {k: str(spec.weights) for k in ARCHETYPE_NETWORKS}
+
+        def base(s: int) -> Agent:
+            return RuntimeSearchAgent(
+                index=index, effects=effects, seed=s,
+                own_deck_ids=deck or [],
+                enable_search=not blind,
+                opponent_pilot=opponent_pilot,
+                override_margin=margin,
+                contested_margin=contested,
+                archetype_networks=nets,
+                estimator=OpponentDeckEstimator(index=index,
+                                                stats=estimator_stats),
+                guard=BudgetGuard(stats=budget_stats),
+                stats=search_stats)
+    elif spec.kind == "grimmsnarl-module":
+        from ..league.modules import MODULES
+        from ..league.parametric_agent import ParametricHeuristicAgent
+        module = MODULES["grimmsnarl"]
+        theta = None
+        theta_path = (spec.weights if spec.weights is not None
+                      else Path("data/theta/grimmsnarl_heur_v1.json"))
+        if theta_path.exists():
+            # from_dict is keyed by NAME and clips into the legal bands,
+            # so a stale genome lands on the right knobs or not at all
+            with open(theta_path, encoding="utf-8") as fh:
+                theta = module.schema.from_dict(json.load(fh))
+        else:
+            raise SystemExit(f"theta not found: {theta_path}")
+        base = lambda s: ParametricHeuristicAgent(  # noqa: E731
+            module=module, theta=theta, seed=s, index=index, effects=effects)
+    elif spec.kind.startswith("heuristic"):
         from ..agent_heuristics.heuristic_agent import HeuristicAgent
-        base = lambda s: HeuristicAgent(seed=s, index=index, effects=effects)
+        # "-tempo"  promotes evolution accelerators (Rare Candy) out of
+        #           the trainer band: measured 0.63x/game against 1.10x
+        #           for real opponents.
+        # "-scaled" values attacks whose damage scales with a board
+        #           quantity by counting the unit live: Powerful Hand
+        #           scored 13.0 for ~266 of real damage, and was never
+        #           recognised as lethal (0 of 767 decisions).
+        # "-aggro"   makes the attack band a property of the arm's DECK
+        #           (see ARM_KINDS); "-routing" lets the attach and
+        #           promotion scorers see scaled damage, which is what
+        #           puts the energy on the attacker in the first place.
+        # All flags are opponent-side calibration, never the ship.
+        tempo = "tempo" in spec.kind
+        scaled = "scaled" in spec.kind
+        routing = "routing" in spec.kind
+        gust = "gust" in spec.kind
+        conserve = "conserve" in spec.kind
+        profile = PROFILE_DEVELOPMENT
+        if "aggro" in spec.kind:
+            profile = deck_profile(_deck_card_names(deck or [], index))
+        # the weights slot doubles as the deck floor for -conserve arms,
+        # so a floor sweep is a plain arm-spec change and needs no code
+        floor = DEFAULT_DECK_FLOOR
+        if conserve and spec.weights is not None:
+            text = spec.weights.name
+            if text.isdigit():
+                floor = int(text)
+            else:
+                raise SystemExit(f"-conserve floor must be an integer, "
+                                 f"got '{text}'")
+        base = lambda s: HeuristicAgent(seed=s, index=index,  # noqa: E731
+                                        effects=effects, tempo=tempo,
+                                        scaled_damage=scaled,
+                                        profile=profile,
+                                        energy_routing=routing,
+                                        gust_targeting=gust,
+                                        deck_conservation=conserve,
+                                        deck_floor=floor)
     elif spec.kind == "crustle":
         from ..agent_heuristics.crustle_agent import CrustleAgent
         base = lambda s: CrustleAgent(seed=s, index=index, effects=effects)
-    elif spec.kind in ("crustle-v2", "crustle-v3"):
+    elif spec.kind in ("crustle-v2", "crustle-v3", "crustle-v4"):
         from ..agent_heuristics.crustle_agent import CrustleAgent
         variant = spec.kind.removeprefix("crustle-")
         base = lambda s: CrustleAgent(seed=s, index=index, effects=effects,
@@ -223,8 +478,8 @@ def compare(label: str, spec_a: ArmSpec, spec_b: ArmSpec,
             deck_a: list[int], deck_b: list[int], n_games: int, seed: int,
             bar: float, index: CardIndex, effects: EffectIndex) -> Comparison:
     metrics_a, metrics_b = ArmMetrics(), ArmMetrics()
-    pair = run_pair(arm_factory(spec_a, index, effects, metrics_a),
-                    arm_factory(spec_b, index, effects, metrics_b),
+    pair = run_pair(arm_factory(spec_a, index, effects, metrics_a, deck_a),
+                    arm_factory(spec_b, index, effects, metrics_b, deck_b),
                     deck_a, deck_b, n_games, seed)
     return Comparison(label, pair, metrics_a, metrics_b, bar)
 
@@ -246,7 +501,38 @@ def print_comparison(c: Comparison) -> None:
     print(f"  exceptions {len(pair.errors)} (must be 0)")
     for error in pair.errors[:5]:
         print(f"    {error}")
+    for tag, metrics in (("A", c.a_metrics), ("B", c.b_metrics)):
+        _print_budget_block(tag, metrics)
     print(f"  VERDICT vs bar {c.bar:.0%}: {c.verdict}")
+
+
+# The real runtime constraint is a per-episode BANK, not a per-move
+# deadline: actTimeout=0 and remainingOverageTime starts at 600s per
+# agent per episode (environment specification, verified in 1012/1012
+# corpus replays). Kaggle runs on 2 vCPU; we assume it is up to 3x
+# slower than the dev box, so every measured episode time is reported
+# with that projection next to it.
+BANK_S: Final[float] = 600.0
+KAGGLE_SLOWDOWN: Final[float] = 3.0
+
+
+def _print_budget_block(tag: str, metrics: ArmMetrics) -> None:
+    """Episode wall time vs the 600s bank — only for instrumented arms."""
+    if not metrics.episode_wall_s:
+        return
+    median, p95, worst = metrics.episode_percentiles()
+    print(f"  [{tag}] episode wall  median {median:.1f}s  p95 {p95:.1f}s  "
+          f"max {worst:.1f}s   "
+          f"| x{KAGGLE_SLOWDOWN:.0f} projection: median "
+          f"{median * KAGGLE_SLOWDOWN:.0f}s  max "
+          f"{worst * KAGGLE_SLOWDOWN:.0f}s  "
+          f"({worst * KAGGLE_SLOWDOWN / BANK_S:.0%} of the {BANK_S:.0f}s bank)")
+    if metrics.search is not None:
+        print(f"  [{tag}] search    {metrics.search.summary()}")
+    if metrics.budget is not None:
+        print(f"  [{tag}] budget    {metrics.budget.summary()}")
+    if metrics.estimator is not None:
+        print(f"  [{tag}] estimator {metrics.estimator.summary()}")
 
 
 def _load_deck(path: Path, index: CardIndex) -> list[int]:

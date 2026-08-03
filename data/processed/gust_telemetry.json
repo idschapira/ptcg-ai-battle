@@ -1,0 +1,80 @@
+{
+  "REAL": {
+    "games": 59,
+    "gusts": 64,
+    "gusts_per_game": 1.0847457627118644,
+    "gust_turn_mean": 12.84375,
+    "forced_share": 0.28125,
+    "target_unprotected_share": 1.0,
+    "real_choices": 6,
+    "chose_unprotected_share": 1.0,
+    "target_hp_mean": 115.78125,
+    "our_kos": 368,
+    "kos_on_gusted_share": 0.16304347826086957,
+    "kos_same_turn_share": 0.85,
+    "kos_on_gusted_in_losses_share": 0.1111111111111111,
+    "hammers": 118,
+    "hammers_per_game": 2.0,
+    "hammer_took_cover_share": 0.9152542372881356,
+    "hammer_real_choices": 4,
+    "hammer_took_live_cover_share": 0.25,
+    "targets": {
+      "Dwebble": 23,
+      "Crustle": 23,
+      "Great Tusk": 16,
+      "Terrakion": 2
+    }
+  },
+  "heuristic-tempo-scaled": {
+    "games": 200,
+    "gusts": 319,
+    "gusts_per_game": 1.595,
+    "gust_turn_mean": 10.178683385579937,
+    "forced_share": 0.23510971786833856,
+    "target_unprotected_share": 0.8181818181818182,
+    "real_choices": 54,
+    "chose_unprotected_share": 0.1111111111111111,
+    "target_hp_mean": 129.12225705329155,
+    "our_kos": 866,
+    "kos_on_gusted_share": 0.25519630484988454,
+    "kos_same_turn_share": 0.5475113122171946,
+    "kos_on_gusted_in_losses_share": 0.2328767123287671,
+    "hammers": 380,
+    "hammers_per_game": 1.9,
+    "hammer_took_cover_share": 0.9026315789473685,
+    "hammer_real_choices": 10,
+    "hammer_took_live_cover_share": 0.2,
+    "targets": {
+      "Great Tusk": 174,
+      "Crustle": 84,
+      "Dwebble": 53,
+      "Terrakion": 8
+    }
+  },
+  "heuristic-tempo-scaled-gust": {
+    "games": 200,
+    "gusts": 334,
+    "gusts_per_game": 1.67,
+    "gust_turn_mean": 10.167664670658683,
+    "forced_share": 0.18862275449101795,
+    "target_unprotected_share": 0.9700598802395209,
+    "real_choices": 66,
+    "chose_unprotected_share": 1.0,
+    "target_hp_mean": 97.51497005988024,
+    "our_kos": 896,
+    "kos_on_gusted_share": 0.3002232142857143,
+    "kos_same_turn_share": 0.483271375464684,
+    "kos_on_gusted_in_losses_share": 0.24019607843137256,
+    "hammers": 413,
+    "hammers_per_game": 2.065,
+    "hammer_took_cover_share": 0.8837772397094431,
+    "hammer_real_choices": 15,
+    "hammer_took_live_cover_share": 0.6666666666666666,
+    "targets": {
+      "Dwebble": 196,
+      "Crustle": 59,
+      "Great Tusk": 55,
+      "Terrakion": 24
+    }
+  }
+}

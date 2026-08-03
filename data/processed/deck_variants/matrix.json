@@ -1,0 +1,955 @@
+{
+  "cells": {
+    "alakazam-heur": {
+      "SHIP": {
+        "decided": 600,
+        "wins": 501,
+        "draws": 0,
+        "winrate": 0.835,
+        "ci": [
+          0.8031867607910453,
+          0.8625508995297752
+        ],
+        "a_wins_seat": [
+          237,
+          264
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 99,
+          "median_loss_turn": 14.0,
+          "median_win_turn": 17.0,
+          "mean_loss_turn": 14.121212121212121,
+          "opp_near_deckout_share_in_losses": 0.7373737373737373,
+          "median_opp_deck_low_in_losses": 2.0,
+          "self_deckouts": 1
+        }
+      },
+      "V1-corpos": {
+        "decided": 600,
+        "wins": 508,
+        "draws": 0,
+        "winrate": 0.8466666666666667,
+        "ci": [
+          0.8156384751338387,
+          0.8732840788299955
+        ],
+        "a_wins_seat": [
+          255,
+          253
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 92,
+          "median_loss_turn": 16.0,
+          "median_win_turn": 18.0,
+          "mean_loss_turn": 16.402173913043477,
+          "opp_near_deckout_share_in_losses": 0.7717391304347826,
+          "median_opp_deck_low_in_losses": 1.5,
+          "self_deckouts": 2
+        }
+      },
+      "V2-mill": {
+        "decided": 600,
+        "wins": 497,
+        "draws": 0,
+        "winrate": 0.8283333333333334,
+        "ci": [
+          0.7960952941653718,
+          0.8563938555022981
+        ],
+        "a_wins_seat": [
+          240,
+          257
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 103,
+          "median_loss_turn": 16.0,
+          "median_win_turn": 18.0,
+          "mean_loss_turn": 15.504854368932039,
+          "opp_near_deckout_share_in_losses": 0.7864077669902912,
+          "median_opp_deck_low_in_losses": 2.0,
+          "self_deckouts": 1
+        }
+      },
+      "V3-corpos-agr": {
+        "decided": 600,
+        "wins": 499,
+        "draws": 0,
+        "winrate": 0.8316666666666667,
+        "ci": [
+          0.7996389415628021,
+          0.8594744634314432
+        ],
+        "a_wins_seat": [
+          253,
+          246
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 101,
+          "median_loss_turn": 17.0,
+          "median_win_turn": 19.0,
+          "mean_loss_turn": 17.702970297029704,
+          "opp_near_deckout_share_in_losses": 0.7821782178217822,
+          "median_opp_deck_low_in_losses": 1.0,
+          "self_deckouts": 5
+        }
+      }
+    },
+    "alakazam-bc": {
+      "SHIP": {
+        "decided": 600,
+        "wins": 538,
+        "draws": 0,
+        "winrate": 0.8966666666666666,
+        "ci": [
+          0.869733872677243,
+          0.9185525111852211
+        ],
+        "a_wins_seat": [
+          270,
+          268
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 62,
+          "median_loss_turn": 15.0,
+          "median_win_turn": 23.0,
+          "mean_loss_turn": 17.693548387096776,
+          "opp_near_deckout_share_in_losses": 0.3225806451612903,
+          "median_opp_deck_low_in_losses": 9.5,
+          "self_deckouts": 3
+        }
+      },
+      "V1-corpos": {
+        "decided": 600,
+        "wins": 532,
+        "draws": 0,
+        "winrate": 0.8866666666666667,
+        "ci": [
+          0.8588034397487048,
+          0.9096101781340336
+        ],
+        "a_wins_seat": [
+          270,
+          262
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 68,
+          "median_loss_turn": 17.0,
+          "median_win_turn": 23.0,
+          "mean_loss_turn": 19.647058823529413,
+          "opp_near_deckout_share_in_losses": 0.36764705882352944,
+          "median_opp_deck_low_in_losses": 7.5,
+          "self_deckouts": 2
+        }
+      },
+      "V2-mill": {
+        "decided": 600,
+        "wins": 531,
+        "draws": 0,
+        "winrate": 0.885,
+        "ci": [
+          0.8569878624438966,
+          0.908113627775554
+        ],
+        "a_wins_seat": [
+          264,
+          267
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 69,
+          "median_loss_turn": 17.0,
+          "median_win_turn": 23.0,
+          "mean_loss_turn": 20.565217391304348,
+          "opp_near_deckout_share_in_losses": 0.4057971014492754,
+          "median_opp_deck_low_in_losses": 7.0,
+          "self_deckouts": 4
+        }
+      },
+      "V3-corpos-agr": {
+        "decided": 600,
+        "wins": 516,
+        "draws": 0,
+        "winrate": 0.86,
+        "ci": [
+          0.8299394099868245,
+          0.8854801652833111
+        ],
+        "a_wins_seat": [
+          263,
+          253
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 84,
+          "median_loss_turn": 19.0,
+          "median_win_turn": 23.0,
+          "mean_loss_turn": 21.11904761904762,
+          "opp_near_deckout_share_in_losses": 0.44047619047619047,
+          "median_opp_deck_low_in_losses": 8.0,
+          "self_deckouts": 5
+        }
+      }
+    },
+    "grimmsnarl-bc": {
+      "SHIP": {
+        "decided": 599,
+        "wins": 272,
+        "draws": 1,
+        "winrate": 0.4540901502504174,
+        "ci": [
+          0.41463703099202986,
+          0.49412836794454396
+        ],
+        "a_wins_seat": [
+          137,
+          135
+        ],
+        "decided_seat": [
+          300,
+          299
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 327,
+          "median_loss_turn": 28.0,
+          "median_win_turn": 33.0,
+          "mean_loss_turn": 27.853211009174313,
+          "opp_near_deckout_share_in_losses": 0.3669724770642202,
+          "median_opp_deck_low_in_losses": 8.0,
+          "self_deckouts": 9
+        }
+      },
+      "V1-corpos": {
+        "decided": 600,
+        "wins": 271,
+        "draws": 0,
+        "winrate": 0.45166666666666666,
+        "ci": [
+          0.4122795880670931,
+          0.4916687096975647
+        ],
+        "a_wins_seat": [
+          131,
+          140
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 329,
+          "median_loss_turn": 27.0,
+          "median_win_turn": 31.0,
+          "mean_loss_turn": 27.93617021276596,
+          "opp_near_deckout_share_in_losses": 0.2857142857142857,
+          "median_opp_deck_low_in_losses": 9.0,
+          "self_deckouts": 8
+        }
+      },
+      "V2-mill": {
+        "decided": 600,
+        "wins": 250,
+        "draws": 0,
+        "winrate": 0.4166666666666667,
+        "ci": [
+          0.37787089044454725,
+          0.4565227263910697
+        ],
+        "a_wins_seat": [
+          123,
+          127
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 350,
+          "median_loss_turn": 26.0,
+          "median_win_turn": 31.0,
+          "mean_loss_turn": 26.92,
+          "opp_near_deckout_share_in_losses": 0.3171428571428571,
+          "median_opp_deck_low_in_losses": 8.0,
+          "self_deckouts": 3
+        }
+      },
+      "V3-corpos-agr": {
+        "decided": 600,
+        "wins": 197,
+        "draws": 0,
+        "winrate": 0.3283333333333333,
+        "ci": [
+          0.29195354089671477,
+          0.36689730978465585
+        ],
+        "a_wins_seat": [
+          108,
+          89
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 403,
+          "median_loss_turn": 25.0,
+          "median_win_turn": 32.0,
+          "mean_loss_turn": 25.918114143920594,
+          "opp_near_deckout_share_in_losses": 0.25806451612903225,
+          "median_opp_deck_low_in_losses": 9.0,
+          "self_deckouts": 2
+        }
+      }
+    },
+    "lucario": {
+      "SHIP": {
+        "decided": 600,
+        "wins": 581,
+        "draws": 0,
+        "winrate": 0.9683333333333334,
+        "ci": [
+          0.9510727848694855,
+          0.9796350885143483
+        ],
+        "a_wins_seat": [
+          291,
+          290
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 19,
+          "median_loss_turn": 8.0,
+          "median_win_turn": 19.0,
+          "mean_loss_turn": 10.263157894736842,
+          "opp_near_deckout_share_in_losses": 0.2631578947368421,
+          "median_opp_deck_low_in_losses": 15.0,
+          "self_deckouts": 0
+        }
+      },
+      "V1-corpos": {
+        "decided": 600,
+        "wins": 586,
+        "draws": 0,
+        "winrate": 0.9766666666666667,
+        "ci": [
+          0.9612176696483747,
+          0.9860508420518974
+        ],
+        "a_wins_seat": [
+          294,
+          292
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 14,
+          "median_loss_turn": 8.5,
+          "median_win_turn": 19.0,
+          "mean_loss_turn": 11.571428571428571,
+          "opp_near_deckout_share_in_losses": 0.2857142857142857,
+          "median_opp_deck_low_in_losses": 16.5,
+          "self_deckouts": 0
+        }
+      },
+      "V2-mill": {
+        "decided": 600,
+        "wins": 567,
+        "draws": 0,
+        "winrate": 0.945,
+        "ci": [
+          0.9237662245841664,
+          0.9605718615136399
+        ],
+        "a_wins_seat": [
+          280,
+          287
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 33,
+          "median_loss_turn": 10.0,
+          "median_win_turn": 20.0,
+          "mean_loss_turn": 13.030303030303031,
+          "opp_near_deckout_share_in_losses": 0.42424242424242425,
+          "median_opp_deck_low_in_losses": 13.0,
+          "self_deckouts": 0
+        }
+      },
+      "V3-corpos-agr": {
+        "decided": 600,
+        "wins": 583,
+        "draws": 0,
+        "winrate": 0.9716666666666667,
+        "ci": [
+          0.9550960688718938,
+          0.9822360598385153
+        ],
+        "a_wins_seat": [
+          290,
+          293
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 17,
+          "median_loss_turn": 8.0,
+          "median_win_turn": 20.0,
+          "mean_loss_turn": 13.529411764705882,
+          "opp_near_deckout_share_in_losses": 0.29411764705882354,
+          "median_opp_deck_low_in_losses": 18.0,
+          "self_deckouts": 0
+        }
+      }
+    },
+    "kangaskhan": {
+      "SHIP": {
+        "decided": 600,
+        "wins": 586,
+        "draws": 0,
+        "winrate": 0.9766666666666667,
+        "ci": [
+          0.9612176696483747,
+          0.9860508420518974
+        ],
+        "a_wins_seat": [
+          292,
+          294
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 14,
+          "median_loss_turn": 15.0,
+          "median_win_turn": 25.5,
+          "mean_loss_turn": 16.142857142857142,
+          "opp_near_deckout_share_in_losses": 0.35714285714285715,
+          "median_opp_deck_low_in_losses": 12.5,
+          "self_deckouts": 0
+        }
+      },
+      "V1-corpos": {
+        "decided": 600,
+        "wins": 585,
+        "draws": 0,
+        "winrate": 0.975,
+        "ci": [
+          0.959164223636837,
+          0.9847921604001473
+        ],
+        "a_wins_seat": [
+          293,
+          292
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 15,
+          "median_loss_turn": 30.0,
+          "median_win_turn": 26.0,
+          "mean_loss_turn": 25.4,
+          "opp_near_deckout_share_in_losses": 0.6666666666666666,
+          "median_opp_deck_low_in_losses": 5.0,
+          "self_deckouts": 0
+        }
+      },
+      "V2-mill": {
+        "decided": 600,
+        "wins": 588,
+        "draws": 0,
+        "winrate": 0.98,
+        "ci": [
+          0.9653699456538909,
+          0.9885228213729564
+        ],
+        "a_wins_seat": [
+          292,
+          296
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 12,
+          "median_loss_turn": 31.0,
+          "median_win_turn": 25.0,
+          "mean_loss_turn": 29.25,
+          "opp_near_deckout_share_in_losses": 0.5,
+          "median_opp_deck_low_in_losses": 5.0,
+          "self_deckouts": 1
+        }
+      },
+      "V3-corpos-agr": {
+        "decided": 600,
+        "wins": 581,
+        "draws": 0,
+        "winrate": 0.9683333333333334,
+        "ci": [
+          0.9510727848694855,
+          0.9796350885143483
+        ],
+        "a_wins_seat": [
+          291,
+          290
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 19,
+          "median_loss_turn": 30.0,
+          "median_win_turn": 26.0,
+          "mean_loss_turn": 29.736842105263158,
+          "opp_near_deckout_share_in_losses": 0.7894736842105263,
+          "median_opp_deck_low_in_losses": 1.0,
+          "self_deckouts": 0
+        }
+      }
+    },
+    "starmie": {
+      "SHIP": {
+        "decided": 600,
+        "wins": 155,
+        "draws": 0,
+        "winrate": 0.25833333333333336,
+        "ci": [
+          0.22492438729595832,
+          0.29481710152733054
+        ],
+        "a_wins_seat": [
+          74,
+          81
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 445,
+          "median_loss_turn": 23.0,
+          "median_win_turn": 34.0,
+          "mean_loss_turn": 23.669662921348316,
+          "opp_near_deckout_share_in_losses": 0.4157303370786517,
+          "median_opp_deck_low_in_losses": 8.0,
+          "self_deckouts": 1
+        }
+      },
+      "V1-corpos": {
+        "decided": 600,
+        "wins": 139,
+        "draws": 0,
+        "winrate": 0.23166666666666666,
+        "ci": [
+          0.1996798193432105,
+          0.26706762686747554
+        ],
+        "a_wins_seat": [
+          68,
+          71
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 461,
+          "median_loss_turn": 24.0,
+          "median_win_turn": 34.0,
+          "mean_loss_turn": 24.32537960954447,
+          "opp_near_deckout_share_in_losses": 0.40563991323210413,
+          "median_opp_deck_low_in_losses": 7.0,
+          "self_deckouts": 2
+        }
+      },
+      "V2-mill": {
+        "decided": 600,
+        "wins": 108,
+        "draws": 0,
+        "winrate": 0.18,
+        "ci": [
+          0.1513253010749538,
+          0.2127461875738147
+        ],
+        "a_wins_seat": [
+          56,
+          52
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 492,
+          "median_loss_turn": 23.0,
+          "median_win_turn": 33.0,
+          "mean_loss_turn": 23.508130081300813,
+          "opp_near_deckout_share_in_losses": 0.3556910569105691,
+          "median_opp_deck_low_in_losses": 8.0,
+          "self_deckouts": 2
+        }
+      },
+      "V3-corpos-agr": {
+        "decided": 600,
+        "wins": 101,
+        "draws": 0,
+        "winrate": 0.16833333333333333,
+        "ci": [
+          0.14052553656855687,
+          0.20036105843719793
+        ],
+        "a_wins_seat": [
+          53,
+          48
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 499,
+          "median_loss_turn": 23.0,
+          "median_win_turn": 32.0,
+          "mean_loss_turn": 23.531062124248496,
+          "opp_near_deckout_share_in_losses": 0.3106212424849699,
+          "median_opp_deck_low_in_losses": 9.0,
+          "self_deckouts": 1
+        }
+      }
+    },
+    "spidops": {
+      "SHIP": {
+        "decided": 600,
+        "wins": 497,
+        "draws": 0,
+        "winrate": 0.8283333333333334,
+        "ci": [
+          0.7960952941653718,
+          0.8563938555022981
+        ],
+        "a_wins_seat": [
+          245,
+          252
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 103,
+          "median_loss_turn": 17.0,
+          "median_win_turn": 23.0,
+          "mean_loss_turn": 16.74757281553398,
+          "opp_near_deckout_share_in_losses": 0.5145631067961165,
+          "median_opp_deck_low_in_losses": 5.0,
+          "self_deckouts": 0
+        }
+      },
+      "V1-corpos": {
+        "decided": 600,
+        "wins": 510,
+        "draws": 0,
+        "winrate": 0.85,
+        "ci": [
+          0.8192063850925662,
+          0.8763404241978434
+        ],
+        "a_wins_seat": [
+          254,
+          256
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 90,
+          "median_loss_turn": 19.5,
+          "median_win_turn": 23.0,
+          "mean_loss_turn": 18.644444444444446,
+          "opp_near_deckout_share_in_losses": 0.6222222222222222,
+          "median_opp_deck_low_in_losses": 3.0,
+          "self_deckouts": 0
+        }
+      },
+      "V2-mill": {
+        "decided": 600,
+        "wins": 486,
+        "draws": 0,
+        "winrate": 0.81,
+        "ci": [
+          0.7766757583686587,
+          0.839379987002847
+        ],
+        "a_wins_seat": [
+          232,
+          254
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 114,
+          "median_loss_turn": 17.5,
+          "median_win_turn": 23.0,
+          "mean_loss_turn": 16.80701754385965,
+          "opp_near_deckout_share_in_losses": 0.5175438596491229,
+          "median_opp_deck_low_in_losses": 5.0,
+          "self_deckouts": 0
+        }
+      },
+      "V3-corpos-agr": {
+        "decided": 600,
+        "wins": 482,
+        "draws": 0,
+        "winrate": 0.8033333333333333,
+        "ci": [
+          0.7696419757400986,
+          0.8331652589782564
+        ],
+        "a_wins_seat": [
+          234,
+          248
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 118,
+          "median_loss_turn": 19.0,
+          "median_win_turn": 23.0,
+          "mean_loss_turn": 18.322033898305083,
+          "opp_near_deckout_share_in_losses": 0.5,
+          "median_opp_deck_low_in_losses": 5.5,
+          "self_deckouts": 0
+        }
+      }
+    },
+    "mirror": {
+      "SHIP": {
+        "decided": 600,
+        "wins": 308,
+        "draws": 0,
+        "winrate": 0.5133333333333333,
+        "ci": [
+          0.473382466464604,
+          0.5531145548416971
+        ],
+        "a_wins_seat": [
+          157,
+          151
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 292,
+          "median_loss_turn": 45.0,
+          "median_win_turn": 44.0,
+          "mean_loss_turn": 44.32534246575342,
+          "opp_near_deckout_share_in_losses": 0.708904109589041,
+          "median_opp_deck_low_in_losses": 3.0,
+          "self_deckouts": 292
+        }
+      },
+      "V1-corpos": {
+        "decided": 600,
+        "wins": 268,
+        "draws": 0,
+        "winrate": 0.44666666666666666,
+        "ci": [
+          0.40735189244428327,
+          0.48666002233051153
+        ],
+        "a_wins_seat": [
+          149,
+          119
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 332,
+          "median_loss_turn": 44.0,
+          "median_win_turn": 46.0,
+          "mean_loss_turn": 44.225903614457835,
+          "opp_near_deckout_share_in_losses": 0.6656626506024096,
+          "median_opp_deck_low_in_losses": 4.0,
+          "self_deckouts": 332
+        }
+      },
+      "V2-mill": {
+        "decided": 600,
+        "wins": 267,
+        "draws": 0,
+        "winrate": 0.445,
+        "ci": [
+          0.4057102223492578,
+          0.4849895647622494
+        ],
+        "a_wins_seat": [
+          143,
+          124
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 333,
+          "median_loss_turn": 44.0,
+          "median_win_turn": 45.0,
+          "mean_loss_turn": 44.510510510510514,
+          "opp_near_deckout_share_in_losses": 0.6516516516516516,
+          "median_opp_deck_low_in_losses": 4.0,
+          "self_deckouts": 333
+        }
+      },
+      "V3-corpos-agr": {
+        "decided": 600,
+        "wins": 238,
+        "draws": 0,
+        "winrate": 0.39666666666666667,
+        "ci": [
+          0.3582993250577213,
+          0.4363487598184436
+        ],
+        "a_wins_seat": [
+          121,
+          117
+        ],
+        "decided_seat": [
+          300,
+          300
+        ],
+        "errors": 0,
+        "mechanism": {
+          "games": 600,
+          "losses": 362,
+          "median_loss_turn": 46.0,
+          "median_win_turn": 45.0,
+          "mean_loss_turn": 45.66022099447514,
+          "opp_near_deckout_share_in_losses": 0.6685082872928176,
+          "median_opp_deck_low_in_losses": 4.0,
+          "self_deckouts": 362
+        }
+      }
+    }
+  },
+  "aggregate": {
+    "SHIP": 0.754776690336149,
+    "V1-corpos": 0.758605812897366,
+    "V2-mill": 0.7329927338782926,
+    "V3-corpos-agr": 0.7180222524977293
+  },
+  "total_errors": 0
+}

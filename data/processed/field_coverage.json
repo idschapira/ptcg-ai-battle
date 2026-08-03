@@ -1,0 +1,150 @@
+{
+  "total_games": 215,
+  "covered_share": 0.883720930232558,
+  "cells": [
+    {
+      "archetype": "Alakazam box (non-ex)",
+      "games": 59,
+      "share": 0.2744186046511628,
+      "winrate": 0.3559322033898305,
+      "ci": [
+        0.2460329140381331,
+        0.48344504018145007
+      ],
+      "covered": true,
+      "note": "meta_alakazam.csv"
+    },
+    {
+      "archetype": "Marnie's Grimmsnarl ex",
+      "games": 36,
+      "share": 0.16744186046511628,
+      "winrate": 0.3888888888888889,
+      "ci": [
+        0.24784873065371,
+        0.5513554090339485
+      ],
+      "covered": true,
+      "note": "meta_grimmsnarl.csv"
+    },
+    {
+      "archetype": "Mega Lucario ex",
+      "games": 32,
+      "share": 0.14883720930232558,
+      "winrate": 0.5,
+      "ci": [
+        0.33630882869327483,
+        0.6636911713067252
+      ],
+      "covered": true,
+      "note": "meta_mega_lucario.csv"
+    },
+    {
+      "archetype": "Archaludon ex box",
+      "games": 32,
+      "share": 0.14883720930232558,
+      "winrate": 0.90625,
+      "ci": [
+        0.7578184527161212,
+        0.9675984487016337
+      ],
+      "covered": true,
+      "note": "meta_archaludon.csv"
+    },
+    {
+      "archetype": "unknown",
+      "games": 15,
+      "share": 0.06976744186046512,
+      "winrate": 0.5333333333333333,
+      "ci": [
+        0.30116980025498397,
+        0.7519046463426261
+      ],
+      "covered": false,
+      "note": "sem decklist mapeada"
+    },
+    {
+      "archetype": "Crustle + Mega Kangaskhan stall",
+      "games": 12,
+      "share": 0.05581395348837209,
+      "winrate": 0.75,
+      "ci": [
+        0.46769466506643426,
+        0.9110583316059453
+      ],
+      "covered": true,
+      "note": "meta_crustle_kangaskhan.csv"
+    },
+    {
+      "archetype": "Mega Starmie / Mega Froslass",
+      "games": 8,
+      "share": 0.037209302325581395,
+      "winrate": 0.625,
+      "ci": [
+        0.30574239460262737,
+        0.8631557141764026
+      ],
+      "covered": true,
+      "note": "meta_starmie.csv"
+    },
+    {
+      "archetype": "Team Rocket Spidops (non-ex)",
+      "games": 8,
+      "share": 0.037209302325581395,
+      "winrate": 0.125,
+      "ci": [
+        0.02241749145005667,
+        0.4708881822128535
+      ],
+      "covered": true,
+      "note": "meta_spidops.csv"
+    },
+    {
+      "archetype": "Dragapult ex",
+      "games": 6,
+      "share": 0.027906976744186046,
+      "winrate": 0.5,
+      "ci": [
+        0.1876163064826506,
+        0.8123836935173494
+      ],
+      "covered": false,
+      "note": "sem decklist mapeada"
+    },
+    {
+      "archetype": "Crustle mill (ours)",
+      "games": 3,
+      "share": 0.013953488372093023,
+      "winrate": 0.6666666666666666,
+      "ci": [
+        0.2076596008020477,
+        0.9385080552796037
+      ],
+      "covered": true,
+      "note": "candidate_crustle_e10.csv"
+    },
+    {
+      "archetype": "Crustle stall (other)",
+      "games": 3,
+      "share": 0.013953488372093023,
+      "winrate": 0.6666666666666666,
+      "ci": [
+        0.2076596008020477,
+        0.9385080552796037
+      ],
+      "covered": false,
+      "note": "sem decklist mapeada"
+    },
+    {
+      "archetype": "Iono's Bellibolt ex",
+      "games": 1,
+      "share": 0.004651162790697674,
+      "winrate": 0.0,
+      "ci": [
+        0.0,
+        0.7934506856227626
+      ],
+      "covered": false,
+      "note": "sem decklist mapeada"
+    }
+  ]
+}

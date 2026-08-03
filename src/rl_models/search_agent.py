@@ -38,12 +38,12 @@ from typing import Callable, Final
 
 from cg import api
 
-from ..analysis.counterfactual import _to_dict, determinize
-from ..environment_wrapper.selfplay import RESULT_DRAW, Agent
+from .determinize import determinize
+from .search_core import (DRAW_VALUE, RESULT_DRAW, Agent,  # noqa: F401
+                          eligibility_reason, rank_candidates,
+                          rollout_to_terminal)
 
 AgentFactory = Callable[[int], Agent]
-
-DRAW_VALUE: Final[float] = 0.5
 
 
 @dataclass
@@ -150,34 +150,7 @@ class SearchAgent:
     # Elegibilidade (espelha o filtro validado do counterfactual)
     # ------------------------------------------------------------------ #
 
-    @staticmethod
-    def _ineligible_reason(obs_dict: dict, answer: list[int],
-                           scores: list[float] | None) -> str | None:
-        select = obs_dict.get("select") or {}
-        state = obs_dict.get("current") or {}
-        options = select.get("option") or []
-        if obs_dict.get("search_begin_input") is None:
-            return "no-search-input"
-        if select.get("deck") is not None:
-            return "deck-select"
-        if state.get("looking") is not None:
-            return "looking-open"
-        if select.get("maxCount") != 1:
-            return "multi-select"
-        if len(options) < 2:
-            return "single-option"
-        if len(answer) != 1 or not 0 <= answer[0] < len(options):
-            return "prior-answer-shape"
-        if not scores or len(scores) < 2:
-            return "no-prior-scores"
-        your = state.get("yourIndex")
-        players = state.get("players") or []
-        if your not in (0, 1) or len(players) != 2:
-            return "bad-state"
-        opp_active = players[1 - your].get("active") or []
-        if not opp_active or opp_active[0] is None:
-            return "hidden-opp-active"
-        return None
+    _ineligible_reason = staticmethod(eligibility_reason)
 
     # ------------------------------------------------------------------ #
     # Busca: 1-ply, determinizações pareadas, folha = rollout terminal
@@ -186,10 +159,7 @@ class SearchAgent:
     def _search(self, obs_dict: dict, scores: list[float],
                 prior_choice: int) -> int | None:
         seat = obs_dict["current"]["yourIndex"]
-        order = sorted(range(len(scores)), key=lambda i: -scores[i])
-        candidates = order[:self._k]
-        if prior_choice not in candidates:
-            candidates[-1] = prior_choice
+        candidates = rank_candidates(scores, prior_choice, self._k)
         if len(set(candidates)) < 2:
             return None  # nada a comparar — prior decide
         obs_cls = api.to_observation_class(copy.deepcopy(obs_dict))
@@ -215,21 +185,12 @@ class SearchAgent:
     def _rollout(self, branch: api.SearchState, seat: int) -> float:
         self.stats.rollouts += 1
         rollout_seed = self._rng.randrange(1 << 30)
-        ours = self._rollout_self(rollout_seed)
-        theirs = self._rollout_opp(rollout_seed + 1)
-        node = branch
-        for _ in range(self._cap):
-            current = node.observation.current
-            if current is not None and current.result != -1:
-                if current.result == seat:
-                    return 1.0
-                return DRAW_VALUE if current.result == RESULT_DRAW else 0.0
-            node_dict = _to_dict(node.observation)
-            acting = node_dict["current"]["yourIndex"]
-            agent = ours if acting == seat else theirs
-            node = api.search_step(node.searchId, agent(node_dict))
-        self.stats.rollout_caps += 1
-        return DRAW_VALUE
+        value, hit_cap = rollout_to_terminal(
+            branch, seat, self._rollout_self(rollout_seed),
+            self._rollout_opp(rollout_seed + 1), self._cap)
+        if hit_cap:
+            self.stats.rollout_caps += 1
+        return value
 
 
 __all__ = ["SearchAgent", "SearchStats", "AgentFactory"]

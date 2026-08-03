@@ -1,0 +1,189 @@
+{
+ "games_per_cell": 600,
+ "arms": [
+  "heuristic-tempo-scaled",
+  "heuristic-tempo-scaled-conserve,15"
+ ],
+ "cells": {
+  "Alakazam": {
+   "real": 0.356,
+   "real_games": 59,
+   "heuristic-tempo-scaled": {
+    "a_wins": 497,
+    "b_wins": 103,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.8283333333333334,
+    "ci": [
+     0.7960952941653718,
+     0.8563938555022981
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   },
+   "heuristic-tempo-scaled-conserve,15": {
+    "a_wins": 468,
+    "b_wins": 132,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.78,
+    "ci": [
+     0.7451303445000342,
+     0.8113071029322935
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  },
+  "Mega Lucario": {
+   "real": 0.5,
+   "real_games": 12,
+   "heuristic-tempo-scaled": {
+    "a_wins": 579,
+    "b_wins": 21,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.965,
+    "ci": [
+     0.9470879685332634,
+     0.9769956495239949
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   },
+   "heuristic-tempo-scaled-conserve,15": {
+    "a_wins": 554,
+    "b_wins": 46,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.9233333333333333,
+    "ci": [
+     0.8992488448368539,
+     0.942031581638213
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  },
+  "Archaludon": {
+   "real": 0.906,
+   "real_games": 32,
+   "heuristic-tempo-scaled": {
+    "a_wins": 588,
+    "b_wins": 12,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.98,
+    "ci": [
+     0.9653699456538909,
+     0.9885228213729564
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   },
+   "heuristic-tempo-scaled-conserve,15": {
+    "a_wins": 491,
+    "b_wins": 109,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.8183333333333334,
+    "ci": [
+     0.7854884512432293,
+     0.8471279324447146
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  },
+  "Kangaskhan": {
+   "real": 0.75,
+   "real_games": 12,
+   "heuristic-tempo-scaled": {
+    "a_wins": 586,
+    "b_wins": 14,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.9766666666666667,
+    "ci": [
+     0.9612176696483747,
+     0.9860508420518974
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   },
+   "heuristic-tempo-scaled-conserve,15": {
+    "a_wins": 583,
+    "b_wins": 17,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.9716666666666667,
+    "ci": [
+     0.9550960688718938,
+     0.9822360598385153
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  },
+  "Spidops": {
+   "real": 0.125,
+   "real_games": 8,
+   "heuristic-tempo-scaled": {
+    "a_wins": 472,
+    "b_wins": 128,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.7866666666666666,
+    "ci": [
+     0.7521174440924547,
+     0.8175685139930235
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   },
+   "heuristic-tempo-scaled-conserve,15": {
+    "a_wins": 455,
+    "b_wins": 145,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.7583333333333333,
+    "ci": [
+     0.7225055267046474,
+     0.7908742611049406
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  },
+  "Starmie": {
+   "real": 0.625,
+   "real_games": 8,
+   "heuristic-tempo-scaled": {
+    "a_wins": 138,
+    "b_wins": 462,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.23,
+    "ci": [
+     0.1981080237072888,
+     0.26532729484010964
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   },
+   "heuristic-tempo-scaled-conserve,15": {
+    "a_wins": 119,
+    "b_wins": 481,
+    "draws": 0,
+    "decided": 600,
+    "winrate": 0.19833333333333333,
+    "ci": [
+     0.1683906231563487,
+     0.2321142697885841
+    ],
+    "exceptions": 0,
+    "error_samples": []
+   }
+  }
+ }
+}

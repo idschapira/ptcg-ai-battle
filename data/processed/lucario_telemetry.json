@@ -1,0 +1,60 @@
+{
+  "REAL": {
+    "games": 32,
+    "our_winrate": 0.5,
+    "mean_turns": 20.78125,
+    "opp_prizes_taken": 5.90625,
+    "alakazam_online_turn": null,
+    "plays_per_game": {
+      "Enhanced Hammer": 0.0,
+      "Boss's Orders": 0.46875,
+      "Xerosic's Machinations": 0.03125,
+      "Sacred Ash (5 de volta)": 0.0,
+      "Lana's Aid (3 de volta)": 0.0,
+      "Night Stretcher": 0.03125,
+      "Judge (mao -> deck)": 0.15625,
+      "Rare Candy": 0.0
+    },
+    "special_attached_per_game": 3.625,
+    "special_stripped_per_game": 0.15625,
+    "special_lost_with_host_per_game": 2.34375,
+    "stripped_share": 0.04310344827586207,
+    "attacks_per_game": 6.59375,
+    "powerful_hand_share": 0.0,
+    "powerful_hand_handsize": null,
+    "opp_deck_low_median": 3.0,
+    "opp_deck_end_mean": 4.34375,
+    "mill_per_turn": 2.9400921144405476,
+    "opp_deckout_share": 0.34375,
+    "our_deck_low_median": 17.0
+  },
+  "heuristic": {
+    "games": 300,
+    "our_winrate": 0.9666666666666667,
+    "mean_turns": 21.446666666666665,
+    "opp_prizes_taken": 5.413333333333333,
+    "alakazam_online_turn": null,
+    "plays_per_game": {
+      "Enhanced Hammer": 0.0,
+      "Boss's Orders": 1.47,
+      "Xerosic's Machinations": 0.0,
+      "Sacred Ash (5 de volta)": 0.0,
+      "Lana's Aid (3 de volta)": 0.0,
+      "Night Stretcher": 0.0,
+      "Judge (mao -> deck)": 0.0,
+      "Rare Candy": 0.0
+    },
+    "special_attached_per_game": 3.723333333333333,
+    "special_stripped_per_game": 0.28,
+    "special_lost_with_host_per_game": 1.3366666666666667,
+    "stripped_share": 0.07520143240823635,
+    "attacks_per_game": 6.246666666666667,
+    "powerful_hand_share": 0.0,
+    "powerful_hand_handsize": null,
+    "opp_deck_low_median": 0.0,
+    "opp_deck_end_mean": 0.81,
+    "mill_per_turn": 3.1046004775709455,
+    "opp_deckout_share": 0.8666666666666667,
+    "our_deck_low_median": 22.0
+  }
+}

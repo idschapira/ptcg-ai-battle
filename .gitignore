@@ -11,6 +11,7 @@
 /data/processed/replays/
 /data/processed/meta_radar/
 /data/processed/portfolio/
+/data/processed/search_validation/
 /data/portfolio_watch.md
 /data/processed/effects_to_review.csv
 
@@ -62,3 +63,5 @@ venv/
 .DS_Store
 Thumbs.db
 pokemon-tcg-ai-battle/
+/data/processed/bc_majkel/
+/data/processed/bc_yushin/

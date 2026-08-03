@@ -70,7 +70,7 @@ from cg.api import (AreaType, Observation, Option, OptionType, Pokemon,
 
 from ..ingestion.build_effect_model import EffectIndex
 from ..ingestion.card_index import Card, CardIndex, is_cost_payable
-from .heuristic_agent import HeuristicAgent
+from .heuristic_agent import HeuristicAgent, prevention_energies
 
 CRUSTLE: Final[int] = 345
 GREAT_TUSK: Final[int] = 58
@@ -129,6 +129,29 @@ V3_RACE_FLOOR: Final[int] = 30          # relative race only matters this low
 DESIRED_FIELD_FLOOR: Final[int] = 3     # kernel: minimum pokémon in play
 V3_REBUILD_SCORE: Final[float] = 42.0   # > trainer band (35), < attach (55)
 
+# ---- v4 (DEFENSIVE) ---- #
+# v4 = v3 plus the two threat-aware rules the counterfactual work seeded
+# and that were never implemented on this branch. Both are answers to the
+# same hole: every rule above reads OUR board or the opponent's CARD TYPE,
+# so nothing in v1-v3 ever asks "what is about to happen to me".
+#
+# (A) THREAT-AWARE XEROSIC. Xerosic's Machinations caps the opponent's
+#     hand at 3, and the archetype that beats us scales its damage BY
+#     THAT HAND ("Place 2 damage counters ... for each card in your
+#     hand"): 12 cards is 240 damage, 3 cards is 60. v2's rule (B) fires
+#     on hand size alone (>= 8), which is a proxy; this fires when the
+#     hand-scaled attack is actually LETHAL on our active and our active
+#     is NOT covered — if the cover is up the counters are prevented and
+#     the Xerosic would be spent on nothing.
+# (B) PROTECTIVE ATTACH. _attach_score ranks attachments by the damage
+#     they unlock, so putting a Mist on a body that cannot attack scores
+#     zero — even when that body is the one about to be hit. Under a
+#     hand-scaled threat, covering the ACTIVE outranks fuelling the mill.
+#     This is a real trade (Mist provides {C} and pays Land Collapse),
+#     which is exactly what the A/B is for.
+V4_XEROSIC_LETHAL: Final[float] = 62.0     # above the urgent heal (60)
+V4_PROTECTIVE_ATTACH: Final[float] = 69.0  # above any attach, below play
+
 # SELF_THINNERS that put pokémon within reach (search basics/pokémon):
 # the ones worth rescuing when the board is about to be wiped.
 BOARD_BUILDERS: Final[frozenset[int]] = frozenset({
@@ -142,7 +165,7 @@ BOARD_BUILDERS: Final[frozenset[int]] = frozenset({
 class CrustleAgent(HeuristicAgent):
     """HeuristicAgent + Crustle-stall strategy (see module docstring)."""
 
-    __slots__ = ("_land_collapse", "_mill_attack_ids", "_v2", "_v3")
+    __slots__ = ("_land_collapse", "_mill_attack_ids", "_v2", "_v3", "_v4")
 
     def __init__(
         self,
@@ -159,8 +182,9 @@ class CrustleAgent(HeuristicAgent):
         self._mill_attack_ids = frozenset(
             a.attack_id for a in self._land_collapse
             if a.effect and "deck" in a.effect.lower())
-        self._v2 = variant in ("v2", "v3")  # v3 keeps every v2 rule
-        self._v3 = variant == "v3"
+        self._v2 = variant in ("v2", "v3", "v4")  # each keeps the last
+        self._v3 = variant in ("v3", "v4")
+        self._v4 = variant == "v4"
 
     # ------------------------------------------------------------------ #
     # Signals (all None-safe: unknown -> None / False)
@@ -326,6 +350,76 @@ class CrustleAgent(HeuristicAgent):
         count = self._field_count(obs)
         return count is not None and count < DESIRED_FIELD_FLOOR
 
+    # ------------------------------------------------------------------ #
+    # v4 signals: the first rules that read what is about to happen to US
+    # ------------------------------------------------------------------ #
+
+    def _hand_scaled_threat(self, obs: Observation) -> float:
+        """Damage the opponent's ACTIVE would put on ours THIS turn with a
+        hand-scaled attack, or 0.0 when there is none or it is prevented.
+
+        Deliberately narrow: only the "for each card in your hand" family
+        is resolved, because that is the clause the archetype that beats
+        us is built on and the only one whose unit is legible from our
+        side of the board (their hand COUNT is public, its contents are
+        not). Everything else returns 0.0 rather than a guess.
+
+        Returns 0.0 when our active is covered: Mist/Rock prevent the
+        effect outright (damage counters ARE an effect — verified in
+        tests/test_effect_prevention_contract.py), so a defensive play
+        against a prevented attack is a wasted card.
+        """
+        mine = self._my_active(obs)
+        if mine is None or not mine.hp:
+            return 0.0
+        if self._is_covered(mine, self._card_of(mine)):
+            return 0.0
+        opponent = self._opp_active(obs)
+        if opponent is None:
+            return 0.0
+        state = obs.current
+        try:
+            hand = state.players[1 - state.yourIndex].handCount
+        except (IndexError, TypeError, AttributeError):
+            return 0.0
+        if not hand:
+            return 0.0
+        best = 0.0
+        for attack in self._index.attacks_of(opponent.id):
+            clause = self._scaled_clause(attack.attack_id)
+            if clause is None or clause.unit != "my_hand":
+                continue     # "your hand" is THEIRS when they attack
+            best = max(best, float(attack.damage_base or 0)
+                       + clause.per_unit * float(hand))
+        return best
+
+    def _lethal_hand_threat(self, obs: Observation) -> bool:
+        mine = self._my_active(obs)
+        if mine is None or not mine.hp:
+            return False
+        return self._hand_scaled_threat(obs) >= mine.hp
+
+    def _would_cover_active(self, obs: Observation, option: Option) -> bool:
+        """Is this ATTACH putting a covering energy on our bare active?"""
+        state = obs.current
+        if state is None or option.inPlayArea != AreaType.ACTIVE:
+            return False
+        target = self._pokemon_at(state, state.yourIndex, option.inPlayArea,
+                                  option.inPlayIndex)
+        card = self._card_of(target)
+        if target is None or self._is_covered(target, card):
+            return False
+        if option.area != AreaType.HAND:
+            return False
+        held = self._wrapper._card_at(state, state.yourIndex, option.area,
+                                      option.index)
+        table = prevention_energies()
+        required = table.get(held.id if held else None, False)
+        if required is False:
+            return False
+        return required is None or (card is not None
+                                    and card.type_code == required)
+
     def _pivot_on_bench(self, obs: Observation) -> float | None:
         """Score of the pivot the bench offers (None when there is none):
         a mill-ready Great Tusk, or Crustle under opposing ex pressure."""
@@ -424,6 +518,11 @@ class CrustleAgent(HeuristicAgent):
                 return V2_PRESSURE_GUST
             return None
         if card_id == XEROSIC:                                   # rule (B)
+            if self._v4 and self._lethal_hand_threat(obs):
+                # v4 rule (A): capping their hand at 3 turns a lethal
+                # hand-scaled attack into ~60 damage. Beats every other
+                # play on the board when the alternative is dying.
+                return V4_XEROSIC_LETHAL
             hand = self._opp_hand_count(obs)
             if hand is not None and hand >= V2_OPP_BIG_HAND:
                 return V2_XEROSIC_BIGHAND + min(hand - V2_OPP_BIG_HAND, 5) * 0.2
@@ -569,6 +668,14 @@ class CrustleAgent(HeuristicAgent):
         base = super()._attach_score(obs, option)
         if not self._v2:
             return base
+        try:
+            if (self._v4 and self._hand_scaled_threat(obs) > 0.0
+                    and self._would_cover_active(obs, option)):
+                # v4 rule (B): under a hand-scaled threat, covering the
+                # body that is about to be hit outranks fuelling the mill
+                return V4_PROTECTIVE_ATTACH
+        except Exception:
+            pass
         try:                                                     # rule (E)
             state = obs.current
             target = self._pokemon_at(state, state.yourIndex,

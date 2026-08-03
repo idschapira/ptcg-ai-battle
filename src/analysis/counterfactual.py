@@ -52,6 +52,8 @@ from ..environment_wrapper.selfplay import RESULT_DRAW, play_one_game
 from ..ingestion.build_card_model import REPO_ROOT
 from ..ingestion.build_effect_model import EffectIndex
 from ..ingestion.card_index import CardIndex
+from ..rl_models.determinize import _to_dict, determinize
+from ..rl_models.determinize import visible_ids as _visible_ids
 from .episode_review import _classify
 
 OUR_DECK_PATH: Final[Path] = (REPO_ROOT / "data" / "decks"
@@ -188,90 +190,14 @@ def run_capture(n_games: int, seed: int, index: CardIndex,
 # ------------------------------------------------------------------ #
 
 
-def _visible_ids(state: dict, player: int) -> Counter:
-    seen: Counter = Counter()
-
-    def add_card(card: dict | None) -> None:
-        if card and card.get("playerIndex") == player:
-            seen[card["id"]] += 1
-
-    def add_pokemon(pokemon: dict | None, zone_owner: int) -> None:
-        if not pokemon:
-            return
-        if zone_owner == player:
-            seen[pokemon["id"]] += 1
-        for key in ("energyCards", "tools", "preEvolution"):
-            for card in pokemon.get(key) or []:
-                add_card(card)
-
-    for zone_owner, ps in enumerate(state.get("players") or []):
-        for pokemon in ps.get("active") or []:
-            add_pokemon(pokemon, zone_owner)
-        for pokemon in ps.get("bench") or []:
-            add_pokemon(pokemon, zone_owner)
-        for card in ps.get("discard") or []:
-            add_card(card)
-        for card in ps.get("prize") or []:
-            if card is not None:
-                add_card(card)
-        for card in ps.get("hand") or []:
-            add_card(card)
-    for card in state.get("stadium") or []:
-        add_card(card)
-    for card in state.get("looking") or []:
-        if card is not None:
-            add_card(card)
-    return seen
-
-
-def determinize(obs_dict: dict, our_seat: int, our_deck: list[int],
-                opp_deck_ids: list[int],
-                rng: random.Random) -> tuple | None:
-    """Amostra (your_deck, your_prize, opp_deck, opp_prize, opp_hand).
-
-    None se o multiset não fecha (zona não modelada) — o ponto é pulado
-    e contado, nunca inventamos cartas.
-    """
-    state = obs_dict["current"]
-    them = 1 - our_seat
-    full = {our_seat: Counter(our_deck), them: Counter(opp_deck_ids)}
-    pools: dict[int, list[int]] = {}
-    for player in (our_seat, them):
-        pool = full[player] - _visible_ids(state, player)
-        pools[player] = [cid for cid, n in pool.items() for _ in range(n)]
-
-    ps_us = state["players"][our_seat]
-    ps_them = state["players"][them]
-    hidden_prize_us = sum(1 for c in ps_us["prize"] if c is None)
-    if len(pools[our_seat]) != ps_us["deckCount"] + hidden_prize_us:
-        return None
-    hidden_prize_them = sum(1 for c in ps_them["prize"] if c is None)
-    expected = (ps_them["deckCount"] + hidden_prize_them
-                + ps_them["handCount"])
-    if len(pools[them]) != expected:
-        return None
-
-    rng.shuffle(pools[our_seat])
-    rng.shuffle(pools[them])
-    your_deck = pools[our_seat][:ps_us["deckCount"]]
-    your_prize = ([c["id"] for c in ps_us["prize"] if c is not None]
-                  + pools[our_seat][ps_us["deckCount"]:])
-    opp_deck = pools[them][:ps_them["deckCount"]]
-    cut = ps_them["deckCount"] + hidden_prize_them
-    opp_prize = ([c["id"] for c in ps_them["prize"] if c is not None]
-                 + pools[them][ps_them["deckCount"]:cut])
-    opp_hand = pools[them][cut:]
-    return your_deck, your_prize, opp_deck, opp_prize, opp_hand
+# `determinize`, `_visible_ids` e `_to_dict` migraram para
+# src/rl_models/determinize.py (o runtime precisa deles sem arrastar o
+# módulo de análise). Re-exportados acima para os importadores antigos.
 
 
 # ------------------------------------------------------------------ #
 # rollouts pareados
 # ------------------------------------------------------------------ #
-
-
-def _to_dict(observation: Any) -> dict:
-    return json.loads(json.dumps(dataclasses.asdict(observation),
-                                 default=int))
 
 
 def rollout(branch: Any, our_seat: int, rollout_seed: int,
