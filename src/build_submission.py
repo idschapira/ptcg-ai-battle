@@ -76,6 +76,14 @@ SHARED_BUNDLE: Final[tuple[str, ...]] = (
     "src/agent_heuristics/__init__.py",
     "src/agent_heuristics/random_agent.py",
     "src/agent_heuristics/heuristic_agent.py",
+    # heuristic_agent imports the attack-band PROFILE_* constants from
+    # here, so EVERY target needs it: leaving it out breaks the packaged
+    # import outright (caught by the smoke, not by any unit test — the
+    # dev tree always has the module on sys.path). archetype_rules is
+    # pure stdlib and reads no files at import; legality/gauntlet MUST
+    # stay out (they pull in the arena and the analysis stack).
+    "src/deckbuilding/__init__.py",
+    "src/deckbuilding/archetype_rules.py",
     "src/rl_models/__init__.py",
     "src/rl_models/encoding.py",
     "src/rl_models/normalization.py",
@@ -221,12 +229,9 @@ TARGETS: Final[dict[str, TargetConfig]] = {
             "src/rl_models/budget.py",
             "src/rl_models/opponent_estimator.py",
             "src/rl_models/runtime_search_agent.py",
-            # archetype rules + every decklist the estimator may propose.
-            # deckbuilding/__init__.py rides along because the rules
-            # module lives in that package; legality/gauntlet MUST stay
-            # out — they pull in the arena and the analysis stack.
-            "src/deckbuilding/__init__.py",
-            "src/deckbuilding/archetype_rules.py",
+            # the archetype rules themselves now ride in SHARED_BUNDLE
+            # (heuristic_agent needs them); what this target adds is
+            # every decklist the estimator may propose for the opponent.
             "data/decks/meta_alakazam.csv",
             "data/decks/meta_spidops.csv",
             "data/decks/meta_grimmsnarl.csv",
