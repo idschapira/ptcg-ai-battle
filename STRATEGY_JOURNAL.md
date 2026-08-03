@@ -1359,3 +1359,104 @@ erro medio 28,8pp, o melhor que ja tivemos), e deixar a calibracao absoluta em p
 
 - `src/analysis/field_calibration.py`: `--cells` (restringe a celula; um clone de arquetipo voando
   outro deck nao mede nada)
+
+## [03/Ago] O regime novo nao ressuscita nada: v4 nulo, quatro variantes de deck rejeitadas de novo
+Offline, nada shipado. `deck.csv`, `main.py` e `build_submission.py` identicos ao HEAD. 342/344
+testes (as 2 de `test_portfolio_watch` seguem pre-existentes). 0 exceptions em ~29.000 jogos.
+
+### 0. O piloto v4 NAO EXISTIA -- eu o implementei para poder testa-lo
+Antes de medir: `crustle_agent.py` nao tem variante v4 em **nenhum** branch (`main`,
+`worktree-league-phase1`, este), e `ARM_KINDS` parava em `crustle-v3`. O que existia era o commit
+`0fd0a11`, "semente v4" -- uma analise contrafactual, nao uma implementacao. O journal de 31/Jul ja
+registrava "(O piloto v4 nao existe neste branch.)"; o "mediu nulo a 0,6% das decisoes" veio de um
+sprint anterior cujo codigo nao sobreviveu.
+
+Entao **o v4 medido aqui e a minha implementacao das duas regras descritas**, nao a historica. As
+duas, ambas respondendo ao mesmo buraco (nada em v1-v3 pergunta "o que esta prestes a acontecer
+comigo" -- as regras leem o NOSSO board ou o TIPO da carta do oponente):
+- **(A) Xerosic ciente de ameaca**: dispara quando o ataque escalado pela MAO e letal no nosso ativo
+  **e o ativo esta descoberto** (com a cobertura de pe os contadores sao prevenidos e o Xerosic
+  seria gasto a toa). A regra (B) da v2 dispara so por tamanho de mao (>=8), que e proxy.
+- **(B) anexo protetor**: sob ameaca escalada, cobrir o corpo que vai apanhar supera abastecer o
+  mill. E uma troca real -- a Mist provê {C} e paga o Land Collapse -- que e exatamente o que o A/B
+  existe para arbitrar.
+
+**Inercia da v3, provada entre versoes do codigo**: gravei o fluxo de respostas da v3 sobre os
+11.495 decisoes reais no HEAD e na arvore atual e diferenciei -- **0 divergencias**. (Lockstep
+dentro de um processo nao serviria: as duas versoes do arquivo nao coexistem.)
+
+### 1. v4 vs v3, A/B relativo, N=600/celula, campo corrigido
+Oponente em todas as celulas: `heuristic-tempo-scaled-routing-gust-conserve,8`.
+
+| celula | peso real | v4 | v3 | delta | IC95 Newcombe | assento 0 / 1 |
+|---|---|---|---|---|---|---|
+| Alakazam | 27,4% | 76,5% | 76,8% | -0,3 | [-5,1, +4,5] | -1,6 / +1,0 |
+| Grimmsnarl | 16,7% | 46,6% | 47,7% | -1,2 | [-6,8, +4,5] | +1,7 / -4,1 |
+| Mega Lucario | 14,9% | 93,0% | 91,2% | +1,8 | [-1,2, +4,9] | +3,0 / +0,7 |
+| Archaludon | 14,9% | 90,2% | 89,2% | +1,0 | [-2,5, +4,5] | +3,3 / -1,4 |
+| Kangaskhan | 5,6% | 96,8% | 96,3% | +0,5 | [-1,6, +2,6] | -0,3 / +1,4 |
+| Starmie | 3,7% | 39,0% | 33,8% | +5,2 | [-0,3, +10,6] | **+10,9 / -0,7** |
+| Spidops | 3,7% | 56,3% | 57,7% | -1,3 | [-6,9, +4,3] | +1,6 / -4,4 |
+| espelho | 1,9% | 73,3% | 74,3% | -1,0 | [-6,0, +4,0] | 0,0 / -2,0 |
+| **AGREGADO ponderado pelo campo REAL** | | | | **+0,32pp** | | |
+
+**Nulo.** Nenhuma celula tem IC que exclua zero. O maior numero (Starmie +5,2) vive inteiro num
+assento (+10,9 contra -0,7) -- assinatura de artefato de assento, nao de ganho de piloto.
+
+### 2. O MECANISMO -- e por que a premissa da reabertura nao se aplicava
+A hipotese da rodada era: o campo corrigido ataca 7,02x/jogo e puxa o corpo DESPROTEGIDO, entao e o
+regime em que regra defensiva aparece. Medi quanto a v4 de fato muda:
+
+| celula | decisoes em que v4 != v3 |
+|---|---|
+| Alakazam | 6/1.563 = **0,38%** |
+| Grimmsnarl | 0/2.192 = **0,00%** |
+| Mega Lucario | 0/1.978 = **0,00%** |
+
+**As duas regras da v4 sao gatilhadas pela clausula "for each card in your hand", que so o Alakazam
+tem.** Contra Grimmsnarl e Lucario -- 31,6% do campo real somados -- elas nao podem disparar, por
+propriedade da CARTA DO OPONENTE, nao do regime. E mesmo no Alakazam o gatilho pede a conjuncao
+(ameaca letal escalada pela mao **e** ativo descoberto), que ocorre em 0,38% das decisoes.
+
+O campo corrigido mudou o que o oponente faz com ataque e com gust; **nao aumentou a frequencia da
+situacao especifica que a v4 le**. Por isso 0,32pp: nao e que a regra defensiva seja ruim, e que ela
+quase nunca acontece. Travei esse escopo como contrato em `tests/test_crustle_v4.py` (o sinal tem de
+disparar contra Alakazam e ser silencioso contra Grimmsnarl), para nao virar surpresa de novo.
+
+**Item 2 (ablacao Xerosic vs anexo) nao foi executado**: era condicional a "v4 positivo e
+significativo". Com 0,38% de decisoes tocadas, separar as duas regras mediria ruido com metade da
+amostra.
+
+### 3. Variantes de deck, mesmo protocolo, N=600/celula
+| variante | agregado ponderado | celulas em que perde com significancia |
+|---|---|---|
+| V1 corpos | **-4,08pp** | Alakazam -7,8, Archaludon -4,8, Kangaskhan -2,2, Starmie -8,3 |
+| V2 mill | **-5,00pp** | Alakazam -6,5, Grimmsnarl -6,9, Lucario -4,2, Kangaskhan -2,3, Starmie -7,3, espelho -5,2 |
+| V3 corpos agressivo | **-10,93pp** | Alakazam **-24,3**, Grimmsnarl -12,2, Starmie -15,7, espelho -7,7 |
+| V4 protswap | **-2,89pp** | Alakazam -9,3 |
+
+**O veredito de rejeicao sobrevive ao regime novo, e com folga.** Em 40 comparacoes celula-a-celula
+(5 experimentos x 8 celulas) **uma unica** favorece o candidato: V4 protswap no Kangaskhan, +2,7pp
+[+0,4, +5,0], numa celula de 5,6% de peso. A alpha 0,05 esperam-se ~2 falsos positivos em 40 testes,
+entao um positivo marginal isolado nao e evidencia -- e o proprio deck perde 9,3pp no Alakazam, que
+pesa cinco vezes mais.
+
+### 4. VEREDITO
+**Nao existe par (deck, piloto) no repertorio que bata o ship no instrumento relativo.** O melhor
+candidato de piloto e nulo (+0,32pp, todos os ICs cruzando zero) e o melhor candidato de deck perde
+2,89pp. O ship — `deck.csv` + `CrustleAgent` v3 — continua sendo o melhor par que temos, agora
+medido no unico regime em que o campo interno tem validade (relativo, mesmo oponente nos dois
+bracos, ponderado pelo campo REAL e com quebra por assento).
+
+O que esta rodada acrescenta de durável, alem do veredito, e o **instrumento**: `src/analysis/
+pilot_ab.py` faz A/B de piloto OU de deck (`<deck.csv>@<arm>`) contra o campo corrigido com
+Newcombe, quebra por assento e ponderacao pelos shares reais do NOSSO ladder (nao os do radar
+top-100 -- populacoes diferentes). As comparacoes ad-hoc anteriores pesavam a Starmie (8 jogos
+reais) como o Alakazam (59) e comparavam dois intervalos de Wilson a olho.
+
+- `src/agent_heuristics/crustle_agent.py`: variante `v4` (regras A e B), `_hand_scaled_threat`,
+  `_lethal_hand_threat`, `_would_cover_active` -- v3 bit-identica, verificada entre versoes
+- `src/environment_wrapper/ab_test.py`: arm `crustle-v4`
+- `src/analysis/pilot_ab.py`: A/B relativo ponderado pelo campo real (NOVO)
+- `tests/test_crustle_v4.py`: sinal de ameaca sobre tabuleiros REAIS, escopo da regra como
+  contrato, e v4 == v3 na ausencia do gatilho

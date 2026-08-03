@@ -95,7 +95,10 @@ ARM_KINDS: Final[tuple[str, ...]] = (
     "heuristic-conserve", "heuristic-tempo-scaled-conserve",
     "heuristic-tempo-scaled-gust-conserve",
     "heuristic-tempo-scaled-routing-gust-conserve",
-    "crustle", "crustle-v2", "crustle-v3", "network",
+    "crustle", "crustle-v2", "crustle-v3",
+    # v4 = v3 + the two DEFENSIVE rules (threat-aware Xerosic, protective
+    # attach). New variant: v3 is untouched by construction.
+    "crustle-v4", "network",
     # runtime search (submission candidate). "-blind" pins the estimator
     # off so the arm degrades to its prior — that is the FLOOR arm, and
     # comparing it against plain crustle-v3 is how the floor gets proven
@@ -421,7 +424,7 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
     elif spec.kind == "crustle":
         from ..agent_heuristics.crustle_agent import CrustleAgent
         base = lambda s: CrustleAgent(seed=s, index=index, effects=effects)
-    elif spec.kind in ("crustle-v2", "crustle-v3"):
+    elif spec.kind in ("crustle-v2", "crustle-v3", "crustle-v4"):
         from ..agent_heuristics.crustle_agent import CrustleAgent
         variant = spec.kind.removeprefix("crustle-")
         base = lambda s: CrustleAgent(seed=s, index=index, effects=effects,
