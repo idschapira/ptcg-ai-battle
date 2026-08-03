@@ -1249,3 +1249,113 @@ Alakazam com **BC casado** (`bc_majkel` / `bc_yushin` ja existem) e comparar o e
   dois arms que so diferem depois da virgula estavam se sobrescrevendo no relatorio
 - `tests/test_deck_conservation.py`: parser contra o gabarito curado, igualdade de conjuntos no
   nosso deck, supressao sobre opcoes REAIS e lockstep de inercia
+
+## [02/Ago] Regras vs clone casado: o clone CASADO tambem nao fecha a celula -- veredito
+Offline, nada shipado. **Nenhum arquivo de agente tocado**: diff contra `src/agent_heuristics/`,
+`deck.csv`, `main.py` e `build_submission.py` = vazio. So `field_calibration.py` ganhou `--cells`
+(um piloto BC de um arquetipo voando o deck de outro nao mede nada). 0 exceptions em 4.800 jogos.
+
+### 1. O casamento: confirmado, e e o Yushin
+`meta_alakazam.csv` foi reconstruido pelo `mine_opponent_deck` a partir dos NOSSOS episodios --
+**59 jogos contra 54 times diferentes**, no maximo 2 jogos cada, e nem Majkel nem Yushin estao entre
+eles. Mas a lista e de arquetipo (stock), e a comparacao carta-a-carta contra o corpus top-100
+resolve o casamento:
+
+| jogador | jogos no corpus | cartas dele que estao na lista | com a MESMA contagem |
+|---|---|---|---|
+| **Yushin Ito** | 441 | **22/22** | **22/22 — identica** |
+| Majkel1337 | 567 | 22/22 | 20/22 |
+| LiamK | 25 | 19/20 | 14 |
+
+**`meta_alakazam.csv` E a lista do Yushin Ito, carta por carta e copia por copia.** Entao o clone
+CASADO existe e e o `bc_yushin`; o `bc_majkel` e quase-casado (erra 2 contagens).
+
+### 2. A celula, N>=600, alvo real fixo 35,6%
+| piloto do oponente | winrate interno | erro | N |
+|---|---|---|---|
+| heuristico puro | 82,8% [79,6–85,6] | **+47,2pp** | 600 |
+| stack de regras (routing+gust+conserve,8) | 79,2% / 76,1% | **+43,6 / +40,5pp** | 600 / 1200 |
+| **BC-Yushin (CASADO)** | 79,2% / 81,2% | **+43,6 / +45,6pp** | 600 / 1200 |
+| BC-Majkel (quase-casado) | 89,3% [86,6–91,6] | **+53,7pp** | 600 |
+
+**GATE: FALHOU.** Exigia <=~15pp; o clone casado da +45,6pp. E nao e so que ele nao ajuda: a N=1200,
+com seed independente, **o clone e pior que o stack de regras por +5,1pp, IC95 Newcombe
+[+1,8, +8,4]** -- diferenca estatisticamente estabelecida, no sentido errado. O BC-Majkel confirma a
+leitura antiga: **pior que o heuristico puro** (+53,7 contra +47,2pp).
+
+(Numa das rodadas o stack e o BC-Yushin cairam em 475/600 exatamente iguais. E coincidencia de ~3%,
+nao um bug de arm: a N=1200 eles se separam com significancia.)
+
+### 3. O clone reproduz o PERFIL? Em parte -- e nao a parte que decide
+| metrica | real | stack de regras | BC-majkel | BC-yushin |
+|---|---|---|---|---|
+| nosso winrate | **35,6%** | 74,0% | 91,6% | 76,0% |
+| turnos por jogo | **19,58** | 27,61 | 21,50 | **18,40** |
+| dano medio do Powerful Hand | **266** | 196 | 267 | **271** |
+| Powerful Hands acertados/jogo | 6,08 | **5,69** | 4,36 | 4,79 |
+| premios que ELES tiram/jogo | **3,51** | 2,56 | 1,35 | 2,07 |
+| KOs que ELES nos dao/jogo | **5,49** | 4,73 | 3,36 | 3,94 |
+| eles deckam | **28,8%** | 57,6% | 69,6% | 52,8% |
+
+O clone **acerta o tempo do jogador** -- duracao 18,40 contra 19,58 do real (o stack de regras
+estoura em 27,61) e dano do Powerful Hand 271 contra 266. Ou seja, ele nao calibra por acaso: ele
+modela o ritmo. **Mas nao reproduz a eficacia**: premios 2,07 contra 3,51, KOs 3,94 contra 5,49.
+Regras e clone acertam metades DIFERENTES do perfil e nenhum dos dois acerta o resultado.
+
+### 4. Por que o Grimmsnarl calibrou e este nao -- o controle que fecha a duvida
+A hipotese obvia seria "o clone do Grimmsnarl e melhor". Nao e:
+
+| clone | val_top1 (reproduz a jogada do humano) |
+|---|---|
+| bc_yushin (Alakazam) | **53,0%** |
+| bc_majkel (Alakazam) | 51,6% |
+| bc_luca (Grimmsnarl) | **51,6%** |
+| bc_dries (Grimmsnarl) | 50,2% |
+
+**Mesma fidelidade, resultados opostos.** O que difere e a celula, nao o clone: contra o Grimmsnarl
+o confronto real e apertado (38,9%) e qualquer oponente razoavel cai perto; contra o Alakazam o
+nosso deck+piloto simplesmente ganha na simulacao **com qualquer piloto que ja tentamos** -- os seis
+que medimos caem entre 74% e 92%. Nao existe piloto no nosso repertorio que reproduza 35,6%.
+
+### 5. O mapa de clonagem (corpus top-100, 1.051 replays / 2.102 player-games)
+| arquetipo | jogos | times | maior jogador | clone? | viabilidade |
+|---|---|---|---|---|---|
+| Alakazam box | 1038 | 6 | Majkel 567 / Yushin 441 | sim (2) | feito — e nao resolveu |
+| Marnie's Grimmsnarl | 373 | 15 | Luca 158 | sim (3) | feito |
+| Crustle + Kangaskhan | 236 | 4 | Budew 152 | **nao** | **viavel** |
+| Team Rocket Spidops | 173 | 3 | kashiwashira 133 | sim (`bc_spidops_v2`) | feito |
+| Mega Starmie / Froslass | 95 | 2 | taksai 49 | **nao** | marginal |
+| Dragapult ex | 6 | 2 | — | nao | inviavel |
+| **Archaludon ex box** | **1** | 1 | — | nao | **inviavel** |
+| **Mega Lucario ex** | **0** | — | — | nao | **IMPOSSIVEL** |
+
+**O achado do mapa:** o Mega Lucario tem **ZERO** jogos no corpus e o Archaludon tem **UM** -- e os
+dois foram **14,9% cada** do nosso campo real. As duas celulas de erro grande depois do Alakazam sao
+exatamente as que nao podem ser clonadas. O corpus top-100 e o nosso campo real sao **populacoes
+diferentes**: 6 times jogam Alakazam la, 54 times distintos jogaram contra nos aqui.
+
+### 6. VEREDITO
+**Nem o clone casado fecha a celula, e o caminho da clonagem esta bloqueado onde mais precisariamos
+dele.** As tres evidencias, cada uma suficiente sozinha:
+1. o clone do jogador cuja lista exata usamos da **+45,6pp** e e **pior que as regras** com
+   significancia;
+2. a fidelidade do clone nao e o gargalo (mesma fidelidade calibrou o Grimmsnarl);
+3. metade do campo real (Lucario 14,9% + Archaludon 14,9%) tem 0 e 1 jogo no corpus.
+
+Some-se a isto que o proprio alvo tem incerteza grande -- 21/59, **IC95 [24,6%, 48,3%]**, 24pp de
+largura -- e a conclusao honesta e: **parar de investir em calibracao ABSOLUTA do campo interno.**
+Cinco rodadas, quatro correcoes de regra validadas uma a uma, um clone casado, e o erro da celula
+foi de +47,2 para +40,5pp. O retorno por rodada esta em ~1,7pp e o gate esta a 25pp de distancia.
+
+O que o campo interno CONTINUA valendo, e nao e pouco: **instrumento RELATIVO**. Comparar dois
+pilotos NOSSOS sob o mesmo oponente e valido -- o vies e comum aos dois bracos, que e exatamente o
+que o Gate C e o gauntlet sempre fizeram. O que ele nao pode fazer e prever winrate de ladder em
+numero absoluto. Numeros absolutos vem da ladder, e ja temos o instrumento para isso
+(`portfolio_watch` + `elo_report`).
+
+Recomendacao para a proxima rodada: voltar ao que move o rank -- o par (deck, piloto) medido por
+A/B **relativo** contra o campo interno corrigido (`heuristic-tempo-scaled-routing-gust-conserve,8`,
+erro medio 28,8pp, o melhor que ja tivemos), e deixar a calibracao absoluta em paz.
+
+- `src/analysis/field_calibration.py`: `--cells` (restringe a celula; um clone de arquetipo voando
+  outro deck nao mede nada)

@@ -99,6 +99,11 @@ def main() -> None:
                         help="pilot flying the OPPONENT deck in every cell")
     parser.add_argument("--baseline-arm", type=str, default=None,
                         help="second pilot, measured in the same run")
+    parser.add_argument("--cells", nargs="+", default=None,
+                        help="restrict to these cells by name; needed for "
+                             "archetype-specific pilots (a BC clone of one "
+                             "archetype flying another deck measures "
+                             "nothing)")
     parser.add_argument("--games", type=int, default=600)
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
@@ -107,9 +112,16 @@ def main() -> None:
 
     arms = [args.opp_arm] if args.baseline_arm is None else [
         args.baseline_arm, args.opp_arm]
+    cells = CELLS
+    if args.cells:
+        wanted = {c.casefold() for c in args.cells}
+        cells = tuple(c for c in CELLS if c[0].casefold() in wanted)
+        if not cells:
+            raise SystemExit(f"nenhuma celula casa com {args.cells}; "
+                             f"disponiveis: {[c[0] for c in CELLS]}")
     results: dict[str, dict[str, dict]] = {arm: {} for arm in arms}
     t0 = time.perf_counter()
-    for name, deck, _real, _n in CELLS:
+    for name, deck, _real, _n in cells:
         for arm in arms:
             results[arm][name] = run_cell(deck, arm, args.games,
                                           args.workers, args.seed)
@@ -133,7 +145,7 @@ def main() -> None:
     print("  " + "-" * 92)
 
     before_errors, after_errors = [], []
-    for name, _deck, real, real_n in CELLS:
+    for name, _deck, real, real_n in cells:
         after = results[arms[-1]][name]["winrate"]
         after_err = after - real
         after_errors.append(abs(after_err))
@@ -169,7 +181,7 @@ def main() -> None:
     payload = {"games_per_cell": args.games, "arms": arms,
                "cells": {name: {"real": real, "real_games": real_n,
                                 **{arm: results[arm][name] for arm in arms}}
-                         for name, _d, real, real_n in CELLS}}
+                         for name, _d, real, real_n in cells}}
     with open(out, "w", encoding="utf-8") as fh:
         json.dump(payload, fh, indent=1)
     print(f"\n-> {out}")
