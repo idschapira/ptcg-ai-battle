@@ -1559,3 +1559,83 @@ de fato importa, porque se o ganho estiver todo no leaf, a versao barata e a que
 decisao-a-decisao** com o `CrustleAgent` v3 sobre um jogo real de motor, e degradacao para o prior
 quando o value head some do disco. Todo caminho de falha -- estimador sem confianca, banco no
 limite, determinizador que nao fecha, head ausente, excecao -- cai no agente que ja esta no ar.
+
+### 6. Stage C -- GATE C: FAIL, e o mecanismo ficou pinado
+A/B relativo contra o `CrustleAgent` v3, MESMO deck, assentos alternados, Newcombe na diferenca.
+
+**Varredura que isola a PROFUNDIDADE** (candidatos=5, determinizacoes=6, beam=4 fixos), campo
+corrigido, N=200/celula, Alakazam + Grimmsnarl:
+
+| braco | delta agregado | IC95 |
+|---|---|---|
+| iso-d1 | **-6,05pp** | [-12,93, +0,91] |
+| iso-d2 | -3,50pp | [-10,38, +3,42] |
+| iso-d3 | -3,39pp | [-10,26, +3,54] |
+
+Todos negativos. E isto **corrige** a leitura da secao 4: com os quatro botoes separados,
+profundidade 1->2 AJUDA (-6,05 -> -3,50); o ordenamento da curva de orcamento estava confundido
+por candidatos e determinizacoes andando junto com a profundidade. O achado real e mais simples e
+pior -- a busca por value e neutra-a-negativa em TODA profundidade.
+
+**O diagnostico que vale mais que o veredito.** Duas sondas na celula Alakazam (N=200):
+
+| braco | Alakazam | delta | IC95 |
+|---|---|---|---|
+| prior (v3) | 79,0% | -- | -- |
+| busca, argmax | 70,3% | -5,7pp | [-14,5, +3,1] |
+| **busca, argmin (invertida)** | **45,0%** | **-34,0pp** | **[-42,4, -24,7]** |
+| busca, argmax + margem 0,3 | 78,0% | **+3,0pp** | [-5,3, +11,3] |
+
+A inversao e a sonda decisiva: **escolher de proposito o candidato que o head menos gosta custa
+28pp a mais que escolher o que ele mais gosta.** Se o head fosse ruido, argmin ~= argmax. Ele nao
+e ruido -- tem competencia grande e com o SINAL CERTO.
+
+Logo o problema nao e o head nem a folha. E que **o prior e o juiz mais FINO dentro da propria
+faixa contestada**: o head separa bom de desastroso, o v3 separa bom de um-pouco-melhor, e a busca
+sobrepunha o v3 em 55-75% das decisoes buscadas (contra 22% da busca por rollout). Juizo grosso
+derrubando juizo fino custa alguns pp. A margem prova a causa: obrigar a busca a provar o caso
+leva a Alakazam de -5,7pp para +3,0pp. Converte perda em empate, nao em ganho.
+
+**GATE C, campo dos CLONES** (oponentes que nao modelamos), melhor configuracao (iso-d2 +
+margem 0,3), 5 celulas, N=400/celula, ~2.000 jogos decididos por braco:
+
+| celula | A | B (ship) | delta | IC95 |
+|---|---|---|---|---|
+| Alakazam/Yushin | 78,2% | 82,5% | -4,2 | [-9,7, +1,3] |
+| Grimmsnarl/Luca | 86,2% | 87,5% | -1,2 | [-5,9, +3,5] |
+| Alakazam/Majkel | 88,2% | 87,2% | +1,0 | [-3,6, +5,6] |
+| Grimmsnarl/Dries | 56,4% | 51,7% | +4,7 | [-2,2, +11,5] |
+| Spidops/BC | 35,0% | 36,8% | -1,8 | [-8,4, +4,9] |
+
+**Agregado: -0,28pp, IC95 [-3,15, +2,59]. Ponderado pelo campo real: -0,46pp. 0 excecoes.**
+
+Nao e falta de poder: a ±2,9pp com N~2.000/braco, o efeito e zero de verdade. **GATE C: FAIL ->
+NAO SHIPAR.** Stage D nao roda.
+
+### 7. O que a tese acertou, e o que ela nao cobria
+A tese era: a folha por rollout limita a 32 avaliacoes E amarra o resultado ao modelo de oponente;
+folha por value compra ordens de grandeza mais nos E corta essa dependencia. **A segunda metade se
+confirmou e e o resultado durável desta rodada:**
+
+- o head precifica posicoes de CLONES tao bem quanto as do nosso proprio campo (AUC no nosso
+  assento 0,725-0,786 vs 0,697-0,790). A busca nao simula a politica do adversario em ponto nenhum;
+- a ladder de fidelidade que destruiu a busca por rollout (+14,7pp -> -2,5pp conforme o oponente
+  deixava de parecer com o nosso modelo) **nao se reproduz aqui**: no campo dos clones o resultado
+  e o mesmo do campo corrigido, ~zero. A dependencia foi removida de fato.
+
+A primeira metade se confirmou tecnicamente e **nao era o gargalo**: 1,35 ms/no, 6 plies do nosso
+turno por 21% do banco, 0 excecoes em 7,5M nos. Compramos as ordens de grandeza. Elas nao compram
+winrate, porque **o que limita nao era custo nem profundidade -- e que o `CrustleAgent` v3 ja e
+melhor que um avaliador de AUC 0,74 escolhendo entre os proprios candidatos de topo.**
+
+### 8. O Gate A que eu escrevi era necessario e NAO suficiente
+O Gate A media a capacidade de ordenar posicoes ao longo de uma CELULA (AUC 0,70-0,79). A busca
+precisa ordenar posicoes que diferem por UMA micro-acao, e o head so viu posicoes que o proprio v3
+produziu -- as folhas visitadas pela busca estao fora da distribuicao de treino. Passar no Gate A
+nao implicava servir para o Gate C, e eu so descobri isso medindo. O caminho que enderecaria isso
+e Expert Iteration (treinar o head nas posicoes que a BUSCA visita), que e um loop inteiro, nao um
+ajuste -- e a rodada ExIt anterior ja mostrou que ele melhora marginalmente, nao decisivamente.
+
+**Recomendacao: NAO shipar. O ship continua (deck.csv Crustle LibraryOut + `CrustleAgent` v3).**
+O candidato sai sem custo porque todo caminho de falha dele degrada exatamente para o que ja esta
+no ar -- identidade exata decisao-a-decisao, verificada em `tests/test_value_search_agent.py`.

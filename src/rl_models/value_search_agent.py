@@ -78,6 +78,7 @@ class ValueSearchAgent:
         value_weights: Path | None = None,
         ladder: tuple[ValueTier, ...] = DEFAULT_VALUE_LADDER,
         fixed_tier: ValueTier | None = None,
+        select_worst: bool = False,
     ) -> None:
         self._index = index if index is not None else CardIndex()
         self._effects = effects if effects is not None else EffectIndex()
@@ -98,6 +99,12 @@ class ValueSearchAgent:
                       else BudgetGuard(ladder=ladder,
                                        rollout_prior_s=NODE_PRIOR_S))
         self._fixed_tier = fixed_tier
+        # DIAGNOSTIC ONLY. Picks the candidate the head likes LEAST.
+        # If argmin and argmax perform alike, the head carries no usable
+        # signal at this granularity and no amount of tuning will help;
+        # if argmin is much worse, the signal is real and the sign is
+        # right, and the loss is coming from somewhere else. Never ship.
+        self._select_worst = select_worst
         self._override = (tuple(int(c) for c in opponent_deck_override)
                           if opponent_deck_override else None)
         self.last_candidate_values: dict[int, float] | None = None
@@ -240,6 +247,8 @@ class ValueSearchAgent:
         self.last_candidate_values = means
         if prior_choice not in means:
             return None
+        if self._select_worst:
+            return min(means, key=lambda c: (means[c], -scores[c]))
         best = max(means, key=lambda c: (means[c], scores[c]))
         if best == prior_choice or self._override_margin <= 0.0:
             return best

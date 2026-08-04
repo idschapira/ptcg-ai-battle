@@ -126,8 +126,12 @@ ARM_KINDS: Final[tuple[str, ...]] = (
     #               shipped arm lets the guard choose.
     #   "-full"     no contested filter (every eligible decision), which
     #               is the upper bound on both cost and effect
+    #   "-invert"   DIAGNOSTIC: pick the candidate the head likes LEAST.
+    #               argmin ~= argmax means the head has no usable signal
+    #               at this granularity; argmin much worse means the
+    #               signal is real and the loss lives elsewhere.
     "value-search", "value-search-blind", "value-search-fixed",
-    "value-search-full",
+    "value-search-full", "value-search-invert",
     # parametric league pilot: "grimmsnarl-module" flies meta_grimmsnarl
     # with GrimmsnarlModule + its shipped theta. Needed as an opponent
     # that is NOT the rollout model.
@@ -141,7 +145,7 @@ SEARCH_ARMS: Final[frozenset[str]] = frozenset(
 
 VALUE_SEARCH_ARMS: Final[frozenset[str]] = frozenset(
     {"value-search", "value-search-blind", "value-search-fixed",
-     "value-search-full"})
+     "value-search-full", "value-search-invert"})
 
 # One extra win in four determinizations — the smallest gain a 4x4
 # search can express that is not a single lucky rollout.
@@ -339,7 +343,7 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
         metrics.estimator = estimator_stats
 
         fixed = None
-        if spec.kind == "value-search-fixed":
+        if spec.kind in ("value-search-fixed", "value-search-invert"):
             if spec.weights is None:
                 raise SystemExit("value-search-fixed needs ,<tier> "
                                  "(e.g. value-search-fixed,d3x6)")
@@ -351,6 +355,20 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
             fixed = by_name[wanted]
         contested = (None if spec.kind == "value-search-full"
                      else DEFAULT_CONTESTED_MARGIN)
+        # The stats slot carries an OVERRIDE MARGIN for value-search-fixed:
+        # "value-search-fixed,iso-d2,0.3". The search must beat the prior's
+        # own option by that much (on the [-1,1] value scale, so 0.3 is
+        # 15pp of win probability) before it is believed. This is the
+        # direct test of the optimizer's-curse hypothesis: taking an argmax
+        # over many noisy leaf estimates mostly selects whichever line got
+        # lucky, and the winner's estimate is biased upward by the
+        # selection itself.
+        margin = 0.0
+        if spec.kind == "value-search-fixed" and spec.stats is not None:
+            try:
+                margin = float(spec.stats.name)
+            except ValueError:
+                raise SystemExit(f"bad override margin '{spec.stats.name}'")
 
         def base(s: int) -> Agent:
             return ValueSearchAgent(
@@ -359,6 +377,8 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
                 enable_search=spec.kind != "value-search-blind",
                 contested_margin=contested,
                 fixed_tier=fixed,
+                override_margin=margin,
+                select_worst=spec.kind == "value-search-invert",
                 estimator=OpponentDeckEstimator(index=index,
                                                 stats=estimator_stats),
                 guard=BudgetGuard(ladder=DEFAULT_VALUE_LADDER,

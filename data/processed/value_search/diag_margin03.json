@@ -1,0 +1,69 @@
+{
+ "a": "deck.csv@value-search-fixed,iso-d2,0.3",
+ "b": "deck.csv@crustle-v3",
+ "games": 200,
+ "results": [
+  {
+   "field": "corrected",
+   "weighted_delta": 0.030000000000000027,
+   "pooled_delta": 0.030000000000000027,
+   "pooled_ci": [
+    -0.05311608933404169,
+    0.11262317814906304
+   ],
+   "exceptions": 0,
+   "rows": [
+    {
+     "cell": "Alakazam",
+     "share": 0.2744,
+     "a": {
+      "wins": 156,
+      "decided": 200,
+      "winrate": 0.78,
+      "ci": [
+       0.7176120008170632,
+       0.8318346164116674
+      ],
+      "exceptions": 0,
+      "seat_wins": [
+       82,
+       74
+      ],
+      "seat_decided": [
+       100,
+       100
+      ]
+     },
+     "b": {
+      "wins": 150,
+      "decided": 200,
+      "winrate": 0.75,
+      "ci": [
+       0.6856590168795417,
+       0.8049183199318249
+      ],
+      "exceptions": 0,
+      "seat_wins": [
+       76,
+       74
+      ],
+      "seat_decided": [
+       100,
+       100
+      ]
+     },
+     "diff": 0.030000000000000027,
+     "ci": [
+      -0.05311608933404169,
+      0.11262317814906304
+     ],
+     "verdict": "=",
+     "seats": [
+      0.05999999999999994,
+      0.0
+     ]
+    }
+   ]
+  }
+ ]
+}
