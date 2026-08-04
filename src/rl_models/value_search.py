@@ -172,6 +172,16 @@ ALL_TIERS: Final[dict[str, ValueTier]] = {
         ValueTier("d6x8", 6, 8, 6, 6, 520.0),
         ValueTier("d6x12", 6, 12, 6, 8, 540.0),
         ValueTier("d8x12", 8, 12, 8, 8, 560.0),
+        # DEPTH-ISOLATING rungs. The tiers above vary depth, candidates,
+        # determinizations and beam together, so "d2x4 beat d6x12" cannot
+        # be read as a statement about depth -- it is four changes at
+        # once. These hold candidates=5, determinizations=6, beam=4 fixed
+        # and move ONLY depth, which is the comparison that answers
+        # whether searching further into our own turn helps at all.
+        ValueTier("iso-d1", 5, 6, 1, 4, 0.0),
+        ValueTier("iso-d2", 5, 6, 2, 4, 0.0),
+        ValueTier("iso-d3", 5, 6, 3, 4, 0.0),
+        ValueTier("iso-d4", 5, 6, 4, 4, 0.0),
     )
 }
 
@@ -352,8 +362,16 @@ def beam_search_turn(root, seat: int, candidates: list[int], depth: int,
                 entries.sort(key=lambda e: -e[0])
                 for value, node in entries[:max(1, beam)]:
                     live.append((cand, node))
-                    # a live node is also a legitimate stopping point
-                    best[cand] = max(best.get(cand, -2.0), value)
+            # NOTE: a live node's value prunes the beam and NOTHING else.
+            # It is tempting to fold it into best[cand] as well -- the
+            # position is real and the head was trained on mid-turn
+            # positions -- but we cannot STOP there: the engine keeps
+            # re-offering MAIN until something ends the turn. Counting it
+            # would credit a candidate with a position it cannot choose to
+            # hold, and would bias toward whichever candidate happened to
+            # get explored deeper, since later nodes in a turn have had
+            # more played and tend to score higher. Only horizons count:
+            # terminal, turn passed, depth cap, or nothing left to branch.
         else:
             live = []
         level += 1

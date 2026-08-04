@@ -7,6 +7,17 @@ slowness. So the only cost number that means anything is the wall time
 of a whole EPISODE, projected onto a box assumed ~3x slower than this
 one.
 
+WORKERS CONTAMINATE THIS MEASUREMENT. The first full run used 12
+workers on a 16-core box and reported 140 nodes/s; the same code with 4
+workers reported 741, and the bank shares moved by ~5x with it. Wall
+time under 12-way self-contention is not the wall time of a Kaggle
+agent, which runs alone. So this harness deliberately keeps the worker
+count LOW and buys sample size with games instead -- every other
+measurement in this repo shards wide for N, and copying that habit here
+silently inflated every cost number in the first curve. The winrates
+this run also produces are throwaway; strength is Stage C's job, at N
+that means something.
+
 This measures each rung of the value-search ladder separately (the
 shipped arm lets the guard pick; pinning a rung is how the CURVE gets
 built) and reports, per rung:
@@ -140,7 +151,10 @@ def measure(arm: str, cell_deck: str, opp_arm: str, games: int,
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--games", type=int, default=40)
-    parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument("--workers", type=int, default=2,
+                        help="keep LOW: this harness times episodes, and "
+                             "self-contention inflates them (12 workers "
+                             "read 5x slower than 4 on a 16-core box)")
     parser.add_argument("--arms", nargs="+", default=list(DEFAULT_ARMS))
     parser.add_argument("--cells", nargs="+", default=None)
     parser.add_argument("--opponent", type=str, default=CORRECTED_FIELD)
@@ -152,6 +166,11 @@ def main() -> None:
     if args.cells:
         wanted = {c.casefold() for c in args.cells}
         cells = tuple(c for c in DEFAULT_CELLS if c[0].casefold() in wanted)
+
+    if args.workers > 4:
+        print(f"WARNING: --workers {args.workers} — episode wall times will "
+              f"be inflated by self-contention and the bank shares below "
+              f"will be pessimistic by several times. Use 1-2 for cost.")
 
     t0 = time.perf_counter()
     rows = []
