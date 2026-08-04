@@ -12,6 +12,10 @@
 /data/processed/meta_radar/
 /data/processed/portfolio/
 /data/processed/search_validation/
+# Value-head position corpus (rebuilt in ~10 min:
+# python -m src.rl_models.value_collect --games 2400 --stride 12).
+# The exported models/value_crustle.npz used at runtime IS versioned.
+/data/processed/value_crustle/
 /data/portfolio_watch.md
 /data/processed/effects_to_review.csv
 

@@ -1,0 +1,64 @@
+{
+ "opponent": "heuristic-tempo-scaled-routing-gust-conserve,8",
+ "games": 8,
+ "rows": [
+  {
+   "arm": "value-search-fixed,d2x4",
+   "episodes": 8,
+   "median_wall_s": 3.898416099997121,
+   "p95_wall_s": 4.317080799926771,
+   "max_wall_s": 4.317080799926771,
+   "projected_max_s": 12.951242399780313,
+   "bank_share": 0.021585403999633854,
+   "winrate": 0.375,
+   "wins": 3,
+   "losses": 5,
+   "exceptions_games": 0,
+   "tiers": {
+    "d2x4": 169
+   },
+   "decisions": 670,
+   "searched": 169,
+   "changed": 111,
+   "nodes": 7534,
+   "leaves": 6184,
+   "leaf_batches": 1020,
+   "node_caps": 0,
+   "exceptions": 0,
+   "skipped_reserve": 0,
+   "skipped_projection": 0,
+   "search_time_s": 20.026612399946316,
+   "depth_reached": 1,
+   "cell": "grimmsnarl"
+  },
+  {
+   "arm": "value-search-fixed,d4x8",
+   "episodes": 8,
+   "median_wall_s": 13.187386800025706,
+   "p95_wall_s": 27.342835099931108,
+   "max_wall_s": 27.342835099931108,
+   "projected_max_s": 82.02850529979332,
+   "bank_share": 0.13671417549965553,
+   "winrate": 0.5,
+   "wins": 4,
+   "losses": 4,
+   "exceptions_games": 0,
+   "tiers": {
+    "d4x8": 175
+   },
+   "decisions": 762,
+   "searched": 175,
+   "changed": 125,
+   "nodes": 83965,
+   "leaves": 85752,
+   "leaf_batches": 6188,
+   "node_caps": 0,
+   "exceptions": 0,
+   "skipped_reserve": 0,
+   "skipped_projection": 0,
+   "search_time_s": 103.40269579991582,
+   "depth_reached": 3,
+   "cell": "grimmsnarl"
+  }
+ ]
+}

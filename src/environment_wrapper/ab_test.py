@@ -115,6 +115,19 @@ ARM_KINDS: Final[tuple[str, ...]] = (
     # fidelity ladder be built on one opponent: exact clone, a DIFFERENT
     # human's clone of the same archetype, or none at all.
     "search-net", "search-net-adaptive",
+    # VALUE-LEAF search (Stage B). Same prior, same estimator, same
+    # budget guard; the leaf is the trained value head instead of a
+    # rollout, and the search runs a beam over the whole remainder of
+    # OUR turn rather than one micro-action. No opponent policy is
+    # simulated at any point.
+    #   "-blind"    search off -> byte-for-byte the prior (the FLOOR arm)
+    #   "-fixed"    pin one rung of the ladder: "value-search-fixed,d3x6".
+    #               The budget CURVE is measured by pinning rungs; the
+    #               shipped arm lets the guard choose.
+    #   "-full"     no contested filter (every eligible decision), which
+    #               is the upper bound on both cost and effect
+    "value-search", "value-search-blind", "value-search-fixed",
+    "value-search-full",
     # parametric league pilot: "grimmsnarl-module" flies meta_grimmsnarl
     # with GrimmsnarlModule + its shipped theta. Needed as an opponent
     # that is NOT the rollout model.
@@ -125,6 +138,10 @@ SEARCH_ARMS: Final[frozenset[str]] = frozenset(
     {"search-crustle", "search-crustle-blind", "search-crustle-match",
      "search-crustle-margin", "search-crustle-both",
      "search-crustle-adaptive", "search-net", "search-net-adaptive"})
+
+VALUE_SEARCH_ARMS: Final[frozenset[str]] = frozenset(
+    {"value-search", "value-search-blind", "value-search-fixed",
+     "value-search-full"})
 
 # One extra win in four determinizations — the smallest gain a 4x4
 # search can express that is not a single lucky rollout.
@@ -305,7 +322,50 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
     ``deck`` is the arm's OWN 60. Search arms need it to determinize
     their own hidden zones; the other kinds ignore it.
     """
-    if spec.kind in SEARCH_ARMS:
+    if spec.kind in VALUE_SEARCH_ARMS:
+        from ..rl_models.budget import BudgetGuard, BudgetStats
+        from ..rl_models.opponent_estimator import (EstimatorStats,
+                                                    OpponentDeckEstimator)
+        from ..rl_models.runtime_search_agent import DEFAULT_CONTESTED_MARGIN
+        from ..rl_models.value_search import (ALL_TIERS, DEFAULT_VALUE_LADDER,
+                                              NODE_PRIOR_S, ValueSearchStats)
+        from ..rl_models.value_search_agent import ValueSearchAgent
+
+        search_stats = ValueSearchStats()
+        budget_stats = BudgetStats()
+        estimator_stats = EstimatorStats()
+        metrics.search = search_stats
+        metrics.budget = budget_stats
+        metrics.estimator = estimator_stats
+
+        fixed = None
+        if spec.kind == "value-search-fixed":
+            if spec.weights is None:
+                raise SystemExit("value-search-fixed needs ,<tier> "
+                                 "(e.g. value-search-fixed,d3x6)")
+            wanted = spec.weights.name
+            by_name = ALL_TIERS
+            if wanted not in by_name:
+                raise SystemExit(f"unknown tier '{wanted}' "
+                                 f"(have {sorted(by_name)})")
+            fixed = by_name[wanted]
+        contested = (None if spec.kind == "value-search-full"
+                     else DEFAULT_CONTESTED_MARGIN)
+
+        def base(s: int) -> Agent:
+            return ValueSearchAgent(
+                index=index, effects=effects, seed=s,
+                own_deck_ids=deck or [],
+                enable_search=spec.kind != "value-search-blind",
+                contested_margin=contested,
+                fixed_tier=fixed,
+                estimator=OpponentDeckEstimator(index=index,
+                                                stats=estimator_stats),
+                guard=BudgetGuard(ladder=DEFAULT_VALUE_LADDER,
+                                  rollout_prior_s=NODE_PRIOR_S,
+                                  stats=budget_stats),
+                stats=search_stats)
+    elif spec.kind in SEARCH_ARMS:
         from ..rl_models.budget import BudgetGuard, BudgetStats
         from ..rl_models.opponent_estimator import (EstimatorStats,
                                                     OpponentDeckEstimator)
