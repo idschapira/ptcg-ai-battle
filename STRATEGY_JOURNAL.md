@@ -1460,3 +1460,102 @@ reais) como o Alakazam (59) e comparavam dois intervalos de Wilson a olho.
 - `src/analysis/pilot_ab.py`: A/B relativo ponderado pelo campo real (NOVO)
 - `tests/test_crustle_v4.py`: sinal de ameaca sobre tabuleiros REAIS, escopo da regra como
   contrato, e v4 == v3 na ausencia do gatilho
+
+## [04/Ago] Folha por VALUE: o leaf deixou de depender do modelo de oponente, e a profundidade nao pagou
+A busca que ficou no gaveta em 29/Jul falhou por uma razao especifica e medida: o valor de cada
+folha era um ROLLOUT, e o ganho da busca era monotono na fidelidade com que a nossa politica de
+rollout imitava o adversario (+14,7pp contra a propria heuristica que ela usava como modelo,
++6,3pp contra um agente parametrico que herda dessa heuristica, **-2,5pp contra um clone de
+comportamento**). Nao era "a busca funciona"; era "a busca funciona contra quem ela ja sabe
+simular". Esta rodada troca a folha e mede de novo.
+
+### 1. Stage A -- o value head (GATE A: PASS)
+Corpus de **375.592 posicoes de 31.200 jogos** (`src/rl_models/value_collect.py`), o ship contra o
+campo corrigido E contra clones de humanos reais (BC-Majkel, BC-Yushin, BC-Luca, BC-Dries,
+BC-Spidops). 13 celulas, 0 excecoes, 9,8 min.
+
+Grava **os dois assentos**, e o valor e sempre "prob. de vitoria de quem esta para jogar". Nao e
+dado extra por esporte: dentro da busca, um candidato que encerra o turno cai num no do OPONENTE,
+entao o head precisa precificar esses. Uma convencao, um sinal, e a busca nega quando nao somos nos.
+
+Head treinado com BCE + dropout 0,3, held-out **por JOGO**. Resultado (`value_crustle.metrics.json`):
+
+| metrica | valor |
+|---|---|
+| Brier do modelo | **0,1457** (trivial 0,25) |
+| Brier base-rate por celula x assento | 0,1701 -> **skill +14,3%** |
+| Pearson(value, z) | +0,646 |
+| AUC no nosso assento, campo corrigido | 0,697 -- 0,790 |
+| AUC no nosso assento, **CLONES** | **0,725 -- 0,786** |
+| pior gap de calibracao (10 baldes) | 0,019 |
+
+**A baseline honesta nao e 0,25.** A primeira auditoria dava skill +34,6% e estava me enganando:
+como gravamos os dois assentos, a marginal por celula fica ~0,5 e uma baseline "por celula" parece
+trivial -- enquanto o head colhia a maior parte do credito por **saber QUAL matchup era** (+71% na
+Lucario, onde ganhamos 92%). Esse sinal e constante entre folhas irmas de uma mesma decisao, entao
+**nao muda ranking nenhum**. A baseline virou por (celula x assento) e o numero caiu para +14,3%.
+
+**A linha que decide e a dos clones.** O head precifica posicoes tao bem contra oponentes que ele
+nao modela quanto contra o nosso proprio campo. E exatamente onde a folha por rollout ruia.
+
+Ressalva honesta: nas tres celulas que ja ganhamos 91-96% (Lucario, Kangaskhan, Archaludon) o
+skill de Brier e nulo ou negativo (-69,7% na Kangaskhan, sobre uma baseline de 0,0233) mesmo com
+AUC saudavel de 0,73. O head **ordena** bem ali, mas nao acrescenta calibracao onde ja ganhamos.
+
+### 2. Stage B -- a busca de turno (GATE B: PASS)
+Medido em jogo real: o **nosso proprio turno tem 5,2 decisoes de profundidade** (mediana 4, p90 11,
+max 17) e fator de ramificacao **4,6**. Ou seja, o resto do turno e buscavel -- e todo no entre a
+raiz e a folha e decisao NOSSA. A busca **nao modela a politica do oponente em ponto nenhum**; ele
+aparece so como a posicao que herda no horizonte. Essa e a resposta estrutural ao achado de 29/Jul.
+
+Curva de orcamento sem contencao (785 nos/s, projecao 3x contra o banco de 600 s):
+
+| camada | prof. do beam | nos/decisao | pior fatia do banco |
+|---|---|---|---|
+| d2x4 | 1 | 50 | **1%** |
+| d3x6 | 2 | 171 | **6%** |
+| d4x8 | 3 | 497 | **10%** |
+| d6x8 | 5 | 557 | **21%** |
+
+Contra 46-49% que a busca por rollout gastava para 1-ply. 0 excecoes em 1,08M nos.
+
+**Custo honesto: 1,35 ms/no**, ~120x mais barato que uma folha por rollout (~162 ms) -- nao os
+~500x que um bench dos primitivos isolados sugere. O profiler poe **79% do tempo dentro de
+`cg.api.search_step`**, onde o motor reconstroi a resposta JSON em dataclasses. E custo do motor,
+qualquer busca paga por no, e a Regra n0 diz para nao contornar. O que deu para tirar era nosso: a
+primeira versao chamava `_to_dict` por no vivo para ler quatro campos, e `_to_dict` e
+`json.loads(json.dumps(asdict(...)))` -- 45% do tempo de busca, para quatro leituras de atributo.
+
+### 3. O erro de medicao que eu cometi, porque e o reflexo do repo
+A **primeira** curva rodou com 12 workers numa maquina de 16 cores medindo **wall de episodio**. Os
+processos disputaram CPU entre si: 140 nos/s contra 785 sem contencao, e toda a tabela saiu
+inflada ~5x (o d6x8 aparecia como 119% do banco, "OVER BUDGET"). Em Kaggle o agente roda sozinho.
+
+O reflexo aqui e shardear largo para conseguir N -- e e o certo para winrate, que nao se importa
+com contencao. Para **custo** ele corrompe exatamente a metrica que se quer medir. A harness agora
+avisa acima de 4 workers e o default caiu para 2.
+
+### 4. O sinal que INVERTE a premissa do estagio
+A tese da rodada era "folha barata compra ordens de grandeza mais nos, entao va FUNDO". Os
+winrates informais da curva (N=144/braco, IC ~+-8pp) dizem o contrario:
+
+| camada | d2x4 | d3x6 | d4x8 | d6x8 | d6x12 |
+|---|---|---|---|---|---|
+| winrate | **70,1%** | 66,7% | 63,2% | 64,6% | **59,7%** |
+
+Declinio ~monotono em profundidade. E a assinatura da **maldicao do vencedor**, a mesma hipotese
+que a rodada de 29/Jul levantou para o rollout: um max sobre mais folhas de um avaliador ruidoso
+seleciona cada vez mais quem teve sorte, e nao a melhor linha. Sintoma coerente: a busca troca a
+resposta do prior em **55-75%** das decisoes buscadas, contra 22% da busca por rollout.
+
+As camadas existentes movem quatro botoes juntos (profundidade, candidatos, determinizacoes,
+beam), entao "d2x4 ganhou de d6x12" **nao e** uma afirmacao sobre profundidade. Dai as camadas
+`iso-d1..iso-d4`, com candidatos=5, determinizacoes=6 e beam=4 fixos e so a profundidade variando.
+O `iso-d1` e o controle que separa a troca de FOLHA da troca de PROFUNDIDADE -- e e a pergunta que
+de fato importa, porque se o ganho estiver todo no leaf, a versao barata e a que deve shipar.
+
+### 5. O piso, de novo, porque e o que torna o candidato descartavel sem custo
+10 testes de contrato (`tests/test_value_search_agent.py`), incluindo **identidade exata
+decisao-a-decisao** com o `CrustleAgent` v3 sobre um jogo real de motor, e degradacao para o prior
+quando o value head some do disco. Todo caminho de falha -- estimador sem confianca, banco no
+limite, determinizador que nao fecha, head ausente, excecao -- cai no agente que ja esta no ar.
