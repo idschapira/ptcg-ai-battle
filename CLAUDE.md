@@ -164,6 +164,19 @@ promover um sem o outro; value head congelado/descalibrado (critic é da 5C). O 
 (`src/deckbuilding/gauntlet.py`) mede força-de-deck condicionada ao piloto. Próximo: monitorar ELO
 do ship; 5C (self-play RL) e/ou pilotos especializados para outros decks (Dragapult).
 
+**Candidato REJEITADO — busca com folha por VALUE (04/Ago, não submetido).** `ValueSearchAgent`
+= v3 + beam sobre o resto do NOSSO turno com folha = value head treinado (`models/
+value_crustle.npz`). Gates A e B passaram (Brier 0,1457; 6 plies por 21% do banco; 0 exceções em
+7,5M nós); **Gate C reprovou: −0,28pp, IC95 [−3,15, +2,59]** vs o ship no campo dos clones,
+N≈2.000/braço. **Não é falta de poder — o efeito é zero.** O que a rodada PROVOU e vale reusar:
+(a) a dependência do modelo de oponente foi de fato removida (clones e campo corrigido dão o mesmo
+número — a ladder de fidelidade de 29/Jul não se reproduz); (b) o head NÃO é ruído — a sonda de
+inversão custa −34pp, então ele tem sinal grande e com o sinal certo; (c) **o gargalo é que o v3 já
+é o juiz mais fino na faixa contestada** — juízo grosso (AUC 0,74) derrubando juízo fino em 55–75%
+das decisões custa alguns pp, e a margem converte a perda em empate, não em ganho. Não repetir sem
+Expert Iteration (treinar o head nas posições que a BUSCA visita — as folhas de busca estão fora da
+distribuição de treino). Ver STRATEGY_JOURNAL [04/Ago].
+
 **Candidato em avaliação — `search_crustle` (NÃO submetido).** Mesmo deck do Final A, piloto =
 `RuntimeSearchAgent` = CrustleAgent v3 + busca rasa determinizada que só dispara com (a) leitura
 confiante do arquétipo do oponente e (b) banco de tempo disponível. **O piso é o ship atual**:
