@@ -65,18 +65,23 @@ _DAY_RE: Final[re.Pattern[str]] = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 # refs das submissões que compõem o portfólio (elo_log usa ref do CLI)
 FINALS: Final[dict[str, str]] = {
-    "54917180": "Final A (Crustle e10, V4 re-sub 23/Jul)",
-    "54917174": "Grimmsnarl heurístico (A/B — piloto)",
-    "54841794": "Grimmsnarl BC (A/B — controle)",
+    "55223194": "Final A (Crustle e10 + v3 — endgame 1/2, 03/Ago)",
+    "55224112": "Final B (Crustle e10 + v3 — endgame 2/2, 04/Ago)",
 }
-# cap Kaggle = 3 ativas; auto-aposenta a MAIS ANTIGA POR DATA (não a de
-# pior score). Em 23/Jul dois submits manuais entraram: o heurístico-
-# Grimmsnarl (54917174, A/B) e uma RE-SUB da Crustle V4 (54917180) — o
-# re-submit renova a data e mantém o Final A ativo. Os dois bumps
-# evictaram a Spidops (54791820) E a Crustle V4 antiga (54667957, cujo
-# ELO 831.9 foi perdido — o re-sub re-entra em placement). Ativas agora =
-# o A/B Grimmsnarl limpo (heur vs BC, MESMO deck) + Crustle.
-ACTIVE_REFS: Final[tuple[str, ...]] = ("54917180", "54917174", "54841794")
+# cap Kaggle = 2 ativas; auto-aposenta a MAIS ANTIGA POR DATA (não a de
+# pior score). Ritual de endgame (03-04/Ago): a MESMA tar do Crustle
+# (deck e10 + CrustleAgent v3) subiu DUAS vezes, porque o rank do time é
+# o do MELHOR agente ativo — duas entradas do mesmo agente são dois
+# sorteios independentes do placement, e fica o melhor. O submit 1/2
+# evictou a Crustle 54917180 (23/Jul, ELO 714.4 perdido) e o 2/2
+# evictou a Abomasnow (55015949, 27/Jul). Ambas re-entram em μ0=600.
+#
+# ⚠️ As duas ativas agora são o MESMO agente sobre o MESMO deck: a
+# guarda de eviction abaixo continua válida (uma congelar enquanto a
+# outra anda = eviction), mas a cobertura de arquétipo do portfólio
+# passou a ser a do Crustle sozinho — COVERED_ARCHETYPES ainda descreve
+# o par A+B antigo e vai subestimar os buracos até ser revisto.
+ACTIVE_REFS: Final[tuple[str, ...]] = ("55223194", "55224112")
 
 # arquétipos que a dupla A+B cobre (medidos no gauntlet honesto) — o
 # buraco conhecido (Starmie) tem alerta próprio via ignore-effects.

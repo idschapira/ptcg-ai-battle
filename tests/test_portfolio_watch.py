@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import unittest
 
-from src.analysis.portfolio_watch import (DaySnapshot, EloSeries,
-                                          WatchConfig, evaluate_alerts,
-                                          eviction_guard)
+from src.analysis.portfolio_watch import (ACTIVE_REFS, FINALS, DaySnapshot,
+                                          EloSeries, WatchConfig,
+                                          evaluate_alerts, eviction_guard)
 
 
 def _snap(day: str, shares: dict[str, float],
@@ -73,20 +73,26 @@ class TestRadarAlerts(unittest.TestCase):
 
 
 class TestEvictionGuard(unittest.TestCase):
+    """As séries são montadas a partir de ACTIVE_REFS, nunca de refs
+    cravados: o portfólio roda (submissão nova evicta a mais antiga por
+    data), e fixtures com ref literal passam a testar submissão
+    aposentada — a guarda devolve [] e o teste quebra sem nenhum bug.
+    Foi exatamente o que aconteceu com 54791820/54667957."""
 
-    def _series(self, final_scores: list[float],
-                other_scores: list[float]) -> EloSeries:
+    def _series(self, first_scores: list[float],
+                second_scores: list[float]) -> EloSeries:
         series = EloSeries()
-        days = [f"2026-07-{d:02d}" for d in range(10, 10 + len(final_scores))]
-        series.by_ref["54791820"] = list(zip(days, final_scores))
-        series.by_ref["54667957"] = list(zip(days, other_scores))
+        days = [f"2026-07-{d:02d}" for d in range(10, 10 + len(first_scores))]
+        series.by_ref[ACTIVE_REFS[0]] = list(zip(days, first_scores))
+        series.by_ref[ACTIVE_REFS[1]] = list(zip(days, second_scores))
         return series
 
     def test_static_final_while_other_moves_fires(self) -> None:
         series = self._series([600.0, 600.0, 600.0], [860.0, 861.0, 862.0])
         alerts = eviction_guard(series)
-        self.assertTrue(any("GUARDA" in a and "Final B" in a for a in alerts),
-                        alerts)
+        self.assertTrue(
+            any("GUARDA" in a and FINALS[ACTIVE_REFS[0]] in a
+                for a in alerts), alerts)
 
     def test_everything_static_is_quiet(self) -> None:
         # ninguém se moveu (ex.: ladder parado) — sem evidência de eviction
@@ -98,11 +104,19 @@ class TestEvictionGuard(unittest.TestCase):
         self.assertEqual(eviction_guard(series), [])
 
     def test_static_other_final_fires_not_the_moving_one(self) -> None:
-        # B subindo, A estático -> a guarda acusa exatamente o A
+        # a 2ª subindo, a 1ª estática -> a guarda acusa exatamente a 1ª
         series = self._series([600.0, 640.0, 700.0], [861.0, 861.0, 861.0])
         alerts = eviction_guard(series)
-        self.assertTrue(any("Final A" in a for a in alerts), alerts)
-        self.assertFalse(any("Final B" in a for a in alerts), alerts)
+        self.assertTrue(
+            any(FINALS[ACTIVE_REFS[1]] in a for a in alerts), alerts)
+        self.assertFalse(
+            any(FINALS[ACTIVE_REFS[0]] in a for a in alerts), alerts)
+
+    def test_every_active_ref_has_a_label(self) -> None:
+        # a guarda indexa FINALS[ref] ao disparar: um ref ativo sem label
+        # seria KeyError no exato momento do alerta.
+        for ref in ACTIVE_REFS:
+            self.assertIn(ref, FINALS, ref)
 
 
 if __name__ == "__main__":
