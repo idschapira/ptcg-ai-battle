@@ -41,6 +41,8 @@
 /submission_spidops.tar.gz
 /submission_grimmsnarl.tar.gz
 /submission_grimmsnarl_heur.tar.gz
+/submission_crustle_nzaccess.tar.gz
+/submission_abomasnow.tar.gz
 
 # Recorded dev games (regenerate: selfplay --record viewer/recordings);
 # viewer/sample_game.json stays versioned as a small working example
