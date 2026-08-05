@@ -139,6 +139,33 @@ TARGETS: Final[dict[str, TargetConfig]] = {
             'assert env["_agent"]._v3 is True, "packaged pilot must be the v3 variant"\n'
         ),
     ),
+    # Same artifact as "crustle" in EVERY respect except the 60 we play:
+    # same main.py, same CrustleAgent v3, same bundle, same rollback
+    # weights. The deck differs by two cards (-1 Ultra Ball, -1 Jumbo Ice
+    # Cream, +2 Colress's Tenacity) — the access variant measured at
+    # +2,80pp [+1,40;+4,20] over 9.597 games/arm, replicated on an
+    # independent seed (05/Ago). deck.csv on disk is NOT touched: the
+    # variant is packaged AS deck.csv via arcname, so the pure-Crustle
+    # slot stays reproducible from HEAD while both run side by side.
+    "crustle_nzaccess": TargetConfig(
+        name="crustle_nzaccess",
+        output_name="submission_crustle_nzaccess.tar.gz",
+        main_source="main.py",
+        deck_source="data/decks/variant_crustle_nzaccess.csv",
+        extra_entries=("src/agent_heuristics/crustle_agent.py",
+                       "models/policy_value.npz"),
+        deck_sentinel=345,  # Crustle
+        pilot_assert_module=(
+            'assert type(main._agent).__name__ == "CrustleAgent", type(main._agent)\n'
+            'assert main._agent._v3 is True, "packaged pilot must be the v3 variant"\n'
+            'from src.rl_models.network_agent import NetworkAgent\n'
+            'rollback = NetworkAgent(deck_path="deck.csv")\n'
+            'assert rollback._fallback is None, "rollback network weights not in bundle"\n'
+        ),
+        pilot_assert_exec=(
+            'assert env["_agent"]._v3 is True, "packaged pilot must be the v3 variant"\n'
+        ),
+    ),
     "spidops": TargetConfig(
         name="spidops",
         output_name="submission_spidops.tar.gz",
