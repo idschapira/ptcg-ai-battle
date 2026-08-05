@@ -48,19 +48,21 @@ OUT_DIR: Final[Path] = REPO_ROOT / "data" / "processed" / "pilot_ab"
 # calibration produced (mean absolute error 28.8pp, the best we have).
 CORRECTED_FIELD: Final[str] = "heuristic-tempo-scaled-routing-gust-conserve,8"
 
-# (cell, decklist, share of OUR real ladder). Shares from
-# field_coverage.json — the 215 decided games of submission 54917180.
-# "unknown" (7.0%) has no decklist and is left out of the weighting, so
-# the weights below are renormalised over what we can actually play.
+# (cell, decklist, share of OUR real ladder). Shares REFRESHED 05/Ago
+# from the 604-game census over the FOUR same-artifact submissions
+# (54667957, 54917180, 55223194, 55224112) — seat cross-checked against
+# the ListEpisodes submissionId. Cells without a mined decklist are left
+# out of the weighting: "unknown" 9.6%, Dragapult 4.0% (seed only),
+# Crustle-stall-other 1.5%, Iono 0.5%, Slowking 0.2%.
 FIELD: Final[tuple[tuple[str, str, float], ...]] = (
-    ("Alakazam",     "data/decks/meta_alakazam.csv",           0.2744),
-    ("Grimmsnarl",   "data/decks/meta_grimmsnarl.csv",         0.1674),
-    ("Mega Lucario", "data/decks/meta_mega_lucario.csv",       0.1488),
-    ("Archaludon",   "data/decks/meta_archaludon.csv",         0.1488),
-    ("Kangaskhan",   "data/decks/meta_crustle_kangaskhan.csv", 0.0558),
-    ("Starmie",      "data/decks/meta_starmie.csv",            0.0372),
-    ("Spidops",      "data/decks/meta_spidops.csv",            0.0372),
-    ("mirror",       "deck.csv",                               0.0186),
+    ("Alakazam",     "data/decks/meta_alakazam.csv",           0.2765),
+    ("Archaludon",   "data/decks/meta_archaludon.csv",         0.1573),
+    ("Grimmsnarl",   "data/decks/meta_grimmsnarl.csv",         0.1242),
+    ("Mega Lucario", "data/decks/meta_mega_lucario.csv",       0.1192),
+    ("Starmie",      "data/decks/meta_starmie.csv",            0.0563),
+    ("Kangaskhan",   "data/decks/meta_crustle_kangaskhan.csv", 0.0480),
+    ("Spidops",      "data/decks/meta_spidops.csv",            0.0414),
+    ("mirror",       "deck.csv",                               0.0199),
 )
 
 
@@ -170,7 +172,8 @@ def main() -> None:
     print("  " + "-" * 96)
     print(f"  AGREGADO ponderado pelo campo REAL: "
           f"{weighted / total_w * 100:+.2f}pp   (pesos somam {total_w:.1%}; "
-          f"'unknown' 7,0% fica de fora por nao ter decklist)")
+          f"celulas sem decklist minerada ficam de fora: 'unknown' 9,6%, "
+          f"Dragapult 4,0%, Crustle-stall 1,5%, Iono 0,5%, Slowking 0,2%)")
     exceptions = sum(r["a"]["exceptions"] + r["b"]["exceptions"] for r in rows)
     print(f"  exceptions no total: {exceptions} (tem de ser 0)")
     print(f"  wall {(time.perf_counter() - t0) / 60:.1f} min")

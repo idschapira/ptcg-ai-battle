@@ -1460,3 +1460,47 @@ reais) como o Alakazam (59) e comparavam dois intervalos de Wilson a olho.
 - `src/analysis/pilot_ab.py`: A/B relativo ponderado pelo campo real (NOVO)
 - `tests/test_crustle_v4.py`: sinal de ameaca sobre tabuleiros REAIS, escopo da regra como
   contrato, e v4 == v3 na ausencia do gatilho
+
+## [05/Ago] Densidade de Neutralization Zone: a premissa é ILEGAL — e o que funcionou foi o ACESSO
+Tudo OFFLINE, produção intocada (`deck.csv`/`main.py` com diff vazio), 345 testes verdes (1 skip
+pré-existente), 0 exceptions em todas as corridas.
+
+**A restrição, confirmada por PROBE (não por leitura): a Neutralization Zone é ACE SPEC**
+(`aceSpec=True`), logo o cap é **1 cópia** — já rodamos o máximo. O motor **rejeita** o deck com 2x
+e com 3x (`battle_start` devolve `obs=None`, `errorType=4`), contra o controle de 1x que passa
+(`errorPlayer=-1`). Ou seja, **as variantes +1/+2/+3 pedidas não existem**. O texto
+"can't be put into your hand or deck from the discard pile" fecha o resto: bumpada pelo Spikemuth
+Gym (69,3% do slot na célula Grimmsnarl), a cópia única acabou — não há ciclagem.
+
+**O que dá para fazer legalmente são duas coisas diferentes, e só uma funcionou.** Cortes
+justificados por uso REAL medido nos 147 jogos de ladder: Jumbo Ice Cream **0,03 jogadas/jogo**
+(ofertada 7 vezes em 147 jogos — carta morta) e Ultra Ball 0,22/jogo (e é self-thinner, suprimida
+pela regra (i)); Pokégear 0,48/jogo e Poké Pad 1,12/jogo saem só nas doses altas.
+
+1. **Armadura do Tusk (Sacred Charm, Tool, −30 de atacante COM ability).** Casa com o mecanismo:
+   Marnie's Grimmsnarl ex tem ability, então o snipe de 30 do Shadow Bullet vira 0. **Confirmado por
+   probe em 200 jogos: Great Tusk no banco COM tool = 0 eventos de dano; SEM tool = 96 eventos,
+   mediana exatamente 30** (histograma {30:94, 20:2}). A carta faz exatamente o que promete.
+   **E não adianta:** no ATIVO o dano é 140 com tool e 140 sem — Shadow Bullet bate 180, e 180−30
+   =150 ainda mata um Tusk de 140 HP. O ativo é onde ele morre (282 eventos contra 96 no banco).
+   A/B (N=600/célula, Newcombe, 8 células, pesos do censo de 604 jogos): charm2 **+1,25pp**
+   [−0,78;+3,28], charm3 **+0,23** [−1,77;+2,23], charm4 **−0,39** [−2,39;+1,61] — todos NULOS, e
+   monotonicamente PIORES com a dose (a carta só cobre uma minoria das mortes e o corte cobra).
+2. **Acesso à cópia única (`nzaccess` = −Jumbo −Ultra Ball, +2 Colress's Tenacity, 2→4).**
+   Mecanismo ANDOU: uptime da NZ +4,3pp (Grimmsnarl 13,9→18,2%), +8,7pp (Lucario 35,3→44,0%),
+   +5,3pp (Alakazam 14,0→19,3%); Tusk vivo no fim +8,0pp no Lucario. Winrate ANDOU JUNTO:
+   **+3,02pp [+1,06;+4,99]**, e a RÉPLICA em seed independente deu **+2,57pp [+0,59;+4,55]**.
+   **Pooled (9.597 jogos/braço): +2,80pp [+1,40;+4,20].** Todas as células grandes positivas
+   (Alakazam +5,1 · Grimmsnarl +3,4 · Starmie +2,8 · Archaludon +2,2), **os dois assentos positivos**
+   nas grandes (não é artefato de assento), única negativa Spidops (−1,8, peso 4,1%).
+
+**Leitura honesta.** O `pilot_ab` é instrumento RELATIVO — o campo interno não prevê ladder em
+absoluto (Grimmsnarl interno ~44-47% contra 30,7% real), então +2,80pp é ordenação, não previsão.
+Mas é o primeiro delta de DECK que (a) replica em seed independente, (b) tem IC que exclui zero
+sobre ~9,6k jogos/braço, e (c) vem acompanhado do mecanismo que a evidência de ladder já apontava
+como causal. As variantes de deck anteriores (corpos/mill/energia/Fossil) mediram nulo ou negativo.
+
+**Nota de contexto para a decisão (não é recomendação de ship):** as duas vagas ativas são Crustles
+IDÊNTICOS (54917180 e as duas do endgame são o mesmo artefato), e o rank do time é o MELHOR agente,
+não a média — trocar UMA delas por `nzaccess` é free roll. **Nada shipado, nada implementado no
+piloto.** Fica em `data/decks/variant_crustle_nzaccess.csv`.
