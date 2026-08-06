@@ -1504,3 +1504,47 @@ como causal. As variantes de deck anteriores (corpos/mill/energia/Fossil) medira
 IDÊNTICOS (54917180 e as duas do endgame são o mesmo artefato), e o rank do time é o MELHOR agente,
 não a média — trocar UMA delas por `nzaccess` é free roll. **Nada shipado, nada implementado no
 piloto.** Fica em `data/decks/variant_crustle_nzaccess.csv`.
+
+## [06/Ago] Acesso ao Guidance: o mesmo template da NZ, e desta vez FALHOU — o gargalo é o piloto
+Tudo OFFLINE, produção intocada (`deck.csv`, `main.py` e `agent_heuristics/` com diff vazio), as 2 vagas
+do ladder não foram tocadas, 345 testes verdes (1 skip), 0 exceptions.
+
+**A causa da indisponibilidade, medida nos 318 turnos de Land Collapse sem combo (147 jogos reais):**
+84,9% é FALTA DE ACESSO — 58,2% com parte das cópias já no descarte e o resto sem chegar, 26,7% com
+nenhuma cópia vista. Só **1,3%** tinha as 4 cópias gastas (recuperação do descarte está descartada
+como resposta) e só **1,3%** travou por slot de supporter. Decisão do piloto (na mão e não jogado):
+12,3%, o mesmo vazamento pequeno já reportado em 04/Ago. **Logo a carta certa é busca, não recuperação.**
+
+**Candidata do pool (texto real + probe):** `Team Rocket's Great Ball` (Item, não-ACE, "Search your deck
+for a Trainer card" — SEM restrição, confirmado; é tutor determinístico e não disputa o slot de supporter,
+ao contrário de qualquer supporter de saque). Variantes sobre a NZACCESS: **gb2** (−2 Pokégear +2 Great
+Ball), **gb4** (−2 Pokégear −2 Lisia's Appeal +4), **gb2plus** (−2 Lisia's Appeal +2).
+
+**A/B vs NZACCESS (N=600/célula, 8 células, Newcombe, pesos do censo de 604 jogos, ~4.800 jogos/braço):**
+gb2 **−0,43pp** [−2,33;+1,46] NULO (réplica em seed independente: **−0,28pp**) · gb2plus **−4,05pp**
+[−6,03;−2,07] PIOR · gb4 **−5,78pp** [−7,78;−3,77] PIOR.
+
+**E o mecanismo NÃO andou** — andou para trás, monotonicamente com a dose de Great Ball. Guidance na mão
+(Grimmsnarl/Lucario): base 29,8/28,5% · gb2plus 28,5/26,0 · gb2 27,1/25,2 · gb4 **26,0/24,6**. Combo (turnos
+que milaram ≥4): base 7,9/7,8% · gb4 **5,6/6,1**. Nenhuma variante subiu a disponibilidade. Isto NÃO é
+"direção certa, potência insuficiente" (o caso que a NZ resolveu): é INSTRUMENTO ERRADO.
+
+**A causa, provada por probe do que o piloto realmente pega.** Em 120 jogos o gb4 joga Great Ball **218
+vezes** (1,8/jogo) — e o Explorer's Guidance SAI do top-8 das cartas buscadas (era 7º, com 79, na base).
+O tutor gasta-se em Great Tusk, Crustle, Mist, energias. O motivo está em `_search_value`: Guidance vale
+**95 só quando `_great_tusk_ready`**, e **40** caso contrário — abaixo de Great Tusk (85) e das peças que
+o deck já busca com Poffin/Poké Pad/Fighting Gong. **A ESTREITEZA do Pokégear era uma FUNCIONALIDADE**:
+olhar só Supporters impede a política de gastar a busca errado. Trocar por um tutor mais poderoso entregou
+a escolha a uma prioridade que não quer o Guidance.
+
+**Achado colateral que corrige um método nosso:** os dois braços PIORES são exatamente os que cortaram
+`Lisia's Appeal` (gb4 e gb2plus); o que a manteve (gb2) é nulo. Cortá-la custa ~4-5pp — e ela foi escolhida
+como corte por USO MEDIDO (0,82 jogadas/jogo). Frequência de jogada MISRANQUEIA valor, o mesmo erro que a
+Rock Fighting já tinha ensinado. O critério de corte por uso real precisa de um gate de ablação antes de
+virar corte. (Nota: a `Lisia's Appeal` é SUPPORTER e compete com o Guidance pelo slot — a hipótese de que
+cortá-la ajudaria era razoável e foi REFUTADA por medição.)
+
+**VEREDITO: nenhuma variante bate a NZACCESS. Nada shipado.** O gargalo do combo de mill não é densidade
+(Guidance já está no cap 4) nem acesso por carta — é a PRIORIDADE DE BUSCA do piloto. O experimento barato
+que sobra é de POLÍTICA, não de deck: subir o valor do Guidance em `_search_value` quando o mill é a
+win-condition viva, e só então re-testar o tutor. Não foi feito aqui (esta tarefa era de deck).
