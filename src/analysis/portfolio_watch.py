@@ -65,8 +65,8 @@ _DAY_RE: Final[re.Pattern[str]] = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 # refs das submissões que compõem o portfólio (elo_log usa ref do CLI)
 FINALS: Final[dict[str, str]] = {
-    "55223194": "Final A (Crustle e10 + v3 — endgame 1/2, 03/Ago)",
-    "55224112": "Final B (Crustle e10 + v3 — endgame 2/2, 04/Ago)",
+    "55224112": "Final A (Crustle e10 + v3 PURO — endgame 2/2, 04/Ago)",
+    "55287424": "Final B (Crustle e10 + NZ access, +2 Tenacity, 06/Ago)",
 }
 # cap Kaggle = 2 ativas; auto-aposenta a MAIS ANTIGA POR DATA (não a de
 # pior score). Ritual de endgame (03-04/Ago): a MESMA tar do Crustle
@@ -76,12 +76,21 @@ FINALS: Final[dict[str, str]] = {
 # evictou a Crustle 54917180 (23/Jul, ELO 714.4 perdido) e o 2/2
 # evictou a Abomasnow (55015949, 27/Jul). Ambas re-entram em μ0=600.
 #
-# ⚠️ As duas ativas agora são o MESMO agente sobre o MESMO deck: a
-# guarda de eviction abaixo continua válida (uma congelar enquanto a
-# outra anda = eviction), mas a cobertura de arquétipo do portfólio
-# passou a ser a do Crustle sozinho — COVERED_ARCHETYPES ainda descreve
-# o par A+B antigo e vai subestimar os buracos até ser revisto.
-ACTIVE_REFS: Final[tuple[str, ...]] = ("55223194", "55224112")
+# 06/Ago 03:45: shipada a 55287424 (Crustle e10 + NZ access — MESMO
+# main.py e MESMO CrustleAgent v3, provados por hash; o deck difere em
+# duas cartas: -1 Ultra Ball, -1 Jumbo Ice Cream, +2 Colress's Tenacity).
+# Evictou a 55223194 (03/Ago 23:19), a mais antiga POR DATA, como
+# previsto. Free roll: se a variante for pior, a 55224112 (o Crustle
+# puro) segura o rank, que é o do MELHOR agente ativo.
+#
+# ⚠️ As duas ativas seguem sendo o MESMO PILOTO sobre a MESMA base de
+# deck, agora com 2 cartas de diferença — é o A/B de ladder mais limpo
+# que já tivemos, e as duas curvas devem ser lidas LADO A LADO (ambas
+# re-entram em μ0=600, então só a trajetória pós-placement informa).
+# A guarda de eviction continua válida (uma congelar enquanto a outra
+# anda = eviction), mas COVERED_ARCHETYPES ainda descreve o par A+B
+# antigo e vai subestimar os buracos até ser revisto.
+ACTIVE_REFS: Final[tuple[str, ...]] = ("55224112", "55287424")
 
 # arquétipos que a dupla A+B cobre (medidos no gauntlet honesto) — o
 # buraco conhecido (Starmie) tem alerta próprio via ignore-effects.
