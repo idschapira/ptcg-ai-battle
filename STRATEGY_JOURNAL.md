@@ -1548,3 +1548,52 @@ cortá-la ajudaria era razoável e foi REFUTADA por medição.)
 (Guidance já está no cap 4) nem acesso por carta — é a PRIORIDADE DE BUSCA do piloto. O experimento barato
 que sobra é de POLÍTICA, não de deck: subir o valor do Guidance em `_search_value` quando o mill é a
 win-condition viva, e só então re-testar o tutor. Não foi feito aqui (esta tarefa era de deck).
+
+## [06/Ago] Política de busca do mill + ablação dos cortes: os dois NULOS, e a nzaccess CONFIRMADA
+Tudo OFFLINE, produção intocada (`deck.csv`/`main.py` com diff vazio), as 2 vagas do ladder não foram
+tocadas, 347 testes (ver nota de flaky ao fim), 0 exceptions.
+
+**PARTE A — a prioridade de busca.** O gatilho shipado (`_great_tusk_ready`: Great Tusk ATIVO e Land
+Collapse já pagável) foi medido contra 379 turnos reais de Land Collapse: **precisão 91,7% mas recall
+72,6%**, disparando em só 325 decisões — é preciso e TARDE, porque a busca acontece turnos antes do
+ataque. Escada medida: `Tusk ativo (fueled ou não)` 64,4%/**95,8%** · `Tusk em jogo` 47,7%/100% ·
+`sempre` 32,4%/100%. Implementado atrás de flag ORTOGONAL `mill_search` (rungs 82 com o Tusk ativo,
+62 com ele no banco, 40 sem motor — sempre abaixo da Neutralization Zone (100) e do PRIMEIRO Great
+Tusk (85)). `tests/test_mill_search_lockstep.py`: com a flag OFF o v3 é **idêntico decisão-a-decisão**
+em jogo completo, e a flag não é decorativa (rungs conferidas em estados REAIS do motor, não em
+Option sintética).
+
+**E muda quase nada, como o pré-registro previa.** Em estados REAIS fixos (os 7.759 do ladder):
+**26 decisões mudadas = 0,34%, 0,18/jogo, 18% dos jogos** — no piso do que já mediu NULO (0,13/jogo,
+0,6%). A/B: política sozinha sobre a nzaccess **+0,24pp** [−1,69;+2,16] NULO; política + tutor amplo
+(gb2) **−0,52pp** [−2,46;+1,42] NULO. **A resposta à pergunta "com a prioridade certa o tutor amplo
+passa a ganhar?" é NÃO.** As buscas que o deck tem são type-restritas (Poffin/Poké Pad/Fighting Gong
+buscam Pokémon/energia, não Supporter), então a política quase nunca é chamada a escolher o Guidance.
+
+**PARTE B — ablação dos cortes.** Os dois braços saem NULOS: só o +2 Tenacity cortando outra coisa
+(1 Poké Pad + 1 Fighting Gong) **−0,78pp** [−2,77;+1,21]; só os cortes (−Ultra Ball −Jumbo, repostos
+com 2 Basic {F}) **−0,77pp** [−2,78;+1,24]; e o corte alternativo contra a nzaccess **−1,55pp**
+[−3,51;+0,41]. **A decomposição NÃO RESOLVE** — cada braço sai com IC de ±2pp, tão largo quanto o
+efeito inteiro, e a cadeia (−0,78 + 1,55 = +0,77) soma os erros dos dois nulos. Não se conclui "o
+ganho não existe" de um nulo largo.
+
+**E a nzaccess foi CONFIRMADA no processo.** A cadeia inconsistente obrigou a re-medir: dois seeds
+novos deram **+2,00pp** [+0,09;+3,90] e **+2,60pp** [+0,63;+4,56]. Com os dois anteriores são
+**quatro seeds independentes** (+3,02 · +2,57 · +2,00 · +2,60) e o **POOLED sobre 19.195 jogos/braço
+= +2,55pp [+1,57;+3,53]**, com todas as células ≥ 0 exceto Spidops (−0,1). O efeito real é ~+2,5pp,
+um pouco abaixo do +2,80 de 05/Ago — e **o que está no ladder está certo**. Nenhuma versão melhor da
+nzaccess foi encontrada: trocar o corte é −1,55pp (lê-se "não melhor", não "pior").
+
+**VEREDITO: nada a shipar.** A `mill_search` fica no repo atrás da flag (custo zero provado por
+lockstep, escopo provado por medição), pronta caso o deck algum dia ganhe busca ampla de Supporter —
+mas hoje ela move 0,34% das decisões e não se paga. Recomendação de ship: **manter a nzaccess como
+está**, agora com 4 seeds de evidência em vez de 2.
+
+**Regra nova no CLAUDE.md** (seção Método): corte por uso medido NÃO é evidência — frequência
+misranqueia valor (Lisia's Appeal 0,82/jogo custou 4-5pp; Rock Fighting ensinou o mesmo); todo corte
+precisa de gate de ablação. E: decomposição exige mais poder que a comparação.
+
+**Nota de flaky:** `test_attack_profile.TestRoutingOnRealOptions.test_routing_moves_the_chosen_attach_target`
+falhou 1 vez em 4 corridas da suíte inteira e passou 13/13 isolado, nas duas branches. Exercita
+`HeuristicAgent` com `energy_routing` — caminho que esta mudança não toca (a flag é do CrustleAgent,
+default OFF e lockstep-provada). Pré-existente, não introduzida aqui.

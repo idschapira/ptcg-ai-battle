@@ -129,6 +129,16 @@ V3_RACE_FLOOR: Final[int] = 30          # relative race only matters this low
 DESIRED_FIELD_FLOOR: Final[int] = 3     # kernel: minimum pokémon in play
 V3_REBUILD_SCORE: Final[float] = 42.0   # > trainer band (35), < attach (55)
 
+# ---- mill_search (ORTOGONAL a v1..v4) ---- #
+# Rungs do Explorer's Guidance nas buscas quando o motor de mill já está
+# em campo mas o Land Collapse ainda não é pagável (ver _mill_search_value).
+# Ambos ficam ABAIXO da Neutralization Zone (100) e do PRIMEIRO Great Tusk
+# (85) — buscar o Guidance sem motor em campo é desperdício — e ACIMA do
+# que hoje o vence por engano: segundo Great Tusk (45), energia (56) e,
+# no caso do Tusk ativo, a Crustle (78).
+MILL_SEARCH_TUSK_ACTIVE: Final[float] = 82.0    # > Crustle (78)
+MILL_SEARCH_TUSK_IN_PLAY: Final[float] = 62.0   # > energia (56), < Crustle
+
 # ---- v4 (DEFENSIVE) ---- #
 # v4 = v3 plus the two threat-aware rules the counterfactual work seeded
 # and that were never implemented on this branch. Both are answers to the
@@ -165,7 +175,8 @@ BOARD_BUILDERS: Final[frozenset[int]] = frozenset({
 class CrustleAgent(HeuristicAgent):
     """HeuristicAgent + Crustle-stall strategy (see module docstring)."""
 
-    __slots__ = ("_land_collapse", "_mill_attack_ids", "_v2", "_v3", "_v4")
+    __slots__ = ("_land_collapse", "_mill_attack_ids", "_v2", "_v3", "_v4",
+                 "_mill_search")
 
     def __init__(
         self,
@@ -174,6 +185,7 @@ class CrustleAgent(HeuristicAgent):
         index: CardIndex | None = None,
         effects: EffectIndex | None = None,
         variant: str = "v1",
+        mill_search: bool = False,
     ) -> None:
         super().__init__(seed=seed, deck_path=deck_path, index=index,
                          effects=effects)
@@ -185,6 +197,10 @@ class CrustleAgent(HeuristicAgent):
         self._v2 = variant in ("v2", "v3", "v4")  # each keeps the last
         self._v3 = variant in ("v3", "v4")
         self._v4 = variant == "v4"
+        # ORTHOGONAL to v1..v4: only touches _search_value's Guidance rung,
+        # and only upward. Default False keeps every existing variant
+        # decision-identical (tests/test_mill_search_lockstep.py holds it).
+        self._mill_search = mill_search
 
     # ------------------------------------------------------------------ #
     # Signals (all None-safe: unknown -> None / False)
@@ -620,7 +636,10 @@ class CrustleAgent(HeuristicAgent):
         if cid == NEUTRAL_ZONE:
             return 100.0
         if cid == EXPLORERS_GUIDANCE:
-            return 95.0 if self._great_tusk_ready(obs) else 40.0
+            if self._great_tusk_ready(obs):
+                return 95.0
+            return (self._mill_search_value(obs) if self._mill_search
+                    else 40.0)
         if cid == GREAT_TUSK:
             return 85.0 if GREAT_TUSK not in field_ids else 45.0
         if cid == COLRESS and self._zone_needed(obs) and self._opp_any_ex(obs):
@@ -638,6 +657,33 @@ class CrustleAgent(HeuristicAgent):
                                 if self._my_active(obs) else []))
             return 56.0 if needs_fuel else 20.0
         return 10.0
+
+    def _mill_search_value(self, obs: Observation) -> float:
+        """Guidance's search rung when the mill is the LIVE win-condition.
+
+        The shipped rung is binary: 95 when `_great_tusk_ready` (Great Tusk
+        ACTIVE and Land Collapse already payable), else 40 — below a second
+        Great Tusk (45), below energy (56), below Crustle (78). But the
+        SEARCH happens turns before the attack, so the shipped trigger is
+        measured on 379 real Land Collapse turns as precise and LATE:
+
+            gatilho                        dispara  precisão  recall
+            ready (o shipado)                  325     91,7%   72,6%
+            Tusk ATIVO (fueled ou não)         751     64,4%   95,8%
+            Tusk EM JOGO (ativo ou banco)     1360     47,7%  100,0%
+            sempre                            2153     32,4%  100,0%
+
+        so the rungs below follow that ladder — monotone in the measured
+        precision, and never above the things that must come first: the
+        Neutralization Zone (100) and the FIRST Great Tusk (85), because
+        fetching Guidance with no mill engine on board is worthless.
+        """
+        active = self._my_active(obs)
+        if active is not None and active.id == GREAT_TUSK:
+            return MILL_SEARCH_TUSK_ACTIVE      # 64,4% precisão, 95,8% recall
+        if any(p.id == GREAT_TUSK for p in self._my_bench(obs)):
+            return MILL_SEARCH_TUSK_IN_PLAY     # 47,7% precisão, 100% recall
+        return 40.0                             # sem motor: inalterado
 
     def _keep_value(self, obs: Observation, option: Option) -> float:
         """How much a card is worth KEEPING (discards throw the lowest)."""

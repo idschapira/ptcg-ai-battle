@@ -143,6 +143,17 @@ Avaliar impacto de performance antes de adicionar bibliotecas pesadas de RL.
 - **Auditar regra contra o motor, não contra a nossa cópia dela.** Auditar só os decks que já
   passaram por `legality.py` é viés de sobrevivência: use `src/analysis/legality_audit.py --probe`,
   que quebra uma regra de cada vez e pergunta ao engine se ele se importa.
+- **Corte por "uso real medido" NÃO é evidência — frequência de jogada MISRANQUEIA valor.**
+  `Lisia's Appeal` foi escolhida como corte por jogar 0,82×/jogo e cortá-la custou **4-5 pp**
+  (06/Ago, braços `gb4`/`gb2plus`); a `Rock Fighting Energy` já tinha ensinado o mesmo (parecia
+  peso morto e o Great Tusk é o ativo 52% do tempo). Uso baixo pode significar "carta situacional
+  cuja situação decide o jogo". **Todo corte precisa de gate de ablação — medir o deck SEM a carta
+  contra o deck COM ela — antes de virar corte.** Uso medido serve para ORDENAR candidatos, nunca
+  para justificar a remoção.
+- **Decomposição exige mais poder que a comparação.** Quebrar um efeito de ~2,5 pp em duas metades
+  não funciona a 600 jogos/célula: cada braço da ablação sai com IC de ±2 pp, tão largo quanto o
+  efeito inteiro, e a aritmética da cadeia (A−C = (A−B)+(B−C)) soma os erros. Ou se dá N à
+  decomposição, ou se reporta "não resolve" — não se conclui "não existe" de um nulo largo.
 
 ## Git
 - Commits atômicos por task.

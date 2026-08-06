@@ -99,6 +99,10 @@ ARM_KINDS: Final[tuple[str, ...]] = (
     # v4 = v3 + the two DEFENSIVE rules (threat-aware Xerosic, protective
     # attach). New variant: v3 is untouched by construction.
     "crustle-v4", "network",
+    # "-millsearch" = mesma variante + a rung de busca do Guidance quando o
+    # motor de mill esta em campo (ORTOGONAL: so muda _search_value, e so
+    # pra cima). v3 puro fica intacto por construcao.
+    "crustle-v3-millsearch", "crustle-v4-millsearch",
     # runtime search (submission candidate). "-blind" pins the estimator
     # off so the arm degrades to its prior — that is the FLOOR arm, and
     # comparing it against plain crustle-v3 is how the floor gets proven
@@ -424,11 +428,15 @@ def arm_factory(spec: ArmSpec, index: CardIndex, effects: EffectIndex,
     elif spec.kind == "crustle":
         from ..agent_heuristics.crustle_agent import CrustleAgent
         base = lambda s: CrustleAgent(seed=s, index=index, effects=effects)
-    elif spec.kind in ("crustle-v2", "crustle-v3", "crustle-v4"):
+    elif spec.kind in ("crustle-v2", "crustle-v3", "crustle-v4",
+                       "crustle-v3-millsearch", "crustle-v4-millsearch"):
         from ..agent_heuristics.crustle_agent import CrustleAgent
         variant = spec.kind.removeprefix("crustle-")
+        mill_search = variant.endswith("-millsearch")
+        variant = variant.removesuffix("-millsearch")
         base = lambda s: CrustleAgent(seed=s, index=index, effects=effects,
-                                      variant=variant)
+                                      variant=variant,
+                                      mill_search=mill_search)
     elif spec.kind == "network":
         from ..rl_models.network_agent import NetworkAgent
         network = NetworkAgent(index=index, effects=effects,
